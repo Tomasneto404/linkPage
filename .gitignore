@@ -1,3 +1,4 @@
-.claude
-./data/links.db
-./data/admin-tokens
+node_modules/
+data/
+.claude/
+1
