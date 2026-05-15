@@ -244,10 +244,22 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative; /* needed for the favicon shimmer overlay */
 }
 
 .link-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .link-icon .fallback { color: var(--text-muted); opacity: 0.5; }
+
+/* Icon fallback wrapper */
+.icon-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0.45;
+  width: 100%;
+  height: 100%;
+}
 
 .link-body {
   flex: 1;
@@ -338,7 +350,55 @@ header {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(295px, 1fr));
   gap: 10px;
+  transition: opacity 0.1s ease;
 }
+
+/* ── Card entrance animation ──────────────── */
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.card-animate {
+  animation: cardIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Search highlight ─────────────────────── */
+mark { background: none; color: inherit; font-style: normal; }
+mark.hl {
+  background: rgba(0,113,227,0.12);
+  color: var(--primary);
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 600;
+}
+[data-theme="dark"] mark.hl { background: rgba(10,132,255,0.18); }
+
+/* ── Favicon shimmer ──────────────────────── */
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+.favicon-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--surface-3) 0%, var(--surface-2) 50%, var(--surface-3) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* ── Custom scrollbar ─────────────────────── */
+::-webkit-scrollbar         { width: 4px; height: 4px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background: var(--border-strong); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+
+/* ── Empty state ──────────────────────────── */
+.empty-state { transition: opacity 0.1s ease; }
+.empty-icon  { opacity: 0.22; margin-bottom: 4px; }
+.empty-title { font-size: 1rem; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+.empty-sub   { font-size: 0.875rem; color: var(--text-muted); margin-top: 4px; }
+.empty-cta   { margin-top: 16px; }
 
 /* ── Empty state ─────────────────────────── */
 .empty-state {
@@ -571,3 +631,152 @@ select option { background: var(--surface); }
 
 /* ── Utility ─────────────────────────────── */
 .hidden { display: none !important; }
+
+/* ── Gate (public password + admin token) ── */
+.gate {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+  z-index: 200;
+}
+
+.gate-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 44px 40px;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.gate-icon {
+  width: 62px;
+  height: 62px;
+  border-radius: 16px;
+  background: rgba(0,113,227,0.1);
+  border: 1px solid rgba(0,113,227,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+
+[data-theme="dark"] .gate-icon {
+  background: rgba(10,132,255,0.12);
+  border-color: rgba(10,132,255,0.2);
+}
+
+.gate-card h1      { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.03em; }
+.gate-card > p     { color: var(--text-muted); font-size: 0.9375rem; margin-bottom: 8px; }
+.gate-card form    { width: 100%; display: flex; flex-direction: column; gap: 10px; padding: 0; }
+.gate-input-wrap   { position: relative; display: flex; }
+.gate-submit       { width: 100%; justify-content: center; padding: 10px; font-size: 0.9375rem; }
+.gate-back         { margin-top: 6px; font-size: 0.8125rem; color: var(--text-muted); text-decoration: none; transition: color var(--transition); }
+.gate-back:hover   { color: var(--primary); }
+
+/* ── Form warning (non-blocking, yellow) ───── */
+.form-warning {
+  background: rgba(255,149,0,0.08);
+  border: 1px solid rgba(255,149,0,0.25);
+  color: #ff9500;
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  font-size: 0.8125rem;
+}
+[data-theme="dark"] .form-warning { color: #ffb340; }
+
+/* ── Broken link badge ───────────────────── */
+.broken-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--danger);
+  background: rgba(255,59,48,0.08);
+  border: 1px solid rgba(255,59,48,0.2);
+  border-radius: 980px;
+  padding: 1px 7px;
+}
+
+/* ── Easter egg ───────────────────────────── */
+.easteregg-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: fadeIn 0.2s ease;
+}
+
+.easteregg-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 52px 56px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  max-width: 360px;
+  width: calc(100% - 48px);
+  animation: slideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: default;
+}
+
+.easteregg-flag     { font-size: 3.25rem; line-height: 1; margin-bottom: 20px; display: block; }
+.easteregg-by       { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 8px; }
+.easteregg-name     { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.04em; color: var(--text); margin-bottom: 4px; }
+.easteregg-location { font-size: 0.9375rem; color: var(--text-muted); }
+.easteregg-divider  { width: 36px; height: 2px; background: var(--primary); border-radius: 2px; margin: 22px auto; }
+.easteregg-quote    { font-size: 1.0625rem; font-style: italic; font-weight: 500; color: var(--primary); letter-spacing: -0.01em; }
+.easteregg-github {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 20px;
+  padding: 8px 16px;
+  border-radius: 980px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all var(--transition);
+}
+.easteregg-github:hover { background: var(--surface-2); border-color: var(--border-strong); color: var(--text); }
+.easteregg-dismiss  { margin-top: 20px; font-size: 0.75rem; color: var(--text-muted); }
+
+/* ── Drag and drop ───────────────────────── */
+.link-card[draggable="true"] { cursor: grab; }
+.link-card.dragging          { opacity: 0.4; }
+.link-card.drag-over {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(0,113,227,0.25);
+}
+[data-theme="dark"] .link-card.drag-over { box-shadow: 0 0 0 2px rgba(10,132,255,0.3); }
+
+.drag-handle {
+  color: var(--text-muted);
+  opacity: 0;
+  cursor: grab;
+  padding: 2px;
+  flex-shrink: 0;
+  transition: opacity var(--transition);
+}
+.link-card:hover .drag-handle { opacity: 0.5; }

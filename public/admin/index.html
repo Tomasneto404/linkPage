@@ -99,6 +99,24 @@
                  placeholder="Search…" autocomplete="off" />
         </div>
 
+        <!-- Sort -->
+        <select class="sort-select" id="sortSelect" aria-label="Sort links">
+          <option value="position">Custom order</option>
+          <option value="name-asc">Name A–Z</option>
+          <option value="name-desc">Name Z–A</option>
+          <option value="date-new">Newest first</option>
+          <option value="date-old">Oldest first</option>
+          <option value="clicks">Most clicked</option>
+        </select>
+
+        <!-- Import / Export -->
+        <input type="file" id="importFileInput" accept=".json" hidden />
+        <button class="btn btn-ghost btn-sm" id="importBtn" title="Import links from JSON">Import</button>
+        <button class="btn btn-ghost btn-sm" id="exportBtn" title="Export links as JSON">Export</button>
+
+        <!-- Bulk select toggle -->
+        <button class="btn btn-ghost btn-sm" id="bulkSelectBtn">Select</button>
+
         <!-- Add link -->
         <button class="btn btn-primary" id="openAddLinkBtn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -216,15 +234,27 @@
       </div>
     </aside>
 
+    <!-- Bulk action bar — visible only when links are selected -->
+    <div class="bulk-bar hidden" id="bulkBar">
+      <span id="bulkCount">0 selected</span>
+      <div style="display:flex; gap:8px; align-items:center">
+        <select id="bulkGroupSelect" class="bulk-group-select">
+          <option value="">Move to group…</option>
+          <option value="none">Remove from group</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" id="bulkMoveBtn">Move</button>
+        <button class="btn btn-danger btn-sm" id="bulkDeleteBtn">Delete Selected</button>
+        <button class="btn btn-ghost btn-sm" id="bulkCancelBtn">Cancel</button>
+      </div>
+    </div>
+
     <!-- Main content -->
     <main class="main-content" id="mainContent">
       <div class="empty-state hidden" id="emptyState">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-        </svg>
-        <p id="emptyMsg">No links yet. Add your first one!</p>
+        <div class="empty-icon" id="emptyIcon"></div>
+        <p class="empty-title" id="emptyMsg"></p>
+        <p class="empty-sub hidden" id="emptySubtext"></p>
+        <button class="btn btn-primary empty-cta hidden" id="emptyCta"></button>
       </div>
       <div class="links-grid" id="linksGrid"></div>
     </main>
@@ -308,14 +338,27 @@
       </div>
 
       <div class="settings-body">
+
+        <!-- ── Branding ─────────────────────────── -->
         <div>
           <div class="settings-section-title">Branding</div>
 
-          <!-- Light mode logo -->
           <div class="settings-row">
             <div>
+              <div class="settings-row-label">Site Title</div>
+              <div class="settings-row-desc">Shown in the browser tab and header fallback</div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center">
+              <input type="text" id="siteTitleInput" placeholder="LinkPage"
+                     style="width:140px; padding:6px 10px; font-size:0.875rem" />
+              <button class="btn btn-ghost btn-sm" id="saveSiteTitleBtn">Save</button>
+            </div>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
               <div class="settings-row-label">Light Mode Logo</div>
-              <div class="settings-row-desc">Shown when the app is in light mode</div>
+              <div class="settings-row-desc">Shown only in light mode</div>
             </div>
             <div class="logo-control">
               <img id="lightLogoPreview" class="logo-thumb hidden" alt="Light logo" />
@@ -326,11 +369,10 @@
             </div>
           </div>
 
-          <!-- Dark mode logo -->
-          <div class="settings-row">
+          <div class="settings-row" style="margin-top:8px">
             <div>
               <div class="settings-row-label">Dark Mode Logo</div>
-              <div class="settings-row-desc">Shown when the app is in dark mode</div>
+              <div class="settings-row-desc">Shown only in dark mode</div>
             </div>
             <div class="logo-control">
               <img id="darkLogoPreview" class="logo-thumb hidden" alt="Dark logo" />
@@ -340,11 +382,41 @@
               <button class="btn btn-ghost-danger btn-sm hidden" id="removeDarkLogoBtn">Remove</button>
             </div>
           </div>
-
-          <p class="settings-hint">
-            If only one logo is uploaded, it will be shown in both light and dark mode.
-          </p>
         </div>
+
+        <!-- ── Public Access ─────────────────────── -->
+        <div>
+          <div class="settings-section-title">Public Access</div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Public Password</div>
+              <div class="settings-row-desc" id="publicPasswordDesc">Public page is open to anyone</div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center">
+              <input type="password" id="publicPasswordInput" placeholder="Set password…"
+                     style="width:140px; padding:6px 10px; font-size:0.875rem" autocomplete="new-password" />
+              <button class="btn btn-ghost btn-sm" id="setPublicPasswordBtn">Set</button>
+              <button class="btn btn-ghost-danger btn-sm hidden" id="removePublicPasswordBtn">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Security ──────────────────────────── -->
+        <div>
+          <div class="settings-section-title">Security</div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Admin Token</div>
+              <div class="settings-row-desc">Generates a new token — your session updates automatically</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="rotateTokenBtn">Rotate Token</button>
+          </div>
+
+          <div id="newTokenDisplay" class="new-token-display hidden"></div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -384,11 +456,11 @@
           <label for="inputUrl">URL <span class="req">*</span></label>
           <div class="url-input-wrap">
             <input type="url" id="inputUrl" placeholder="https://example.com" required />
-            <!-- Favicon preview appears here as the user types the URL -->
             <div class="favicon-preview" id="faviconPreview">
               <img id="faviconImg" alt="Site favicon" />
             </div>
           </div>
+          <div id="urlDuplicateWarning" class="form-warning hidden"></div>
         </div>
 
         <div class="form-group">
@@ -505,7 +577,24 @@
     </div>
   </div>
 
+  <!-- ════════════════════════════════════════════════
+       GENERIC CONFIRM DIALOG
+       ════════════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="confirmOverlay">
+    <div class="modal modal-sm">
+      <div class="modal-header"><h2 id="confirmTitle">Confirm</h2></div>
+      <p class="confirm-msg" id="confirmBody"></p>
+      <div class="form-actions" style="padding: 6px 22px 22px">
+        <button class="btn btn-ghost" id="confirmCancelBtn">Cancel</button>
+        <button class="btn btn-danger" id="confirmOkBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /#adminWrap -->
+
+<!-- Toast notifications -->
+<div class="toast-container" id="toastContainer"></div>
 
 <script src="admin.js"></script>
 </body>

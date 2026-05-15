@@ -1,264 +1,219 @@
 /**
  * Public page — read-only view of links for end users.
  *
- * Responsibilities:
  *  - Theme (light/dark) management with OS preference fallback
- *  - Loading and displaying logos based on the active theme
- *  - Fetching and rendering links and groups
- *  - Group tab filtering and live search
+ *  - Logo loading based on active theme
+ *  - Public password gate
+ *  - Dynamic page title from site_title setting
+ *  - Group tab filtering and live search with text highlighting
+ *  - Card entrance animations and grid transition
+ *  - Favicon shimmer while icons load
+ *  - Context-aware empty states
  */
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
-// Logos for each theme — loaded from the server on startup
 let logoLightUrl = null;
 let logoDarkUrl  = null;
 
-/** Returns the theme the user last chose, or the OS preference, or 'light'. */
 function getInitialTheme() {
-  const savedTheme  = localStorage.getItem('linkpage_theme');
-  if (savedTheme) return savedTheme;
-
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  return prefersDark ? 'dark' : 'light';
+  const saved = localStorage.getItem('linkpage_theme');
+  if (saved) return saved;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-/**
- * Applies a theme by setting the data-theme attribute on <html>.
- * CSS variables in style.css react to this attribute.
- * Also updates the toggle icon and swaps the header logo.
- *
- * @param {string}  theme - 'light' or 'dark'
- * @param {boolean} save  - Whether to persist the choice to localStorage
- */
 function applyTheme(theme, save = true) {
   document.documentElement.setAttribute('data-theme', theme);
-
-  // Show the moon icon in light mode (click → go dark)
-  // Show the sun icon in dark mode (click → go light)
   document.getElementById('iconMoon').classList.toggle('hidden', theme === 'dark');
   document.getElementById('iconSun').classList.toggle('hidden', theme === 'light');
-
-  // The correct logo may change when the theme changes
   updateHeaderLogo();
-
   if (save) localStorage.setItem('linkpage_theme', theme);
 }
 
-function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-  const newTheme     = currentTheme === 'light' ? 'dark' : 'light';
-  applyTheme(newTheme);
-}
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme') || 'light';
+  applyTheme(cur === 'light' ? 'dark' : 'light');
+});
 
-document.getElementById('themeToggle').addEventListener('click', toggleTheme);
-
-// Apply theme immediately so the page never flashes the wrong colors
 applyTheme(getInitialTheme(), false);
 
 // ─── Branding ─────────────────────────────────────────────────────────────────
 
-/** Fetches logo URLs from the server and updates the header. */
-async function loadLogos() {
-  const settings  = await fetch('/api/settings').then(r => r.json());
-  logoLightUrl    = settings.logo_light || null;
-  logoDarkUrl     = settings.logo_dark  || null;
-  updateHeaderLogo();
-}
-
-/**
- * Returns the logo URL for the current theme, or null if none was uploaded.
- * Light mode → light logo only. Dark mode → dark logo only.
- * No cross-mode fallback — a missing logo shows "LinkPage" text instead.
- */
 function getLogoForCurrentTheme() {
-  const theme = document.documentElement.getAttribute('data-theme') || 'light';
-  return theme === 'dark' ? logoDarkUrl : logoLightUrl;
+  return (document.documentElement.getAttribute('data-theme') || 'light') === 'dark'
+    ? logoDarkUrl : logoLightUrl;
 }
 
-/** Shows the logo image or the "LinkPage" text fallback in the header. */
 function updateHeaderLogo() {
-  const logoUrl  = getLogoForCurrentTheme();
-  const logoImage = document.getElementById('brandImg');
-  const logoText  = document.getElementById('brandText');
+  const url  = getLogoForCurrentTheme();
+  const img  = document.getElementById('brandImg');
+  const text = document.getElementById('brandText');
+  if (url) { img.src = url; img.classList.remove('hidden'); text.classList.add('hidden'); }
+  else      { img.classList.add('hidden'); text.classList.remove('hidden'); }
+}
 
-  if (logoUrl) {
-    logoImage.src = logoUrl;
-    logoImage.classList.remove('hidden');
-    logoText.classList.add('hidden');
-  } else {
-    logoImage.classList.add('hidden');
-    logoText.classList.remove('hidden');
+// ─── Public password ──────────────────────────────────────────────────────────
+
+let publicPassword = null;
+
+async function verifyPublicPassword(pw) {
+  const r = await fetch('/api/auth/verify-public', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw }),
+  });
+  return (await r.json()).valid === true;
+}
+
+function showPublicGate()  { document.getElementById('publicGate').classList.remove('hidden'); }
+function hidePublicGate()  { document.getElementById('publicGate').classList.add('hidden'); }
+
+document.getElementById('publicGateForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const pw  = document.getElementById('publicPasswordInput').value;
+  const btn = e.target.querySelector('button[type="submit"]');
+  const err = document.getElementById('publicGateError');
+  err.classList.add('hidden');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    if (await verifyPublicPassword(pw)) {
+      publicPassword = pw;
+      localStorage.setItem('linkpage_public_password', pw);
+      hidePublicGate(); await loadData();
+    } else {
+      err.classList.remove('hidden');
+      document.getElementById('publicPasswordInput').focus();
+    }
+  } catch {
+    err.textContent = 'Could not reach the server.'; err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'View Links';
   }
+});
+
+async function authorisedFetch(url) {
+  const headers = {};
+  if (publicPassword) headers['X-Public-Password'] = publicPassword;
+  const r = await fetch(url, { headers });
+  if (r.status === 401) {
+    publicPassword = null; localStorage.removeItem('linkpage_public_password');
+    showPublicGate(); throw new Error('Password required');
+  }
+  return r.json();
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Escapes HTML special characters in a string.
- * Always call this before inserting user-provided text into the DOM
- * to prevent cross-site scripting (XSS) attacks.
- */
 function escapeHtml(text) {
-  const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' };
-  return String(text ?? '').replace(/[&<>"']/g, char => entities[char]);
+  const e = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' };
+  return String(text ?? '').replace(/[&<>"']/g, c => e[c]);
 }
 
-/**
- * Returns a Google Favicon URL for a given site URL.
- * Returns null if the URL is invalid.
- */
+function highlightText(rawText, query) {
+  const text = escapeHtml(rawText ?? '');
+  if (!query) return text;
+  const safeQ = escapeHtml(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`(${safeQ})`, 'gi'), '<mark class="hl">$1</mark>');
+}
+
 function getFaviconUrl(siteUrl) {
-  try {
-    const parsed = new URL(siteUrl);
-    return `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=64`;
-  } catch {
-    return null;
-  }
+  try { return `https://www.google.com/s2/favicons?domain=${new URL(siteUrl).hostname}&sz=64`; }
+  catch { return null; }
 }
 
-/** Extracts the bare domain (e.g. "github.com") from a full URL for display. */
 function getDomainName(siteUrl) {
-  try {
-    const parsed = new URL(siteUrl);
-    return parsed.hostname.replace(/^www\./, '');
-  } catch {
-    return siteUrl;
-  }
+  try { return new URL(siteUrl).hostname.replace(/^www\./, ''); }
+  catch { return siteUrl; }
 }
 
-/** Formats an ISO date string as a short readable date, e.g. "May 14, 2026". */
-function formatDate(isoString) {
-  return new Date(isoString).toLocaleDateString(undefined, {
-    month: 'short',
-    day:   'numeric',
-    year:  'numeric',
-  });
-}
-
-// SVG shown when a favicon or custom icon fails to load
-const FALLBACK_ICON_SVG = `
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-       stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-  </svg>`;
+const FALLBACK_ICON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+</svg>`;
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-let links        = [];   // All links from the server
-let groups       = [];   // All groups from the server
-let activeGroup  = 'all'; // 'all', or a numeric group ID
-let searchQuery  = '';   // Current search text
+let links       = [];
+let groups      = [];
+let activeGroup = 'all';
+let searchQuery = '';
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-/** Rebuilds the group tab bar based on the current groups and active selection. */
 function renderTabs() {
-  const tabsContainer = document.getElementById('tabs');
-
-  const groupTabsHtml = groups.map(group => {
-    const linkCount  = links.filter(link => link.group_id === group.id).length;
-    const isActive   = activeGroup === group.id;
-
-    // In active tabs the dot is white; in inactive tabs it uses the group's color
-    const dotColor = isActive ? '#fff' : group.color;
-
+  const container = document.getElementById('tabs');
+  const groupsHtml = groups.map(g => {
+    const count  = links.filter(l => l.group_id === g.id).length;
+    const active = activeGroup === g.id;
     return `
-      <button class="tab${isActive ? ' active' : ''}" data-group="${group.id}">
-        <span class="tab-dot" style="background:${escapeHtml(dotColor)}"></span>
-        ${escapeHtml(group.name)}
-        <span class="tab-count">${linkCount}</span>
+      <button class="tab${active ? ' active' : ''}" data-group="${g.id}">
+        <span class="tab-dot" style="background:${escapeHtml(active ? '#fff' : g.color)}"></span>
+        ${escapeHtml(g.name)}
+        <span class="tab-count">${count}</span>
       </button>`;
   }).join('');
 
-  tabsContainer.innerHTML = `
+  container.innerHTML = `
     <button class="tab${activeGroup === 'all' ? ' active' : ''}" data-group="all">
       All <span class="tab-count">${links.length}</span>
-    </button>
-    ${groupTabsHtml}`;
+    </button>${groupsHtml}`;
 
-  // Attach click handlers after injecting the HTML
-  tabsContainer.querySelectorAll('.tab').forEach(button => {
-    button.addEventListener('click', () => {
-      const rawValue  = button.dataset.group;
-      activeGroup     = rawValue === 'all' ? 'all' : Number(rawValue);
-      renderTabs();
-      renderLinks();
+  container.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeGroup = btn.dataset.group === 'all' ? 'all' : Number(btn.dataset.group);
+      renderTabs(); renderLinks(true);
     });
   });
 }
 
 // ─── Link cards ───────────────────────────────────────────────────────────────
 
-/** Returns the links that match the current group tab and search query. */
 function getFilteredLinks() {
-  let filtered = links;
-
-  if (activeGroup !== 'all') {
-    filtered = filtered.filter(link => link.group_id === activeGroup);
-  }
+  let filtered = activeGroup !== 'all'
+    ? links.filter(l => l.group_id === activeGroup)
+    : links;
 
   if (searchQuery) {
-    const query = searchQuery.toLowerCase();
-    filtered = filtered.filter(link =>
-      link.name.toLowerCase().includes(query) ||
-      link.url.toLowerCase().includes(query)  ||
-      (link.description || '').toLowerCase().includes(query)
+    const q = searchQuery.toLowerCase();
+    filtered = filtered.filter(l =>
+      l.name.toLowerCase().includes(q) ||
+      l.url.toLowerCase().includes(q)  ||
+      (l.description || '').toLowerCase().includes(q)
     );
   }
-
   return filtered;
 }
 
-/** Builds the icon <img> HTML, with a fallback for failed loads. */
 function buildIconHtml(iconUrl) {
-  if (!iconUrl) return FALLBACK_ICON_SVG;
-
-  // If the image fails (e.g. no favicon found), hide it and show the SVG fallback
+  if (!iconUrl) return `<span class="icon-fallback">${FALLBACK_ICON_SVG}</span>`;
   return `
+    <span class="favicon-shimmer"></span>
     <img src="${escapeHtml(iconUrl)}" alt="" loading="lazy"
-         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" />
-    <span style="display:none">${FALLBACK_ICON_SVG}</span>`;
+         onload="this.previousElementSibling.remove()"
+         onerror="this.previousElementSibling.remove(); this.style.display='none'; this.nextElementSibling.style.display='flex'" />
+    <span class="icon-fallback" style="display:none">${FALLBACK_ICON_SVG}</span>`;
 }
 
-/** Builds the colored group badge HTML for a link that belongs to a group. */
-function buildGroupBadgeHtml(link) {
-  const badgeStyle = `background:${link.group_color}18; color:${link.group_color}`;
-  return `
-    <div class="link-footer">
-      <span class="group-badge" style="${badgeStyle}">${escapeHtml(link.group_name)}</span>
-    </div>`;
-}
-
-/**
- * Builds a fully clickable link card element.
- * The entire card is an <a> tag so the whole surface opens the link.
- */
 function buildLinkCard(link) {
-  const card = document.createElement('a');
-  card.className  = 'link-card';
-  card.target     = '_blank';
-  card.rel        = 'noopener noreferrer';
+  const card    = document.createElement('a');
+  card.className = 'link-card';
+  card.target    = '_blank';
+  card.rel       = 'noopener noreferrer';
+  card.href      = `/r/${link.id}`;
 
-  // Route through the server's redirect endpoint so clicks are counted.
-  // The server validates the URL before redirecting, so this is safe.
-  card.href = `/r/${link.id}`;
-
-  const iconUrl         = link.image_path || getFaviconUrl(link.url);
-  const iconHtml        = buildIconHtml(iconUrl);
-  const badgeHtml       = link.group_name ? buildGroupBadgeHtml(link) : '';
-  const descriptionHtml = link.description
-    ? `<p class="link-desc">${escapeHtml(link.description)}</p>`
-    : '';
+  const iconUrl  = link.image_path || link.favicon_path || getFaviconUrl(link.url);
+  const q        = searchQuery;
+  const descHtml = link.description
+    ? `<p class="link-desc">${highlightText(link.description, q)}</p>` : '';
+  const badgeHtml = link.group_name
+    ? `<div class="link-footer"><span class="group-badge" style="background:${link.group_color}18; color:${link.group_color}">${escapeHtml(link.group_name)}</span></div>` : '';
 
   card.innerHTML = `
-    <div class="link-icon">${iconHtml}</div>
+    <div class="link-icon">${buildIconHtml(iconUrl)}</div>
     <div class="link-body">
-      <div class="link-name">${escapeHtml(link.name)}</div>
-      <div class="link-domain">${escapeHtml(getDomainName(link.url))}</div>
-      ${descriptionHtml}
-      ${badgeHtml}
+      <div class="link-name">${highlightText(link.name, q)}</div>
+      <div class="link-domain">${highlightText(getDomainName(link.url), q)}</div>
+      ${descHtml}${badgeHtml}
     </div>
     <svg class="link-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none"
          stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
@@ -269,49 +224,154 @@ function buildLinkCard(link) {
   return card;
 }
 
-/** Clears the grid and renders all links that match the current filters. */
-function renderLinks() {
-  const grid           = document.getElementById('linksGrid');
-  const emptyState     = document.getElementById('emptyState');
-  const emptyMessage   = document.getElementById('emptyMsg');
-  const filteredLinks  = getFilteredLinks();
+// ─── Empty state ──────────────────────────────────────────────────────────────
 
-  grid.innerHTML = '';
+const EMPTY_ICONS = {
+  links:  `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+  search: `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8.5" y1="8.5" x2="13.5" y2="13.5" stroke-width="1.8"/><line x1="13.5" y1="8.5" x2="8.5" y2="13.5" stroke-width="1.8"/></svg>`,
+  folder: `<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+};
 
-  if (filteredLinks.length === 0) {
-    emptyState.classList.remove('hidden');
-    emptyMessage.textContent = searchQuery
-      ? `No results for "${searchQuery}"`
-      : 'No links here yet.';
-    return;
+function updateEmptyState() {
+  document.getElementById('emptyIcon').innerHTML =
+    searchQuery ? EMPTY_ICONS.search : (activeGroup !== 'all' ? EMPTY_ICONS.folder : EMPTY_ICONS.links);
+
+  const sub = document.getElementById('emptySubtext');
+  if (searchQuery) {
+    document.getElementById('emptyMsg').textContent = `No results for "${searchQuery}"`;
+    sub.textContent = 'Try a different search term'; sub.classList.remove('hidden');
+  } else if (activeGroup !== 'all') {
+    document.getElementById('emptyMsg').textContent = 'No links in this group';
+    sub.classList.add('hidden');
+  } else {
+    document.getElementById('emptyMsg').textContent = 'No links here yet';
+    sub.classList.add('hidden');
+  }
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+
+let renderTransitionTimer;
+
+function renderLinks(transition = false) {
+  const grid       = document.getElementById('linksGrid');
+  const emptyState = document.getElementById('emptyState');
+
+  function doRender() {
+    const filtered = getFilteredLinks();
+    grid.innerHTML = '';
+
+    if (filtered.length === 0) {
+      emptyState.classList.remove('hidden');
+      updateEmptyState();
+    } else {
+      emptyState.classList.add('hidden');
+      filtered.forEach((link, i) => {
+        const card = buildLinkCard(link);
+        card.style.animationDelay = `${Math.min(i * 22, 280)}ms`;
+        card.classList.add('card-animate');
+        grid.appendChild(card);
+      });
+    }
   }
 
-  emptyState.classList.add('hidden');
-  filteredLinks.forEach(link => grid.appendChild(buildLinkCard(link)));
+  if (transition) {
+    grid.style.opacity       = '0';
+    emptyState.style.opacity = '0';
+    clearTimeout(renderTransitionTimer);
+    renderTransitionTimer = setTimeout(() => {
+      doRender();
+      grid.style.opacity       = '';
+      emptyState.style.opacity = '';
+    }, 100);
+  } else {
+    doRender();
+  }
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
-document.getElementById('searchInput').addEventListener('input', event => {
-  searchQuery = event.target.value.trim();
-  renderLinks();
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchQuery = e.target.value.trim(); renderLinks();
 });
 
-// ─── Initialisation ───────────────────────────────────────────────────────────
+// ─── Data loading ─────────────────────────────────────────────────────────────
+
+async function loadData() {
+  const [fl, fg] = await Promise.all([
+    authorisedFetch('/api/links'),
+    authorisedFetch('/api/groups'),
+  ]);
+  links = fl; groups = fg;
+  renderTabs(); renderLinks();
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
 
 async function init() {
-  await loadLogos();
+  const settings = await fetch('/api/settings').then(r => r.json());
 
-  const [fetchedLinks, fetchedGroups] = await Promise.all([
-    fetch('/api/links').then(r  => r.json()),
-    fetch('/api/groups').then(r => r.json()),
-  ]);
+  if (settings.site_title) document.title = settings.site_title;
+  logoLightUrl = settings.logo_light || null;
+  logoDarkUrl  = settings.logo_dark  || null;
+  updateHeaderLogo();
 
-  links  = fetchedLinks;
-  groups = fetchedGroups;
+  if (settings.public_password_required) {
+    const stored = localStorage.getItem('linkpage_public_password');
+    if (stored && await verifyPublicPassword(stored)) {
+      publicPassword = stored;
+    } else {
+      localStorage.removeItem('linkpage_public_password');
+      showPublicGate(); return;
+    }
+  }
 
-  renderTabs();
-  renderLinks();
+  await loadData();
 }
 
 init();
+
+// ─── Easter egg ───────────────────────────────────────────────────────────────
+
+console.log(
+  '%c Engineered by Tomás Neto in Portugal \n%c "Não tentes. Faz!" ',
+  'background:#0071e3; color:#fff; padding:6px 14px; border-radius:6px 6px 0 0; font-size:13px; font-weight:700; font-family:-apple-system,sans-serif;',
+  'background:#1d1d1f; color:#f5f5f7; padding:4px 14px 8px; border-radius:0 0 6px 6px; font-size:12px; font-style:italic; font-family:-apple-system,sans-serif;'
+);
+
+// Konami code: ↑ ↑ ↓ ↓ ← → ← → B A
+const KONAMI_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let konamiIndex = 0;
+
+document.addEventListener('keydown', e => {
+  konamiIndex = (e.key === KONAMI_SEQUENCE[konamiIndex]) ? konamiIndex + 1 : (e.key === KONAMI_SEQUENCE[0] ? 1 : 0);
+  if (konamiIndex === KONAMI_SEQUENCE.length) { konamiIndex = 0; showEasterEgg(); }
+});
+
+function showEasterEgg() {
+  if (document.getElementById('easterEggOverlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id        = 'easterEggOverlay';
+  overlay.className = 'easteregg-overlay';
+  overlay.innerHTML = `
+    <div class="easteregg-card" onclick="event.stopPropagation()">
+      <span class="easteregg-flag">🇵🇹</span>
+      <p class="easteregg-by">Engineered by</p>
+      <h2 class="easteregg-name">Tomás Neto</h2>
+      <p class="easteregg-location">in Portugal</p>
+      <div class="easteregg-divider"></div>
+      <p class="easteregg-quote">"Não tentes. Faz!"</p>
+      <a class="easteregg-github" href="https://github.com/Tomasneto404" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        github.com/Tomasneto404
+      </a>
+      <p class="easteregg-dismiss">Click anywhere to close</p>
+    </div>`;
+
+  overlay.addEventListener('click', () => overlay.remove());
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onEsc); }
+  });
+  document.body.appendChild(overlay);
+}

@@ -27,17 +27,22 @@ db.exec(`
     id         INTEGER  PRIMARY KEY AUTOINCREMENT,
     name       TEXT     NOT NULL,
     color      TEXT     NOT NULL DEFAULT '#0071e3',
+    position   INTEGER  DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS links (
-    id          INTEGER  PRIMARY KEY AUTOINCREMENT,
-    name        TEXT     NOT NULL,
-    url         TEXT     NOT NULL,
-    description TEXT,
-    image_path  TEXT,
-    group_id    INTEGER,
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    id              INTEGER  PRIMARY KEY AUTOINCREMENT,
+    name            TEXT     NOT NULL,
+    url             TEXT     NOT NULL,
+    description     TEXT,
+    image_path      TEXT,
+    favicon_path    TEXT,
+    group_id        INTEGER,
+    position        INTEGER  DEFAULT 0,
+    is_broken       INTEGER  DEFAULT 0,
+    last_checked_at DATETIME,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS link_clicks (
@@ -49,11 +54,20 @@ db.exec(`
   );
 `);
 
-// Migration: older databases won't have group_id yet.
-const linkColumns = db.prepare('PRAGMA table_info(links)').all().map(col => col.name);
-if (!linkColumns.includes('group_id')) {
-  db.exec('ALTER TABLE links ADD COLUMN group_id INTEGER');
+// Add new columns to existing databases without breaking them.
+function addColumnIfMissing(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+  if (!columns.includes(column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
+
+addColumnIfMissing('links',  'group_id',        'INTEGER');
+addColumnIfMissing('links',  'position',        'INTEGER DEFAULT 0');
+addColumnIfMissing('links',  'favicon_path',    'TEXT');
+addColumnIfMissing('links',  'is_broken',       'INTEGER DEFAULT 0');
+addColumnIfMissing('links',  'last_checked_at', 'DATETIME');
+addColumnIfMissing('groups', 'position',        'INTEGER DEFAULT 0');
 
 // Reusable SQL fragment that joins links with their group data.
 // Every link query uses this so callers always get group name and color.
@@ -86,9 +100,9 @@ function deleteSetting(key) {
 
 // ─── Links ────────────────────────────────────────────────────────────────────
 
-/** Returns every link, newest first, with its group data joined in. */
+/** Returns every link ordered by position, with its group data joined in. */
 function getAllLinks() {
-  return db.prepare(`${LINKS_WITH_GROUP_SQL} ORDER BY links.created_at DESC`).all();
+  return db.prepare(`${LINKS_WITH_GROUP_SQL} ORDER BY links.position ASC, links.created_at DESC`).all();
 }
 
 /** Returns a single link by ID, with group data joined in. */
@@ -96,14 +110,26 @@ function getLinkById(id) {
   return db.prepare(`${LINKS_WITH_GROUP_SQL} WHERE links.id = ?`).get(id);
 }
 
-/** Inserts a new link and returns the SQLite run result (use .lastInsertRowid). */
+/**
+ * Returns the first link that has the same URL, or null if none exists.
+ * Pass excludeId to skip the current link when editing.
+ */
+function checkDuplicateUrl(url, excludeId = null) {
+  if (excludeId) {
+    return db.prepare('SELECT id, name FROM links WHERE url = ? AND id != ?').get(url, excludeId);
+  }
+  return db.prepare('SELECT id, name FROM links WHERE url = ?').get(url);
+}
+
+/** Inserts a new link placed at the end of the position list. */
 function createLink({ name, url, description, imagePath, groupId }) {
+  const maxPos = db.prepare('SELECT COALESCE(MAX(position), -1) AS max FROM links').get().max;
   return db
     .prepare(`
-      INSERT INTO links (name, url, description, image_path, group_id)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO links (name, url, description, image_path, group_id, position)
+      VALUES (?, ?, ?, ?, ?, ?)
     `)
-    .run(name, url, description ?? null, imagePath ?? null, groupId ?? null);
+    .run(name, url, description ?? null, imagePath ?? null, groupId ?? null, maxPos + 1);
 }
 
 /**
@@ -138,16 +164,38 @@ function deleteLink(id) {
   return db.prepare('DELETE FROM links WHERE id = ?').run(id);
 }
 
+/** Stores the path of the server-cached favicon for a link. */
+function updateLinkFavicon(id, faviconPath) {
+  db.prepare('UPDATE links SET favicon_path = ? WHERE id = ?').run(faviconPath, id);
+}
+
+/** Records the result of a health check for a link. */
+function updateLinkBrokenStatus(id, isBroken) {
+  db.prepare('UPDATE links SET is_broken = ?, last_checked_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .run(isBroken ? 1 : 0, id);
+}
+
+/** Returns id and url for every link — used by the health checker. */
+function getAllLinksForHealthCheck() {
+  return db.prepare('SELECT id, url FROM links').all();
+}
+
+/** Updates the position of all links at once from a full ordered ID array. */
+function reorderLinks(orderedIds) {
+  const update = db.prepare('UPDATE links SET position = ? WHERE id = ?');
+  orderedIds.forEach((id, index) => update.run(index, id));
+}
+
 // ─── Groups ───────────────────────────────────────────────────────────────────
 
-/** Returns all groups with a link_count field showing how many links belong to each. */
+/** Returns all groups ordered by position, with a link_count field. */
 function getAllGroups() {
   return db.prepare(`
     SELECT groups.*, COUNT(links.id) AS link_count
     FROM groups
     LEFT JOIN links ON links.group_id = groups.id
     GROUP BY groups.id
-    ORDER BY groups.created_at ASC
+    ORDER BY groups.position ASC, groups.created_at ASC
   `).all();
 }
 
@@ -156,11 +204,12 @@ function getGroupById(id) {
   return db.prepare('SELECT * FROM groups WHERE id = ?').get(id);
 }
 
-/** Inserts a new group and returns the SQLite run result. */
+/** Inserts a new group placed at the end of the position list. */
 function createGroup({ name, color }) {
+  const maxPos = db.prepare('SELECT COALESCE(MAX(position), -1) AS max FROM groups').get().max;
   return db
-    .prepare('INSERT INTO groups (name, color) VALUES (?, ?)')
-    .run(name, color ?? '#0071e3');
+    .prepare('INSERT INTO groups (name, color, position) VALUES (?, ?, ?)')
+    .run(name, color ?? '#0071e3', maxPos + 1);
 }
 
 /** Updates a group's name and color. */
@@ -177,6 +226,12 @@ function updateGroup(id, { name, color }) {
 function deleteGroup(id) {
   db.prepare('UPDATE links SET group_id = NULL WHERE group_id = ?').run(id);
   return db.prepare('DELETE FROM groups WHERE id = ?').run(id);
+}
+
+/** Updates the position of all groups at once from a full ordered ID array. */
+function reorderGroups(orderedIds) {
+  const update = db.prepare('UPDATE groups SET position = ? WHERE id = ?');
+  orderedIds.forEach((id, index) => update.run(index, id));
 }
 
 // ─── Clicks ───────────────────────────────────────────────────────────────────
@@ -230,7 +285,8 @@ function getTopIps(linkId, limit = 10) {
 
 module.exports = {
   readSetting, writeSetting, deleteSetting,
-  getAllLinks, getLinkById, createLink, updateLink, deleteLink,
-  getAllGroups, getGroupById, createGroup, updateGroup, deleteGroup,
+  getAllLinks, getLinkById, checkDuplicateUrl, createLink, updateLink, deleteLink,
+  updateLinkFavicon, updateLinkBrokenStatus, getAllLinksForHealthCheck, reorderLinks,
+  getAllGroups, getGroupById, createGroup, updateGroup, deleteGroup, reorderGroups,
   recordClick, getAllStats, getRecentClicks, getTopIps,
 };

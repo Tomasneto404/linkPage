@@ -3,75 +3,68 @@
  * then adds admin-specific components on top. */
 @import url('/style.css');
 
-/* ─── Token gate ─────────────────────────────────────────────────────────────── */
+/* ─── Toast notifications ────────────────────────────────────────────────────── */
 
-.gate {
-  min-height: 100vh;
+.toast-container {
+  position: fixed;
+  top: calc(var(--header-h) + 12px);
+  right: 16px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: var(--bg);
+  flex-direction: column;
+  gap: 8px;
+  z-index: 110;
+  pointer-events: none;
 }
 
-.gate-card {
+@keyframes toastIn  { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@keyframes toastOut { from { opacity: 1; transform: none; }            to { opacity: 0; transform: translateX(16px); } }
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
   background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  font-size: 0.875rem;
+  color: var(--text);
+  max-width: 300px;
+  pointer-events: all;
+  cursor: pointer;
+  animation: toastIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  border-left-width: 3px;
+}
+.toast.removing     { animation: toastOut 0.18s ease both; }
+.toast-success      { border-left-color: #34c759; }
+.toast-error        { border-left-color: var(--danger); }
+.toast-info         { border-left-color: var(--primary); }
+.toast-icon         { flex-shrink: 0; }
+.toast-success .toast-icon { color: #34c759; }
+.toast-error .toast-icon   { color: var(--danger); }
+.toast-info .toast-icon    { color: var(--primary); }
+
+/* ─── Sort select ────────────────────────────────────────────────────────────── */
+
+.sort-select {
+  background: var(--surface-3);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 44px 40px;
-  width: 100%;
-  max-width: 400px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  text-align: center;
-  box-shadow: var(--shadow-lg);
-}
-
-.gate-icon {
-  width: 62px;
-  height: 62px;
-  border-radius: 16px;
-  background: rgba(0, 113, 227, 0.1);
-  border: 1px solid rgba(0, 113, 227, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--primary);
-  margin-bottom: 6px;
-}
-
-[data-theme="dark"] .gate-icon {
-  background: rgba(10, 132, 255, 0.12);
-  border-color: rgba(10, 132, 255, 0.2);
-}
-
-.gate-card h1 {
-  font-size: 1.375rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
-
-.gate-card > p {
+  border-radius: 8px;
+  padding: 6px 10px;
   color: var(--text-muted);
-  font-size: 0.9375rem;
-  margin-bottom: 8px;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: all var(--transition);
 }
+.sort-select:focus  { border-color: var(--primary); color: var(--text); }
+.sort-select option { background: var(--surface); }
 
-/* The gate form has no padding (unlike regular modal forms) */
-.gate-card form {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 0;
-}
-
-.gate-input-wrap {
-  position: relative;
-  display: flex;
-}
+/* ─── Token gate (admin-specific overrides) ────────────────────────────────── */
 
 /* Monospace font so the token is easy to read and compare visually */
 .gate-input-wrap input {
@@ -101,22 +94,6 @@
   transition: color var(--transition);
 }
 .toggle-visibility-btn:hover { color: var(--text); }
-
-.gate-submit {
-  width: 100%;
-  justify-content: center;
-  padding: 10px;
-  font-size: 0.9375rem;
-}
-
-.gate-back {
-  margin-top: 6px;
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color var(--transition);
-}
-.gate-back:hover { color: var(--primary); }
 
 /* ─── Admin layout ───────────────────────────────────────────────────────────── */
 
@@ -602,13 +579,130 @@ header {
 
 .card-click-count svg { flex-shrink: 0; }
 
+/* ─── Bulk action bar ────────────────────────────────────────────────────────── */
+
+.bulk-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 980px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.bulk-group-select {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 10px;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  width: 160px;
+}
+
+/* ─── Bulk select: card checkbox overlay ─────────────────────────────────────── */
+
+.bulk-mode .link-card { cursor: pointer; }
+
+.card-checkbox {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 2px solid var(--border-strong);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.link-card-wrap {
+  position: relative;
+}
+
+.link-card-wrap.selected .card-checkbox {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.link-card-wrap.selected .card-checkbox::after {
+  content: '';
+  display: block;
+  width: 5px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.link-card-wrap.selected .link-card {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(0,113,227,0.2);
+}
+[data-theme="dark"] .link-card-wrap.selected .link-card {
+  box-shadow: 0 0 0 2px rgba(10,132,255,0.25);
+}
+
+/* ─── Token rotation result display ─────────────────────────────────────────── */
+
+.new-token-display {
+  font-family: 'SF Mono', ui-monospace, 'Fira Code', monospace;
+  font-size: 0.8rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  word-break: break-all;
+  color: var(--text);
+  margin-top: 8px;
+  line-height: 1.6;
+}
+
+/* ─── Group drag handle in sidebar ──────────────────────────────────────────── */
+
+.group-drag-handle {
+  color: var(--text-muted);
+  opacity: 0;
+  cursor: grab;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  transition: opacity var(--transition);
+}
+.group-nav-item:hover .group-drag-handle { opacity: 0.5; }
+.group-nav-item.drag-over {
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--primary);
+}
+
 /* ─── Responsive ─────────────────────────────────────────────────────────────── */
 
 @media (max-width: 720px) {
-  /* On mobile the sidebar slides over the content instead of pushing it */
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: none; }
   .main-content { margin-left: 0 !important; }
   .search-input { width: 130px; }
   .links-grid { grid-template-columns: 1fr; }
+  .bulk-bar { left: 16px; right: 16px; transform: none; border-radius: var(--radius-lg); flex-wrap: wrap; }
 }
