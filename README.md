@@ -1,6 +1,6 @@
 # LinkPage
 
-A self-hosted link bookmark manager with a clean, Apple-inspired UI. Organize your links into groups, track click analytics, and manage everything through a secure admin panel.
+A self-hosted link bookmark manager with a clean UI. Organize your links into groups, track click analytics, and manage everything through a secure admin panel.
 
 ## Features
 
