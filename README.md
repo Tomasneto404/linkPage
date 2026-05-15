@@ -66,7 +66,86 @@ Every link card points to `/r/:id` (a server-side redirect) instead of the desti
 
 ## Deployment with Docker
 
-### `docker-compose.yml`
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) installed
+
+---
+
+### Option A — Pull from Docker Hub (recommended)
+
+The easiest way to run LinkPage. No need to clone the repository or build anything.
+
+**`docker-compose.prod.yml`**
+
+```yaml
+services:
+  linkpage:
+    image: tomasneto26/linkpage:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./linkpage_data:/app/data
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - DATA_DIR=/app/data
+      - UPLOADS_DIR=/app/data/uploads
+```
+
+**1. Create the file**
+
+```bash
+curl -O https://raw.githubusercontent.com/Tomasneto404/linkPage/main/docker-compose.prod.yml
+```
+
+Or create it manually with the contents above.
+
+**2. Start the app**
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Docker will pull the image from Docker Hub automatically and start the container.
+
+**3. Get your admin token**
+
+```bash
+docker compose -f docker-compose.prod.yml logs linkpage
+```
+
+Look for a line like:
+
+```
+│  🔑 Admin Token: 5c5665cfeaf662e95f98e832e2cdbaa3c2ab5d0b...
+```
+
+Copy the full token. It is saved to `linkpage_data/admin-token.txt` and reused across restarts.
+
+**4. Open the app**
+
+| Page | URL |
+|------|-----|
+| Public page | http://localhost:3000 |
+| Admin panel | http://localhost:3000/admin |
+
+Paste the token into the admin panel to unlock link management.
+
+**Updating to the latest image**
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+---
+
+### Option B — Build from source
+
+Clone the repository and build the image locally.
+
+**`docker-compose.yml`**
 
 ```yaml
 services:
@@ -86,63 +165,15 @@ volumes:
   linkpage_data:
 ```
 
-| Field | What it does |
-|-------|-------------|
-| `build: .` | Builds the image from the local `Dockerfile` |
-| `ports: "3000:3000"` | Exposes the app on port 3000 of the host. Change the left side to use a different host port (e.g. `"80:3000"`) |
-| `volumes: ./linkpage_data:/app/data` | Maps the local `linkpage_data` folder to `/app/data` inside the container, making the database and uploads persistent across restarts and rebuilds |
-| `restart: unless-stopped` | Automatically restarts the container if it crashes or if the host reboots |
-| `DATA_DIR` / `UPLOADS_DIR` | Tell the app where to store the database and uploaded files |
-
-### Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) installed
-
-### Steps
-
-**1. Clone the repository**
+**Steps**
 
 ```bash
 git clone https://github.com/Tomasneto404/linkPage.git
 cd linkPage
-```
-
-**2. Start the app**
-
-```bash
 docker compose up -d
 ```
 
-This builds the image and starts the container in the background. On the very first run it creates the SQLite database and generates the admin token.
-
-**3. Get your admin token**
-
-```bash
-docker compose logs linkpage
-```
-
-Look for a line like:
-
-```
-│  🔑 Admin Token: 5c5665cfeaf662e95f98e832e2cdbaa3c2ab5d0b...
-```
-
-Copy the full token. You only need to do this once — it is saved to `linkpage_data/admin-token.txt` and reused across restarts.
-
-**4. Open the app**
-
-| Page | URL |
-|------|-----|
-| Public page | http://localhost:3000 |
-| Admin panel | http://localhost:3000/admin |
-
-Paste the token into the admin panel to unlock link management.
-
----
-
-## Updating
-
-When you pull new code, rebuild the image without losing any data:
+**Updating**
 
 ```bash
 git pull
@@ -150,7 +181,20 @@ docker compose down
 docker compose up -d --build
 ```
 
-Your data is safe — it lives in `./linkpage_data` on the host, not inside the image.
+---
+
+### Docker Compose fields explained
+
+| Field | What it does |
+|-------|-------------|
+| `image` | Pulls the pre-built image from Docker Hub |
+| `build: .` | Builds the image from the local `Dockerfile` (Option B only) |
+| `ports: "3000:3000"` | Exposes the app on port 3000. Change the left side for a different host port (e.g. `"80:3000"`) |
+| `volumes: ./linkpage_data:/app/data` | Maps a local folder to the container so the database and uploads survive restarts and image updates |
+| `restart: unless-stopped` | Auto-restarts the container on crash or host reboot |
+| `DATA_DIR` / `UPLOADS_DIR` | Tell the app where to store the database and uploaded files inside the container |
+
+---
 
 ### Full reset (wipes all data)
 
