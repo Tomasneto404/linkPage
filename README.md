@@ -6,6 +6,48 @@ Instead of scattering important resources across emails, chats, and shared drive
 
 ---
 
+## Screenshots
+
+### Public Page
+
+| Light Mode | Dark Mode |
+|:---:|:---:|
+| ![Public page – light mode](linkPagePrints/linkPage-userSide-lightMode.png) | ![Public page – dark mode](linkPagePrints/linkPage-userSide-darkMode.png) |
+
+The public page greets end users with a clean card grid, sticky group tabs for filtering, a live search bar, and auto-fetched favicons — no sign-in required.
+
+---
+
+### Admin Panel
+
+| Light Mode | Dark Mode |
+|:---:|:---:|
+| ![Admin panel – light mode](linkPagePrints/linkPage-adminSide-lightMode.png) | ![Admin panel – dark mode](linkPagePrints/linkPage-adminSide-darkMode.png) |
+
+The admin panel is protected by a secret token. The left sidebar lists all groups; the main area shows link cards with drag-to-reorder, bulk selection, import/export, and one-click link creation.
+
+---
+
+### Click Analytics
+
+<p align="center">
+  <img src="linkPagePrints/linkPage-statistics.png" width="480" alt="Click analytics modal" />
+</p>
+
+Per-link analytics show total clicks, unique visitors, today and this-week counts, a recent-click log with IP and device type, and a bar chart of top visitor IPs.
+
+---
+
+### Settings
+
+<p align="center">
+  <img src="linkPagePrints/linkPage-settings.png" width="480" alt="Settings modal" />
+</p>
+
+The settings modal covers branding (custom site title, separate logos for light and dark mode), public access (optional password gate), and security (one-click admin token rotation).
+
+---
+
 ## Features
 
 - **Public page** — clean, searchable landing page for end users with group tabs and live search
