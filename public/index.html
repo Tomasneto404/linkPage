@@ -59,6 +59,13 @@
       opacity: 0.75;
       font-weight: 600;
     }
+    .tab-lock {
+      width: 11px;
+      height: 11px;
+      flex-shrink: 0;
+      opacity: 0.75;
+    }
+    .tab.active .tab-lock { opacity: 1; }
 
     main {
       max-width: 1120px;
@@ -96,7 +103,27 @@
       flex-shrink: 0;
     }
     .admin-btn:hover { background: var(--surface-3); color: var(--text); border-color: transparent; }
-  </style>
+
+    /* Push theme + admin buttons to the right edge of the header,
+       which lines up with the right edge of the third card in the grid
+       (both containers share max-width:1120px and 22px side padding). */
+    header .theme-toggle { margin-left: auto; }
+
+    /* ── Mobile tweaks ─────────────────────────────────────────────────────── */
+    @media (max-width: 720px) {
+      .tabs { padding: 8px 14px; }
+      main  { padding: 18px 14px 56px; }
+    }
+    @media (max-width: 480px) {
+      .tabs { padding: 8px 10px; gap: 4px; }
+      .tab  { padding: 5px 11px; font-size: 0.8125rem; }
+      main  { padding: 14px 10px 56px; }
+
+      /* Compact the right-edge buttons; show only the icon on the admin link */
+      .admin-btn        { padding: 6px 9px; gap: 4px; }
+      .admin-btn-label  { display: none; }
+    }
+</style>
 </head>
 <body>
 
@@ -146,7 +173,7 @@
 
     <a href="/admin" class="admin-btn">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-      Admin
+      <span class="admin-btn-label">Admin</span>
     </a>
   </div>
 </header>
@@ -165,6 +192,41 @@
   </div>
   <div class="links-grid" id="linksGrid"></div>
 </main>
+
+<!-- ════════════════════════════════════════════════
+     GROUP UNLOCK MODAL
+     Shown when a user clicks a password-protected group tab.
+     ════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="unlockOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>
+        <span id="unlockGroupName">Locked group</span>
+      </h2>
+      <button type="button" class="modal-close" id="closeUnlockBtn" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6"  y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <form id="unlockForm" style="padding: 0 22px 22px">
+      <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0 0 14px">
+        This group is password-protected. Enter the password to view its links.
+      </p>
+      <div class="form-group">
+        <input type="password" id="unlockPasswordInput"
+               placeholder="Enter password…" autocomplete="current-password" required />
+      </div>
+      <div class="form-error hidden" id="unlockError">Wrong password.</div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" id="cancelUnlockBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="unlockSubmitBtn">Unlock</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>

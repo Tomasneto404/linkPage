@@ -133,22 +133,49 @@ const FALLBACK_ICON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill=
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-let links       = [];
-let groups      = [];
-let activeGroup = 'all';
-let searchQuery = '';
+let links         = [];
+let groups        = [];
+let activeGroup   = 'all';
+let activeSection = null;
+let searchQuery   = '';
+
+/** Returns the section_id this link has within `groupId`, or null. */
+function linkSectionInGroup(link, groupId) {
+  const m = (link.groups || []).find(g => g.id === groupId);
+  return m ? (m.section_id ?? null) : null;
+}
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+function linkBelongsToGroup(link, groupId) {
+  return Array.isArray(link.group_ids)
+    ? link.group_ids.includes(groupId)
+    : link.group_id === groupId;
+}
+
+const LOCK_SVG = `
+  <svg class="tab-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-label="Locked">
+    <rect x="3" y="11" width="18" height="11" rx="2"/>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+  </svg>`;
+
+function isGroupLocked(group) {
+  return group.is_protected && !group.is_unlocked;
+}
 
 function renderTabs() {
   const container = document.getElementById('tabs');
   const groupsHtml = groups.map(g => {
-    const count  = links.filter(l => l.group_id === g.id).length;
+    const count  = links.filter(l => linkBelongsToGroup(l, g.id)).length;
     const active = activeGroup === g.id;
+    const locked = isGroupLocked(g);
     return `
-      <button class="tab${active ? ' active' : ''}" data-group="${g.id}">
+      <button class="tab${active ? ' active' : ''}${locked ? ' locked' : ''}"
+              data-group="${g.id}" data-locked="${locked ? '1' : '0'}">
         <span class="tab-dot" style="background:${escapeHtml(active ? '#fff' : g.color)}"></span>
         ${escapeHtml(g.name)}
+        ${locked ? LOCK_SVG : ''}
         <span class="tab-count">${count}</span>
       </button>`;
   }).join('');
@@ -160,17 +187,93 @@ function renderTabs() {
 
   container.querySelectorAll('.tab').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (btn.dataset.locked === '1') {
+        const gid = Number(btn.dataset.group);
+        const g   = groups.find(x => x.id === gid);
+        if (g) openUnlockModal(g);
+        return;
+      }
       activeGroup = btn.dataset.group === 'all' ? 'all' : Number(btn.dataset.group);
       renderTabs(); renderLinks(true);
     });
   });
 }
 
+// ─── Unlock modal ─────────────────────────────────────────────────────────────
+
+let pendingUnlockGroup = null;
+
+function openUnlockModal(group) {
+  pendingUnlockGroup = group;
+  document.getElementById('unlockGroupName').textContent = group.name;
+  document.getElementById('unlockPasswordInput').value   = '';
+  document.getElementById('unlockError').classList.add('hidden');
+  document.getElementById('unlockOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('unlockPasswordInput').focus(), 60);
+}
+
+function closeUnlockModal() {
+  pendingUnlockGroup = null;
+  document.getElementById('unlockOverlay').classList.add('hidden');
+}
+
+document.getElementById('closeUnlockBtn').addEventListener('click', closeUnlockModal);
+document.getElementById('cancelUnlockBtn').addEventListener('click', closeUnlockModal);
+document.getElementById('unlockOverlay').addEventListener('click', e => {
+  if (e.target.id === 'unlockOverlay') closeUnlockModal();
+});
+
+document.getElementById('unlockForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!pendingUnlockGroup) return;
+
+  const pw    = document.getElementById('unlockPasswordInput').value;
+  const btn   = document.getElementById('unlockSubmitBtn');
+  const err   = document.getElementById('unlockError');
+  const group = pendingUnlockGroup;
+  err.classList.add('hidden');
+  btn.disabled = true; btn.textContent = 'Unlocking…';
+
+  try {
+    const r = await fetch(`/api/groups/${group.id}/unlock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ password: pw }),
+    });
+
+    if (r.status === 429) {
+      err.textContent = 'Too many attempts. Please wait a few minutes.';
+      err.classList.remove('hidden');
+      return;
+    }
+
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.valid !== true) {
+      err.textContent = 'Wrong password.';
+      err.classList.remove('hidden');
+      document.getElementById('unlockPasswordInput').focus();
+      return;
+    }
+
+    // Switch to the just-unlocked group and reload data so the cookie-aware
+    // /api/links call returns its previously-hidden links.
+    activeGroup = group.id;
+    closeUnlockModal();
+    await loadData();
+  } catch {
+    err.textContent = 'Could not reach the server.';
+    err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Unlock';
+  }
+});
+
 // ─── Link cards ───────────────────────────────────────────────────────────────
 
 function getFilteredLinks() {
   let filtered = activeGroup !== 'all'
-    ? links.filter(l => l.group_id === activeGroup)
+    ? links.filter(l => linkBelongsToGroup(l, activeGroup))
     : links;
 
   if (searchQuery) {
@@ -178,6 +281,7 @@ function getFilteredLinks() {
     filtered = filtered.filter(l =>
       l.name.toLowerCase().includes(q) ||
       l.url.toLowerCase().includes(q)  ||
+      (l.file_name   || '').toLowerCase().includes(q) ||
       (l.description || '').toLowerCase().includes(q)
     );
   }
@@ -194,6 +298,17 @@ function buildIconHtml(iconUrl) {
     <span class="icon-fallback" style="display:none">${FALLBACK_ICON_SVG}</span>`;
 }
 
+const FILE_ICON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+  <polyline points="14 2 14 8 20 8"/>
+</svg>`;
+
+function getLinkDisplayLabel(link) {
+  if (link.file_path) return link.file_name || 'Attached file';
+  return getDomainName(link.url);
+}
+
 function buildLinkCard(link) {
   const card    = document.createElement('a');
   card.className = 'link-card';
@@ -201,18 +316,31 @@ function buildLinkCard(link) {
   card.rel       = 'noopener noreferrer';
   card.href      = `/r/${link.id}`;
 
-  const iconUrl  = link.image_path || link.favicon_path || getFaviconUrl(link.url);
+  const iconUrl  = link.image_path
+                || (link.file_path ? null : (link.favicon_path || getFaviconUrl(link.url)));
   const q        = searchQuery;
   const descHtml = link.description
     ? `<p class="link-desc">${highlightText(link.description, q)}</p>` : '';
-  const badgeHtml = link.group_name
-    ? `<div class="link-footer"><span class="group-badge" style="background:${link.group_color}18; color:${link.group_color}">${escapeHtml(link.group_name)}</span></div>` : '';
+  const linkGroups = Array.isArray(link.groups) && link.groups.length
+    ? link.groups
+    : (link.group_name ? [{ name: link.group_name, color: link.group_color }] : []);
+  const badgeHtml = linkGroups.length
+    ? `<div class="link-footer">${linkGroups.map(g =>
+        `<span class="group-badge" style="background:${g.color}18; color:${g.color}">${escapeHtml(g.name)}</span>`
+      ).join('')}</div>`
+    : '';
+
+  const iconHtml = iconUrl
+    ? buildIconHtml(iconUrl)
+    : (link.file_path
+        ? `<span class="icon-fallback">${FILE_ICON_SVG}</span>`
+        : `<span class="icon-fallback">${FALLBACK_ICON_SVG}</span>`);
 
   card.innerHTML = `
-    <div class="link-icon">${buildIconHtml(iconUrl)}</div>
+    <div class="link-icon">${iconHtml}</div>
     <div class="link-body">
       <div class="link-name">${highlightText(link.name, q)}</div>
-      <div class="link-domain">${highlightText(getDomainName(link.url), q)}</div>
+      <div class="link-domain">${highlightText(getLinkDisplayLabel(link), q)}</div>
       ${descHtml}${badgeHtml}
     </div>
     <svg class="link-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -253,9 +381,41 @@ function updateEmptyState() {
 
 let renderTransitionTimer;
 
+function bucketBySectionForActiveGroup(filteredLinks) {
+  const group = groups.find(g => g.id === activeGroup);
+  if (!group) return null;
+  const buckets = new Map();
+  buckets.set(null, { id: null, name: 'Ungrouped', links: [] });
+  for (const s of group.sections || []) {
+    buckets.set(s.id, { id: s.id, name: s.name, links: [] });
+  }
+  for (const link of filteredLinks) {
+    const sid    = linkSectionInGroup(link, activeGroup);
+    const bucket = buckets.get(sid) || buckets.get(null);
+    bucket.links.push(link);
+  }
+  return Array.from(buckets.values()).filter(b => b.links.length > 0);
+}
+
+function appendSectionHeading(grid, label, count) {
+  const heading = document.createElement('div');
+  heading.className = 'section-heading';
+  heading.innerHTML = `
+    <span class="section-heading-text">${escapeHtml(label)}</span>
+    <span class="section-heading-count">${count}</span>`;
+  grid.appendChild(heading);
+}
+
 function renderLinks(transition = false) {
   const grid       = document.getElementById('linksGrid');
   const emptyState = document.getElementById('emptyState');
+
+  function appendCard(link, i) {
+    const card = buildLinkCard(link);
+    card.style.animationDelay = `${Math.min(i * 22, 280)}ms`;
+    card.classList.add('card-animate');
+    grid.appendChild(card);
+  }
 
   function doRender() {
     const filtered = getFilteredLinks();
@@ -264,14 +424,23 @@ function renderLinks(transition = false) {
     if (filtered.length === 0) {
       emptyState.classList.remove('hidden');
       updateEmptyState();
+      return;
+    }
+    emptyState.classList.add('hidden');
+
+    const shouldGroupBySection =
+      typeof activeGroup === 'number' &&
+      (groups.find(g => g.id === activeGroup)?.sections || []).length > 0;
+
+    if (shouldGroupBySection) {
+      const buckets = bucketBySectionForActiveGroup(filtered) || [];
+      let i = 0;
+      for (const b of buckets) {
+        appendSectionHeading(grid, b.name, b.links.length);
+        for (const link of b.links) appendCard(link, i++);
+      }
     } else {
-      emptyState.classList.add('hidden');
-      filtered.forEach((link, i) => {
-        const card = buildLinkCard(link);
-        card.style.animationDelay = `${Math.min(i * 22, 280)}ms`;
-        card.classList.add('card-animate');
-        grid.appendChild(card);
-      });
+      filtered.forEach(appendCard);
     }
   }
 
@@ -303,7 +472,42 @@ async function loadData() {
     authorisedFetch('/api/groups'),
   ]);
   links = fl; groups = fg;
+
+  // If the active tab was a now-locked group, fall back to "All" so the user
+  // isn't stuck looking at an empty filtered grid.
+  if (typeof activeGroup === 'number') {
+    const current = groups.find(g => g.id === activeGroup);
+    if (current && isGroupLocked(current)) activeGroup = 'all';
+  }
+
   renderTabs(); renderLinks();
+  scheduleRelockRefresh();
+}
+
+// ─── Auto re-lock ─────────────────────────────────────────────────────────────
+
+/**
+ * When the earliest unlock cookie is about to expire, refetch so the UI flips
+ * the lock back on. The server is the source of truth — this just keeps the
+ * page in sync without needing the user to interact.
+ */
+let relockTimerId = null;
+
+function scheduleRelockRefresh() {
+  if (relockTimerId) { clearTimeout(relockTimerId); relockTimerId = null; }
+
+  const now = Date.now();
+  let soonest = Infinity;
+  for (const g of groups) {
+    if (g.is_protected && g.is_unlocked && typeof g.unlocked_until === 'number') {
+      if (g.unlocked_until < soonest) soonest = g.unlocked_until;
+    }
+  }
+  if (soonest === Infinity) return;
+
+  // +200 ms buffer so the server is sure to see the cookie as expired.
+  const delay = Math.max(0, soonest - now) + 200;
+  relockTimerId = setTimeout(() => { relockTimerId = null; loadData(); }, delay);
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

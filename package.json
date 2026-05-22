@@ -1,6 +1,6 @@
 {
   "name": "linkpage",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A simple link bookmarking app with image uploads",
   "main": "src/server.js",
   "scripts": {

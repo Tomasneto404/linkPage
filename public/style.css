@@ -353,6 +353,38 @@ header {
   transition: opacity 0.1s ease;
 }
 
+/* Section heading spans the full width of the grid and adds a divider line
+   so each section of links reads as its own block. */
+.section-heading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 4px 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+}
+.section-heading:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 4px;
+}
+.section-heading-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  border-radius: 980px;
+  padding: 1px 7px;
+  text-transform: none;
+}
+
 /* ── Card entrance animation ──────────────── */
 @keyframes cardIn {
   from { opacity: 0; transform: translateY(10px); }
@@ -384,6 +416,63 @@ mark.hl {
   background: linear-gradient(90deg, var(--surface-3) 0%, var(--surface-2) 50%, var(--surface-3) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* ── Responsive — phones (≤480) and small tablets (≤720) ─────────────────── */
+
+@media (max-width: 720px) {
+  .header-inner { padding: 0 14px; gap: 10px; }
+  .search-input { width: 160px; }
+  .search-input:focus { width: 200px; }
+}
+
+@media (max-width: 480px) {
+  body { font-size: 14px; }
+
+  .header-inner { padding: 0 10px; gap: 6px; }
+  .logo { font-size: 15px; }
+  .logo-img { max-height: 26px; max-width: 130px; }
+
+  /* Let search fill whatever's left between brand and the right-edge buttons */
+  .search-wrap   { flex: 1 1 auto !important; max-width: none !important; min-width: 0; }
+  .search-input  { width: 100% !important; padding: 7px 10px 7px 30px; }
+  .search-input:focus { width: 100% !important; }
+
+  .theme-toggle { width: 32px; height: 32px; }
+
+  .btn       { padding: 7px 14px; font-size: 0.8125rem; }
+  .btn-icon  { padding: 8px; }
+
+  /* Card grid: single column, tighter padding around it */
+  .links-grid { gap: 8px; }
+  .link-card  { padding: 11px 12px; gap: 10px; }
+  .link-icon  { width: 36px; height: 36px; }
+
+  /* Modals fit the phone width, slide up from the top edge.
+     overflow-y: auto lets a long form scroll the whole overlay vertically. */
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-start;
+    padding-top: 24px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-width: 100%;
+    margin: 0 8px;
+  }
+  .modal-sm { max-width: 100%; }
+  .modal-header  { padding: 16px 16px 0; }
+  .modal-header h2 { font-size: 1rem; }
+
+  .form-row { flex-direction: column !important; gap: 10px !important; }
+  .form-row > * { width: 100% !important; }
+  .form-group label { font-size: 0.8125rem; }
+
+  /* Stack form action buttons on phones so each is full-width / thumb-friendly */
+  .form-actions { flex-direction: column-reverse; gap: 8px; padding: 14px 16px 20px; }
+  .form-actions .btn { width: 100%; justify-content: center; }
 }
 
 /* ── Custom scrollbar ─────────────────────── */

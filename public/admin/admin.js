@@ -137,6 +137,9 @@ async function fetchLinkClicks(id)     { return apiJson(`/api/links/${id}/clicks
 async function createLink(fd)          { return apiJson('/api/links',        { method: 'POST', body: fd }); }
 async function updateLink(id, fd)      { return apiJson(`/api/links/${id}`,  { method: 'PUT',  body: fd }); }
 async function deleteLinkById(id)      { return sendAuthRequest(`/api/links/${id}`, { method: 'DELETE' }); }
+async function setLinkVisibility(id, hidden) {
+  return jsonPost(`/api/links/${id}/visibility`, { hidden });
+}
 
 const jsonPost = (url, body) =>
   apiJson(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -153,6 +156,10 @@ async function importLinksApi(payload) { return jsonPost('/api/links/import', pa
 async function createGroup(d)          { return jsonPost('/api/groups', d); }
 async function updateGroup(id, d)      { return jsonPut(`/api/groups/${id}`, d); }
 async function deleteGroupById(id)     { return sendAuthRequest(`/api/groups/${id}`, { method: 'DELETE' }); }
+
+async function createSectionApi(groupId, name) { return jsonPost(`/api/groups/${groupId}/sections`, { name }); }
+async function updateSectionApi(id, name)      { return jsonPut(`/api/sections/${id}`, { name }); }
+async function deleteSectionApi(id)            { return sendAuthRequest(`/api/sections/${id}`, { method: 'DELETE' }); }
 
 async function uploadLogo(variant, file) {
   const fd = new FormData(); fd.append('logo', file);
@@ -341,6 +348,21 @@ const FALLBACK_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill=
   <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
 </svg>`;
 
+const FILE_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+  <polyline points="14 2 14 8 20 8"/>
+</svg>`;
+
+/**
+ * The text shown under a link's name. For URL-backed links, the domain.
+ * For file-backed links, the original filename.
+ */
+function getLinkDisplayLabel(link) {
+  if (link.file_path) return link.file_name || 'Attached file';
+  return getDomainName(link.url);
+}
+
 function showFormError(id, msg) {
   const el = document.getElementById(id);
   el.textContent = msg; el.classList.remove('hidden');
@@ -396,12 +418,17 @@ const EMPTY_ICONS = {
 
 // ─── 6. STATE ─────────────────────────────────────────────────────────────────
 
-let links       = [];
-let groups      = [];
-let activeGroup = 'all';
-let searchQuery = '';
-let statsMap    = {};
-let sortOrder   = 'position'; // 'position'|'name-asc'|'name-desc'|'date-new'|'date-old'|'clicks'
+let links         = [];
+let groups        = [];
+let activeGroup   = 'all';
+let activeSection = null;   // number = section ID filter; null = no section filter
+let searchQuery   = '';
+let statsMap      = {};
+let sortOrder     = 'position'; // 'position'|'name-asc'|'name-desc'|'date-new'|'date-old'|'clicks'
+
+// Inline section UI state (sidebar)
+let addingSectionToGroupId = null; // group ID currently in "add section" mode
+let editingSectionId       = null; // section ID currently being renamed inline
 
 
 // ─── 7. DATA LOADING ──────────────────────────────────────────────────────────
@@ -422,43 +449,106 @@ async function loadAllData() {
 
 let draggedGroupId = null;
 
+function linkBelongsToGroup(link, groupId) {
+  return Array.isArray(link.group_ids)
+    ? link.group_ids.includes(groupId)
+    : link.group_id === groupId;
+}
+
+function linkIsUngrouped(link) {
+  return Array.isArray(link.group_ids)
+    ? link.group_ids.length === 0
+    : !link.group_id;
+}
+
+/** Returns the section_id this link has within `groupId`, or null. */
+function linkSectionInGroup(link, groupId) {
+  const m = (link.groups || []).find(g => g.id === groupId);
+  return m ? (m.section_id ?? null) : null;
+}
+
+/** SVG glyphs reused across sidebar rows. */
+const SIDEBAR_ICONS = {
+  drag:   `<svg class="group-drag-handle" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="5" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="19" r="1"/></svg>`,
+  lock:   `<svg class="group-lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-label="Protected"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+  plus:   `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  edit:   `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  trash:  `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`,
+};
+
 function renderSidebar() {
   document.getElementById('countAll').textContent       = links.length;
-  document.getElementById('countUngrouped').textContent = links.filter(l => !l.group_id).length;
+  document.getElementById('countUngrouped').textContent = links.filter(linkIsUngrouped).length;
 
+  // Top-level All/Ungrouped buttons highlight only when no section is in play.
   document.querySelectorAll('.nav-item').forEach(btn =>
-    btn.classList.toggle('active', btn.dataset.group === String(activeGroup)));
+    btn.classList.toggle('active',
+      activeSection === null && btn.dataset.group === String(activeGroup)));
 
   const nav = document.getElementById('groupsNav');
   nav.innerHTML = groups.map(g => {
-    const count   = links.filter(l => l.group_id === g.id).length;
-    const active  = activeGroup === g.id;
-    const cStyle  = active ? `background:${g.color}18; color:${g.color}` : '';
+    const totalCount = links.filter(l => linkBelongsToGroup(l, g.id)).length;
+    const isGroupActive = activeGroup === g.id && activeSection === null;
+    const cStyle = isGroupActive ? `background:${g.color}18; color:${g.color}` : '';
+
+    const sectionRowsHtml = (g.sections || []).map(s => {
+      const sCount = links.filter(l =>
+        linkBelongsToGroup(l, g.id) && linkSectionInGroup(l, g.id) === s.id).length;
+      const sActive = activeGroup === g.id && activeSection === s.id;
+      const sCountStyle = sActive ? `background:${g.color}18; color:${g.color}` : '';
+
+      // Rename mode: an input replaces the section name inline.
+      if (editingSectionId === s.id) {
+        return `
+          <div class="section-nav-item editing" data-section-id="${s.id}" data-group-id="${g.id}">
+            <span class="section-tick"></span>
+            <input class="section-inline-input" data-mode="rename" data-section-id="${s.id}"
+                   value="${escapeHtml(s.name)}" autocomplete="off" />
+          </div>`;
+      }
+
+      return `
+        <div class="section-nav-item${sActive ? ' active' : ''}"
+             data-section-id="${s.id}" data-group-id="${g.id}">
+          <span class="section-tick"></span>
+          <span class="section-name">${escapeHtml(s.name)}</span>
+          <span class="nav-count" style="${sCountStyle}">${sCount}</span>
+          <div class="group-item-actions">
+            <button class="group-action-btn edit-section-btn" data-section-id="${s.id}" title="Rename">${SIDEBAR_ICONS.edit}</button>
+            <button class="group-action-btn danger delete-section-btn" data-section-id="${s.id}" title="Delete">${SIDEBAR_ICONS.trash}</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    const addRowHtml = addingSectionToGroupId === g.id ? `
+      <div class="section-nav-item editing" data-group-id="${g.id}">
+        <span class="section-tick"></span>
+        <input class="section-inline-input" data-mode="create" data-group-id="${g.id}"
+               placeholder="Section name…" autocomplete="off" />
+      </div>` : '';
+
     return `
-      <div class="group-nav-item${active ? ' active' : ''}" data-group-id="${g.id}" draggable="true">
-        <svg class="group-drag-handle" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="9" cy="5" r="1"/><circle cx="15" cy="5" r="1"/>
-          <circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/>
-          <circle cx="9" cy="19" r="1"/><circle cx="15" cy="19" r="1"/>
-        </svg>
+      <div class="group-nav-item${isGroupActive ? ' active' : ''}" data-group-id="${g.id}" draggable="true">
+        ${SIDEBAR_ICONS.drag}
         <span class="group-dot" style="background:${escapeHtml(g.color)}"></span>
-        <span>${escapeHtml(g.name)}</span>
-        <span class="nav-count" style="${cStyle}">${count}</span>
+        <span>${escapeHtml(g.name)}${g.is_protected ? SIDEBAR_ICONS.lock : ''}</span>
+        <span class="nav-count" style="${cStyle}">${totalCount}</span>
         <div class="group-item-actions">
-          <button class="group-action-btn edit-group-btn" data-group-id="${g.id}" title="Edit">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="group-action-btn danger delete-group-btn" data-group-id="${g.id}" title="Delete">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-          </button>
+          <button class="group-action-btn add-section-btn" data-group-id="${g.id}" title="Add section">${SIDEBAR_ICONS.plus}</button>
+          <button class="group-action-btn edit-group-btn"  data-group-id="${g.id}" title="Edit">${SIDEBAR_ICONS.edit}</button>
+          <button class="group-action-btn danger delete-group-btn" data-group-id="${g.id}" title="Delete">${SIDEBAR_ICONS.trash}</button>
         </div>
-      </div>`;
+      </div>
+      ${sectionRowsHtml}
+      ${addRowHtml}`;
   }).join('');
 
+  // ─── Click handlers ───────────────────────────────────────────────────────
   nav.querySelectorAll('.group-nav-item').forEach(item => {
     item.addEventListener('click', e => {
       if (e.target.closest('.group-item-actions')) return;
-      activeGroup = Number(item.dataset.groupId);
+      activeGroup   = Number(item.dataset.groupId);
+      activeSection = null;
       renderSidebar(); renderLinks(true);
     });
   });
@@ -466,8 +556,94 @@ function renderSidebar() {
     btn.addEventListener('click', e => { e.stopPropagation(); openEditGroupModal(Number(btn.dataset.groupId)); }));
   nav.querySelectorAll('.delete-group-btn').forEach(btn =>
     btn.addEventListener('click', e => { e.stopPropagation(); openDeleteGroupModal(Number(btn.dataset.groupId)); }));
+  nav.querySelectorAll('.add-section-btn').forEach(btn =>
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      addingSectionToGroupId = Number(btn.dataset.groupId);
+      editingSectionId = null;
+      renderSidebar();
+      const input = nav.querySelector('.section-inline-input[data-mode="create"]');
+      if (input) input.focus();
+    }));
 
-  // Group drag-to-reorder
+  // Section row: click filters; edit/delete on hover
+  nav.querySelectorAll('.section-nav-item:not(.editing)').forEach(item => {
+    item.addEventListener('click', e => {
+      if (e.target.closest('.group-item-actions')) return;
+      activeGroup   = Number(item.dataset.groupId);
+      activeSection = Number(item.dataset.sectionId);
+      renderSidebar(); renderLinks(true);
+    });
+  });
+  nav.querySelectorAll('.edit-section-btn').forEach(btn =>
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      editingSectionId       = Number(btn.dataset.sectionId);
+      addingSectionToGroupId = null;
+      renderSidebar();
+      const input = nav.querySelector('.section-inline-input[data-mode="rename"]');
+      if (input) { input.focus(); input.select(); }
+    }));
+  nav.querySelectorAll('.delete-section-btn').forEach(btn =>
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const sid = Number(btn.dataset.sectionId);
+      const ok = await showConfirm({
+        title:       'Delete Section',
+        message:     'Delete this section? Links in it become unsectioned (they keep their group membership).',
+        confirmText: 'Delete',
+      });
+      if (!ok) return;
+      await deleteSectionApi(sid);
+      if (activeSection === sid) activeSection = null;
+      showToast('Section deleted');
+      await loadAllData();
+    }));
+
+  // Inline input handling (create + rename). The closure-level `settled` flag
+  // prevents Enter→blur from firing the save twice (which created duplicate
+  // sections — pressing Enter triggers a re-render that removes the input,
+  // which in turn fires its own blur event).
+  nav.querySelectorAll('.section-inline-input').forEach(input => {
+    let settled = false;
+    const finish = async commit => {
+      if (settled) return;
+      settled = true;
+
+      if (!commit) {
+        addingSectionToGroupId = null;
+        editingSectionId       = null;
+        renderSidebar();
+        return;
+      }
+      const name = input.value.trim();
+      if (!name) {
+        addingSectionToGroupId = null;
+        editingSectionId       = null;
+        renderSidebar();
+        return;
+      }
+      try {
+        if (input.dataset.mode === 'create') {
+          await createSectionApi(Number(input.dataset.groupId), name);
+          showToast('Section created');
+        } else {
+          await updateSectionApi(Number(input.dataset.sectionId), name);
+          showToast('Section renamed');
+        }
+      } catch { showToast('Could not save section', 'error'); }
+      addingSectionToGroupId = null;
+      editingSectionId       = null;
+      await loadAllData();
+    };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); finish(true); }
+      if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+  });
+
+  // ─── Group drag-to-reorder (unchanged) ─────────────────────────────────────
   nav.querySelectorAll('.group-nav-item').forEach(item => {
     const gid = Number(item.dataset.groupId);
     item.addEventListener('dragstart', e => { draggedGroupId = gid; item.style.opacity = '0.4'; e.dataTransfer.effectAllowed = 'move'; });
@@ -491,14 +667,20 @@ function renderSidebar() {
 function getFilteredLinks() {
   let filtered = links;
 
-  if      (activeGroup === 'ungrouped') filtered = filtered.filter(l => !l.group_id);
-  else if (activeGroup !== 'all')       filtered = filtered.filter(l => l.group_id === activeGroup);
+  if      (activeGroup === 'ungrouped') filtered = filtered.filter(linkIsUngrouped);
+  else if (activeGroup !== 'all') {
+    filtered = filtered.filter(l => linkBelongsToGroup(l, activeGroup));
+    if (activeSection !== null) {
+      filtered = filtered.filter(l => linkSectionInGroup(l, activeGroup) === activeSection);
+    }
+  }
 
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
     filtered = filtered.filter(l =>
       l.name.toLowerCase().includes(q) ||
       l.url.toLowerCase().includes(q)  ||
+      (l.file_name   || '').toLowerCase().includes(q) ||
       (l.description || '').toLowerCase().includes(q)
     );
   }
@@ -527,7 +709,7 @@ function buildIconHtml(iconUrl) {
 
 function buildLinkCard(link) {
   const wrap       = document.createElement('div');
-  wrap.className   = 'link-card-wrap';
+  wrap.className   = 'link-card-wrap' + (link.is_hidden ? ' hidden-link' : '');
   wrap.dataset.linkId = link.id;
 
   const checkbox   = document.createElement('div');
@@ -538,13 +720,29 @@ function buildLinkCard(link) {
   card.className = 'link-card';
 
   const stats    = statsMap[link.id];
-  const iconUrl  = link.image_path || link.favicon_path || getFaviconUrl(link.url);
-  const iconHtml = buildIconHtml(iconUrl);
+  // File-backed links skip favicon lookups and use a generic file glyph (unless
+  // the admin uploaded a custom icon).
+  const iconUrl  = link.image_path
+                || (link.file_path ? null : (link.favicon_path || getFaviconUrl(link.url)));
+  const iconHtml = iconUrl
+                ? buildIconHtml(iconUrl)
+                : (link.file_path
+                    ? `<span class="icon-fallback">${FILE_ICON_SVG}</span>`
+                    : `<span class="icon-fallback">${FALLBACK_ICON_SVG}</span>`);
   const q        = searchQuery; // capture for highlights
 
   const footerParts = [];
-  if (link.group_name) {
-    footerParts.push(`<span class="group-badge" style="background:${link.group_color}18; color:${link.group_color}">${escapeHtml(link.group_name)}</span>`);
+  const linkGroups = Array.isArray(link.groups) && link.groups.length
+    ? link.groups
+    : (link.group_name ? [{ name: link.group_name, color: link.group_color }] : []);
+  for (const g of linkGroups) {
+    footerParts.push(`<span class="group-badge" style="background:${g.color}18; color:${g.color}">${escapeHtml(g.name)}</span>`);
+  }
+  if (link.is_hidden) {
+    footerParts.push(`<span class="hidden-badge">
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+      Hidden
+    </span>`);
   }
   if (link.is_broken && link.last_checked_at) {
     footerParts.push(`<span class="broken-badge">
@@ -572,7 +770,7 @@ function buildLinkCard(link) {
     <div class="link-body">
       <div class="link-name">${highlightText(link.name, q)}</div>
       <a class="link-url" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">
-        ${highlightText(getDomainName(link.url), q)}
+        ${highlightText(getLinkDisplayLabel(link), q)}
       </a>
       ${descHtml}${footerHtml}${clickHtml}
     </div>
@@ -584,6 +782,11 @@ function buildLinkCard(link) {
         <button class="icon-btn edit-link-btn" title="Edit">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
+        <button class="icon-btn visibility-btn" title="${link.is_hidden ? 'Show on public page' : 'Hide from public page'}">
+          ${link.is_hidden
+            ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+            : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`}
+        </button>
         <button class="icon-btn danger delete-link-btn" title="Delete">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
         </button>
@@ -593,6 +796,11 @@ function buildLinkCard(link) {
 
   card.querySelector('.stats-link-btn').addEventListener('click',  () => openStatsModal(link));
   card.querySelector('.edit-link-btn').addEventListener('click',   () => openEditLinkModal(link));
+  card.querySelector('.visibility-btn').addEventListener('click',  async () => {
+    await setLinkVisibility(link.id, !link.is_hidden);
+    showToast(link.is_hidden ? 'Link is now visible' : 'Link hidden from public page');
+    await loadAllData();
+  });
   card.querySelector('.delete-link-btn').addEventListener('click', () => openDeleteLinkModal(link));
 
   wrap.addEventListener('click', e => {
@@ -642,12 +850,53 @@ function updateEmptyState() {
 let renderTransitionTimer;
 
 /**
+ * Builds buckets of links keyed by section_id within the active group.
+ * Returns an ordered list of { id, name, links } — "Ungrouped" comes first
+ * if it has any links; otherwise sections appear in their saved position order.
+ */
+function bucketBySectionForActiveGroup(filteredLinks) {
+  const group = groups.find(g => g.id === activeGroup);
+  if (!group) return null;
+
+  const buckets = new Map();
+  buckets.set(null, { id: null, name: 'Ungrouped', links: [] });
+  for (const s of group.sections || []) {
+    buckets.set(s.id, { id: s.id, name: s.name, links: [] });
+  }
+
+  for (const link of filteredLinks) {
+    const sid    = linkSectionInGroup(link, activeGroup);
+    const bucket = buckets.get(sid) || buckets.get(null);
+    bucket.links.push(link);
+  }
+
+  return Array.from(buckets.values()).filter(b => b.links.length > 0);
+}
+
+function appendSectionHeading(grid, label, count) {
+  const heading = document.createElement('div');
+  heading.className = 'section-heading';
+  heading.innerHTML = `
+    <span class="section-heading-text">${escapeHtml(label)}</span>
+    <span class="section-heading-count">${count}</span>`;
+  grid.appendChild(heading);
+}
+
+/**
  * Renders the filtered link grid.
  * Pass transition=true to do a quick fade before swapping content (e.g. group switches).
  */
 function renderLinks(transition = false) {
   const grid       = document.getElementById('linksGrid');
   const emptyState = document.getElementById('emptyState');
+
+  function appendCard(link, i) {
+    const el = buildLinkCard(link);
+    el.style.animationDelay = `${Math.min(i * 22, 280)}ms`;
+    el.classList.add('card-animate');
+    if (bulkModeActive) el.querySelector('.card-checkbox').classList.remove('hidden');
+    grid.appendChild(el);
+  }
 
   function doRender() {
     const filtered = getFilteredLinks();
@@ -656,15 +905,28 @@ function renderLinks(transition = false) {
     if (filtered.length === 0) {
       emptyState.classList.remove('hidden');
       updateEmptyState();
+      return;
+    }
+    emptyState.classList.add('hidden');
+
+    // Section headings appear only when filtering by a single group with no
+    // active section sub-filter (otherwise sections are either irrelevant or
+    // already implied by the active filter).
+    const shouldGroupBySection =
+      typeof activeGroup === 'number' &&
+      activeSection === null &&
+      sortOrder === 'position' &&
+      (groups.find(g => g.id === activeGroup)?.sections || []).length > 0;
+
+    if (shouldGroupBySection) {
+      const buckets = bucketBySectionForActiveGroup(filtered) || [];
+      let i = 0;
+      for (const b of buckets) {
+        appendSectionHeading(grid, b.name, b.links.length);
+        for (const link of b.links) appendCard(link, i++);
+      }
     } else {
-      emptyState.classList.add('hidden');
-      filtered.forEach((link, i) => {
-        const el = buildLinkCard(link);
-        el.style.animationDelay = `${Math.min(i * 22, 280)}ms`;
-        el.classList.add('card-animate');
-        if (bulkModeActive) el.querySelector('.card-checkbox').classList.remove('hidden');
-        grid.appendChild(el);
-      });
+      filtered.forEach(appendCard);
     }
   }
 
@@ -733,10 +995,218 @@ document.getElementById('closeStatsBtn').addEventListener('click', () =>
 
 let shouldRemoveIcon = false;
 
-function populateGroupDropdown(selectedId) {
-  document.getElementById('inputGroup').innerHTML =
-    '<option value="">None</option>' +
-    groups.map(g => `<option value="${g.id}"${g.id === selectedId ? ' selected' : ''}>${escapeHtml(g.name)}</option>`).join('');
+// Tracks Link/File mode state for the link modal.
+let linkModalMode      = 'link';        // 'link' or 'file'
+let pendingAttachedFile = null;          // File object picked but not yet uploaded
+let existingAttachedName = null;         // filename of an existing attachment when editing
+let shouldRemoveAttachedFile = false;    // true when user explicitly clears an existing file
+
+function setLinkModalMode(mode) {
+  linkModalMode = mode === 'file' ? 'file' : 'link';
+  document.querySelectorAll('.link-mode-tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.mode === linkModalMode));
+  document.querySelectorAll('.link-mode-pane').forEach(p =>
+    p.classList.toggle('hidden', p.dataset.mode !== linkModalMode));
+
+  // The URL input toggles required-ness based on mode so the browser's native
+  // validation matches what the server expects.
+  document.getElementById('inputUrl').required = (linkModalMode === 'link');
+}
+
+function refreshAttachedFileUi() {
+  const trigger = document.getElementById('attachFileBtn');
+  const label   = document.getElementById('attachedFileLabel');
+  const clear   = document.getElementById('clearAttachedFileBtn');
+
+  let displayName = null;
+  if (pendingAttachedFile)               displayName = pendingAttachedFile.name;
+  else if (existingAttachedName && !shouldRemoveAttachedFile)
+                                          displayName = existingAttachedName;
+
+  if (displayName) {
+    label.textContent = displayName;
+    trigger.classList.add('has-file');
+    clear.classList.remove('hidden');
+  } else {
+    label.textContent = 'Choose a file…';
+    trigger.classList.remove('has-file');
+    clear.classList.add('hidden');
+  }
+}
+
+document.querySelectorAll('.link-mode-tab').forEach(tab =>
+  tab.addEventListener('click', () => setLinkModalMode(tab.dataset.mode)));
+
+document.getElementById('attachFileBtn').addEventListener('click', () =>
+  document.getElementById('inputAttachedFile').click());
+
+document.getElementById('inputAttachedFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  pendingAttachedFile        = file;
+  shouldRemoveAttachedFile   = false;
+  refreshAttachedFileUi();
+});
+
+document.getElementById('clearAttachedFileBtn').addEventListener('click', () => {
+  pendingAttachedFile      = null;
+  shouldRemoveAttachedFile = !!existingAttachedName;
+  document.getElementById('inputAttachedFile').value = '';
+  refreshAttachedFileUi();
+});
+
+/**
+ * Populates the multi-select group dropdown.
+ * `selectedAssignments` is an array of either { id, section_id } objects or
+ * raw numeric IDs. Each group entry has a checkbox; when ticked AND the group
+ * has sections, a small section dropdown appears beneath it.
+ */
+function populateGroupDropdown(selectedAssignments = []) {
+  const sectionByGroup = new Map();
+  const selected       = new Set();
+  for (const raw of selectedAssignments) {
+    if (typeof raw === 'number') { selected.add(raw); continue; }
+    if (raw && typeof raw === 'object') {
+      const gid = Number(raw.id ?? raw.group_id);
+      if (!gid) continue;
+      selected.add(gid);
+      const sid = raw.section_id ?? null;
+      if (sid !== null) sectionByGroup.set(gid, Number(sid));
+    }
+  }
+
+  const menu = document.getElementById('inputGroupOptions');
+
+  if (!groups.length) {
+    menu.innerHTML = '<div class="multi-select-empty">No groups yet — create one from the sidebar</div>';
+    updateMultiSelectLabel();
+    return;
+  }
+
+  menu.innerHTML = groups.map(g => {
+    const isChecked = selected.has(g.id);
+    const sections  = g.sections || [];
+    const pickedSid = sectionByGroup.get(g.id) ?? null;
+
+    const sectionPicker = sections.length === 0 ? '' : `
+      <div class="multi-select-section${isChecked ? '' : ' hidden'}" data-group-id="${g.id}">
+        <span class="multi-select-section-arrow">↳</span>
+        <select class="multi-select-section-select" data-group-id="${g.id}">
+          <option value="">No section</option>
+          ${sections.map(s => `
+            <option value="${s.id}" ${pickedSid === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>
+          `).join('')}
+        </select>
+      </div>`;
+
+    return `
+      <div class="multi-select-row" data-group-id="${g.id}">
+        <label class="multi-select-option">
+          <input type="checkbox" value="${g.id}" ${isChecked ? 'checked' : ''}>
+          <span class="group-dot" style="background:${escapeHtml(g.color)}"></span>
+          <span>${escapeHtml(g.name)}</span>
+        </label>
+        ${sectionPicker}
+      </div>`;
+  }).join('');
+
+  // Checkbox toggle: update label and reveal/hide section sub-row.
+  menu.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const row   = cb.closest('.multi-select-row');
+      const subRow = row && row.querySelector('.multi-select-section');
+      if (subRow) subRow.classList.toggle('hidden', !cb.checked);
+      // Reset section to "None" when un-ticking — picking the group again starts fresh.
+      if (!cb.checked && subRow) {
+        const sel = subRow.querySelector('.multi-select-section-select');
+        if (sel) sel.value = '';
+      }
+      updateMultiSelectLabel();
+    });
+  });
+
+  updateMultiSelectLabel();
+}
+
+/**
+ * Returns the current group assignments as an array of { id, section_id }
+ * objects, suitable for sending to POST/PUT /api/links via the `groups` field.
+ */
+function getSelectedAssignments() {
+  const out = [];
+  document.querySelectorAll('#inputGroupOptions .multi-select-row').forEach(row => {
+    const cb = row.querySelector('input[type="checkbox"]');
+    if (!cb || !cb.checked) return;
+    const gid = Number(cb.value);
+    const sel = row.querySelector('.multi-select-section-select');
+    const sidRaw = sel ? sel.value : '';
+    const section_id = sidRaw ? Number(sidRaw) : null;
+    out.push({ id: gid, section_id });
+  });
+  return out;
+}
+
+/** Back-compat thin wrapper used by older code paths that only need IDs. */
+function getSelectedGroupIds() {
+  return getSelectedAssignments().map(a => a.id);
+}
+
+function updateMultiSelectLabel() {
+  const assignments = getSelectedAssignments();
+  const label       = document.getElementById('inputGroupLabel');
+  if (assignments.length === 0) {
+    label.textContent = 'None';
+    label.classList.add('placeholder');
+    return;
+  }
+  if (assignments.length === 1) {
+    const a = assignments[0];
+    const g = groups.find(x => x.id === a.id);
+    const groupName = g ? g.name : '1 group';
+    // Include the section name so the user sees their section pre-selection
+    // without having to expand the dropdown.
+    if (a.section_id && g) {
+      const sec = (g.sections || []).find(s => s.id === a.section_id);
+      if (sec) {
+        label.textContent = `${groupName} · ${sec.name}`;
+        label.classList.remove('placeholder');
+        return;
+      }
+    }
+    label.textContent = groupName;
+    label.classList.remove('placeholder');
+    return;
+  }
+  label.textContent = `${assignments.length} groups`;
+  label.classList.remove('placeholder');
+}
+
+function closeGroupMulti() {
+  document.getElementById('inputGroupMulti').classList.remove('open');
+  document.getElementById('inputGroupOptions').classList.add('hidden');
+  document.getElementById('inputGroupToggle').setAttribute('aria-expanded', 'false');
+}
+
+document.getElementById('inputGroupToggle').addEventListener('click', () => {
+  const wrap   = document.getElementById('inputGroupMulti');
+  const menu   = document.getElementById('inputGroupOptions');
+  const isOpen = wrap.classList.toggle('open');
+  menu.classList.toggle('hidden', !isOpen);
+  document.getElementById('inputGroupToggle').setAttribute('aria-expanded', String(isOpen));
+});
+
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('inputGroupMulti');
+  if (!wrap.classList.contains('open')) return;
+  if (!wrap.contains(e.target)) closeGroupMulti();
+});
+
+function resetLinkModalAttachmentState() {
+  pendingAttachedFile        = null;
+  existingAttachedName       = null;
+  shouldRemoveAttachedFile   = false;
+  document.getElementById('inputAttachedFile').value = '';
+  refreshAttachedFileUi();
 }
 
 function openAddLinkModal() {
@@ -748,7 +1218,14 @@ function openAddLinkModal() {
   document.getElementById('faviconImg').src = '';
   document.getElementById('urlDuplicateWarning').classList.add('hidden');
   clearCustomIconPreview(); hideFormError('linkFormError');
-  populateGroupDropdown((activeGroup !== 'all' && activeGroup !== 'ungrouped') ? activeGroup : null);
+  closeGroupMulti();
+  resetLinkModalAttachmentState();
+  setLinkModalMode('link');
+  // Preselect the currently-active group/section so the new link lands there.
+  const preselect = (typeof activeGroup === 'number')
+    ? [{ id: activeGroup, section_id: activeSection ?? null }]
+    : [];
+  populateGroupDropdown(preselect);
   document.getElementById('linkModalOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('inputName').focus(), 50);
 }
@@ -758,12 +1235,30 @@ function openEditLinkModal(link) {
   document.getElementById('linkModalTitle').textContent = 'Edit Link';
   document.getElementById('editingLinkId').value  = link.id;
   document.getElementById('inputName').value      = link.name;
-  document.getElementById('inputUrl').value       = link.url;
   document.getElementById('inputDesc').value      = link.description || '';
   document.getElementById('urlDuplicateWarning').classList.add('hidden');
-  populateGroupDropdown(link.group_id);
+  closeGroupMulti();
+  // Hydrate the multi-select with each group plus its section assignment.
+  const currentAssignments = Array.isArray(link.groups) && link.groups.length
+    ? link.groups.map(g => ({ id: g.id, section_id: g.section_id ?? null }))
+    : (link.group_id ? [{ id: link.group_id, section_id: null }] : []);
+  populateGroupDropdown(currentAssignments);
+
+  resetLinkModalAttachmentState();
+  if (link.file_path) {
+    // File-backed link: open in File mode and remember the current filename
+    // so the user can replace or remove it.
+    existingAttachedName = link.file_name || 'Current file';
+    document.getElementById('inputUrl').value = '';
+    setLinkModalMode('file');
+    refreshAttachedFileUi();
+  } else {
+    document.getElementById('inputUrl').value = link.url;
+    setLinkModalMode('link');
+  }
+
   const fi = document.getElementById('faviconImg');
-  const fu = getFaviconUrl(link.url);
+  const fu = link.file_path ? null : getFaviconUrl(link.url);
   fi.src = fu || ''; fi.className = fu ? 'visible' : '';
   link.image_path ? showCustomIconPreview(link.image_path) : clearCustomIconPreview();
   hideFormError('linkFormError');
@@ -827,10 +1322,22 @@ document.getElementById('linkForm').addEventListener('submit', async e => {
   const linkId  = document.getElementById('editingLinkId').value;
   const fd      = new FormData();
   fd.append('name',         document.getElementById('inputName').value.trim());
-  fd.append('url',          document.getElementById('inputUrl').value.trim());
   fd.append('description',  document.getElementById('inputDesc').value.trim());
-  fd.append('group_id',     document.getElementById('inputGroup').value);
+  fd.append('groups',       JSON.stringify(getSelectedAssignments()));
   fd.append('remove_image', shouldRemoveIcon ? 'true' : 'false');
+
+  if (linkModalMode === 'file') {
+    // File mode: no URL is sent. If user picked a new file, attach it.
+    // If editing a link that had no file before, the server requires a file.
+    fd.append('url', '');
+    if (pendingAttachedFile) fd.append('file', pendingAttachedFile);
+    if (shouldRemoveAttachedFile) fd.append('remove_file', 'true');
+  } else {
+    // URL mode: send the URL. If editing a link that *had* a file, drop it.
+    fd.append('url', document.getElementById('inputUrl').value.trim());
+    if (existingAttachedName) fd.append('remove_file', 'true');
+  }
+
   const imgFile = document.getElementById('inputImage').files[0];
   if (imgFile) fd.append('image', imgFile);
 
@@ -880,49 +1387,120 @@ document.getElementById('cancelDeleteLinkBtn').addEventListener('click', () =>
 // ─── 13. GROUP MODAL ──────────────────────────────────────────────────────────
 
 function buildColorPalette(selected) {
-  const palette = document.getElementById('colorPalette');
-  palette.innerHTML = GROUP_COLORS.map(c =>
-    `<div class="color-swatch${c === selected ? ' selected' : ''}" data-color="${c}" style="background:${c}" title="${c}"></div>`
-  ).join('');
-  palette.querySelectorAll('.color-swatch').forEach(s => s.addEventListener('click', () => {
+  const palette  = document.getElementById('colorPalette');
+  const isCustom = !GROUP_COLORS.includes(selected);
+
+  // Preset swatches + one "custom" swatch that opens the native colour picker.
+  // The custom swatch's background previews the currently-chosen custom colour.
+  const presets = GROUP_COLORS.map(c => `
+    <div class="color-swatch${c === selected ? ' selected' : ''}"
+         data-color="${c}" style="background:${c}" title="${c}"></div>`).join('');
+  const customSwatchColor = isCustom ? selected : '#888888';
+  palette.innerHTML = `${presets}
+    <label class="color-swatch color-swatch-custom${isCustom ? ' selected' : ''}"
+           title="Custom colour"
+           style="background:${escapeHtml(customSwatchColor)}">
+      <span class="color-swatch-plus">+</span>
+      <input type="color" id="groupColorPicker"
+             value="${escapeHtml(isCustom ? selected : GROUP_COLORS[0])}" />
+    </label>`;
+
+  function markSelected(el, color) {
     palette.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('selected'));
-    s.classList.add('selected'); document.getElementById('groupColorInput').value = s.dataset.color;
-  }));
+    el.classList.add('selected');
+    document.getElementById('groupColorInput').value = color;
+  }
+
+  palette.querySelectorAll('.color-swatch[data-color]').forEach(s =>
+    s.addEventListener('click', () => markSelected(s, s.dataset.color)));
+
+  const customSwatch = palette.querySelector('.color-swatch-custom');
+  const colorInput   = palette.querySelector('#groupColorPicker');
+  colorInput.addEventListener('input', e => {
+    const c = e.target.value;
+    customSwatch.style.background = c;
+    markSelected(customSwatch, c);
+  });
+}
+
+/**
+ * `clearPasswordOnSave` — when true, the next form submit will send password=null
+ * to strip the password from the group being edited. Reset between modal opens.
+ */
+let clearPasswordOnSave = false;
+
+function updateGroupPasswordStatus(isProtected) {
+  const status = document.getElementById('groupPasswordStatus');
+  const clear  = document.getElementById('clearGroupPasswordBtn');
+  if (isProtected && !clearPasswordOnSave) {
+    status.textContent = 'This group is currently password-protected.';
+    status.classList.remove('hidden'); status.classList.add('protected');
+    clear.classList.remove('hidden');
+  } else if (clearPasswordOnSave) {
+    status.textContent = 'Password will be removed when you save.';
+    status.classList.remove('hidden', 'protected');
+    clear.classList.add('hidden');
+  } else {
+    status.classList.add('hidden');
+    clear.classList.add('hidden');
+  }
 }
 
 function openAddGroupModal() {
+  clearPasswordOnSave = false;
   document.getElementById('groupModalTitle').textContent = 'New Group';
   document.getElementById('editingGroupId').value        = '';
   document.getElementById('groupNameInput').value        = '';
+  document.getElementById('groupPasswordInput').value    = '';
   document.getElementById('groupColorInput').value       = GROUP_COLORS[0];
   buildColorPalette(GROUP_COLORS[0]); hideFormError('groupFormError');
+  updateGroupPasswordStatus(false);
   document.getElementById('groupModalOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('groupNameInput').focus(), 50);
 }
 
 function openEditGroupModal(gid) {
   const g = groups.find(x => x.id === gid); if (!g) return;
+  clearPasswordOnSave = false;
   document.getElementById('groupModalTitle').textContent = 'Edit Group';
   document.getElementById('editingGroupId').value        = g.id;
   document.getElementById('groupNameInput').value        = g.name;
+  document.getElementById('groupPasswordInput').value    = '';
   document.getElementById('groupColorInput').value       = g.color;
   buildColorPalette(g.color); hideFormError('groupFormError');
+  updateGroupPasswordStatus(!!g.is_protected);
   document.getElementById('groupModalOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('groupNameInput').focus(), 50);
 }
 
 function closeGroupModal() { document.getElementById('groupModalOverlay').classList.add('hidden'); }
 
+document.getElementById('clearGroupPasswordBtn').addEventListener('click', () => {
+  clearPasswordOnSave = true;
+  document.getElementById('groupPasswordInput').value = '';
+  updateGroupPasswordStatus(true);
+});
+
 document.getElementById('groupForm').addEventListener('submit', async e => {
   e.preventDefault(); hideFormError('groupFormError');
-  const gid   = document.getElementById('editingGroupId').value;
-  const name  = document.getElementById('groupNameInput').value.trim();
-  const color = document.getElementById('groupColorInput').value;
+  const gid      = document.getElementById('editingGroupId').value;
+  const name     = document.getElementById('groupNameInput').value.trim();
+  const color    = document.getElementById('groupColorInput').value;
+  const pwInput  = document.getElementById('groupPasswordInput').value;
   if (!name) return;
+
+  // Decide what to send for `password`:
+  //   - clearPasswordOnSave → null (remove protection)
+  //   - non-empty input     → set this new password
+  //   - empty input on edit → omit the field (keep current state)
+  const payload = { name, color };
+  if (clearPasswordOnSave)         payload.password = null;
+  else if (pwInput.length > 0)     payload.password = pwInput;
+
   try {
     const result = gid
-      ? await updateGroup(gid, { name, color })
-      : await createGroup({ name, color });
+      ? await updateGroup(gid, payload)
+      : await createGroup(payload);
     if (result?.error) { showFormError('groupFormError', result.error); return; }
     closeGroupModal();
     showToast(gid ? 'Group saved' : 'Group created');
@@ -1018,14 +1596,14 @@ document.getElementById('bulkMoveBtn').addEventListener('click', async () => {
   const ids      = getSelectedIds();
   const groupVal = document.getElementById('bulkGroupSelect').value;
   if (!ids.length || !groupVal) return;
-  const groupId = groupVal === 'none' ? '' : groupVal;
+  const groupIds = groupVal === 'none' ? [] : [Number(groupVal)];
   await Promise.all(ids.map(id => {
     const link = links.find(l => l.id === id); if (!link) return;
     const fd = new FormData();
     fd.append('name',         link.name);
     fd.append('url',          link.url);
     fd.append('description',  link.description || '');
-    fd.append('group_id',     groupId);
+    fd.append('group_ids',    JSON.stringify(groupIds));
     fd.append('remove_image', 'false');
     return updateLink(id, fd);
   }));
@@ -1145,7 +1723,9 @@ document.addEventListener('click', e => {
 // ─── 20. NAV & SEARCH ────────────────────────────────────────────────────────
 
 document.querySelectorAll('.nav-item').forEach(btn => btn.addEventListener('click', () => {
-  activeGroup = btn.dataset.group; renderSidebar(); renderLinks(true);
+  activeGroup   = btn.dataset.group;
+  activeSection = null;
+  renderSidebar(); renderLinks(true);
 }));
 
 document.getElementById('searchInput').addEventListener('input', e => {

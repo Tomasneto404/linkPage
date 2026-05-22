@@ -124,7 +124,7 @@
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5"  y1="12" x2="19" y2="12"/>
           </svg>
-          Add Link
+          <span class="add-link-label">Add Link</span>
         </button>
 
         <!-- Theme toggle -->
@@ -232,6 +232,80 @@
           View public page
         </a>
       </div>
+
+      <details class="sidebar-changelog" id="sidebarChangelog">
+        <summary>
+          <svg class="changelog-chevron" width="11" height="11" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.4"
+               stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 6 15 12 9 18"/>
+          </svg>
+          <span>Changelog</span>
+          <span class="changelog-version" id="changelogVersion">v1.0.1</span>
+        </summary>
+
+        <div class="changelog-release-label">v1.0.1</div>
+        <ul class="changelog-list">
+          <li>
+            <div class="changelog-entry-title">Sections inside groups</div>
+            <div class="changelog-entry-desc">
+              Groups can now contain sections. Add, rename, and delete them from the
+              sidebar; assign a link to a specific section via the per-group picker
+              in the link modal. Cards in a group view split under section headings.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">File attachments</div>
+            <div class="changelog-entry-desc">
+              A link can point to an uploaded file (PDF, Office docs, archives, images,
+              text) instead of a URL. The link modal has a URL / File toggle; click-tracking
+              still records every visit.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Hide links from the public page</div>
+            <div class="changelog-entry-desc">
+              Each card has a new eye-toggle that hides a link from the public page
+              and its <code>/r/:id</code> redirect — admins keep full access. Reversible
+              with one click.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Custom group colors</div>
+            <div class="changelog-entry-desc">
+              The group colour palette now includes a "+" swatch that opens the native
+              colour picker, so groups can use any hex colour beyond the ten presets.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Mobile-friendly UI</div>
+            <div class="changelog-entry-desc">
+              Phones get a slide-over sidebar, full-width modal sheets, larger tap targets,
+              and a compact header that drops power-user controls. The public page
+              gets responsive padding, search, and card layout.
+            </div>
+          </li>
+        </ul>
+
+        <div class="changelog-release-label">v1.0.0</div>
+        <ul class="changelog-list">
+          <li>
+            <div class="changelog-entry-title">Multiple groups per link</div>
+            <div class="changelog-entry-desc">
+              A link can now belong to several groups at once. The link form has a
+              multi-select group picker, and cards show one coloured badge per group.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Password-protected groups</div>
+            <div class="changelog-entry-desc">
+              Groups can be locked with a password. Protected groups show a lock icon
+              on the public page; visitors must enter the password to view their links.
+              Unlocks automatically expire after 30&nbsp;seconds.
+            </div>
+          </li>
+        </ul>
+      </details>
     </aside>
 
     <!-- Bulk action bar — visible only when links are selected -->
@@ -446,21 +520,74 @@
             <label for="inputName">Name <span class="req">*</span></label>
             <input type="text" id="inputName" placeholder="My favorite site" required />
           </div>
-          <div class="form-group" style="width:145px">
-            <label for="inputGroup">Group</label>
-            <select id="inputGroup"><option value="">None</option></select>
+          <div class="form-group" style="width:175px">
+            <label>Groups</label>
+            <div class="multi-select" id="inputGroupMulti">
+              <button type="button" class="multi-select-toggle" id="inputGroupToggle" aria-haspopup="listbox" aria-expanded="false">
+                <span class="multi-select-label" id="inputGroupLabel">None</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              <div class="multi-select-menu hidden" id="inputGroupOptions" role="listbox"></div>
+            </div>
           </div>
         </div>
 
         <div class="form-group">
-          <label for="inputUrl">URL <span class="req">*</span></label>
-          <div class="url-input-wrap">
-            <input type="url" id="inputUrl" placeholder="https://example.com" required />
-            <div class="favicon-preview" id="faviconPreview">
-              <img id="faviconImg" alt="Site favicon" />
+          <div class="link-mode-tabs" role="tablist">
+            <button type="button" class="link-mode-tab active" data-mode="link" role="tab">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              URL
+            </button>
+            <button type="button" class="link-mode-tab" data-mode="file" role="tab">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              File
+            </button>
+          </div>
+
+          <div class="link-mode-pane" data-mode="link">
+            <label for="inputUrl">URL <span class="req">*</span></label>
+            <div class="url-input-wrap">
+              <input type="url" id="inputUrl" placeholder="https://example.com" />
+              <div class="favicon-preview" id="faviconPreview">
+                <img id="faviconImg" alt="Site favicon" />
+              </div>
+            </div>
+            <div id="urlDuplicateWarning" class="form-warning hidden"></div>
+          </div>
+
+          <div class="link-mode-pane hidden" data-mode="file">
+            <label>File <span class="req">*</span></label>
+            <input type="file" id="inputAttachedFile" hidden
+                   accept=".pdf,.doc,.docx,.odt,.rtf,.xls,.xlsx,.ods,.csv,.ppt,.pptx,.odp,.txt,.md,.log,.zip,.7z,.tar,.gz,.jpg,.jpeg,.png,.gif,.webp,.svg" />
+            <div class="file-upload" id="fileUploadBox">
+              <button type="button" class="file-upload-trigger" id="attachFileBtn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span id="attachedFileLabel">Choose a file…</span>
+              </button>
+              <button type="button" class="btn btn-ghost-danger btn-sm hidden" id="clearAttachedFileBtn">
+                Remove
+              </button>
+            </div>
+            <div class="form-hint" id="attachedFileHint">
+              PDF, Office docs, text, archives, and images up to 25&nbsp;MB.
             </div>
           </div>
-          <div id="urlDuplicateWarning" class="form-warning hidden"></div>
         </div>
 
         <div class="form-group">
@@ -531,6 +658,19 @@
           <label>Color</label>
           <div class="color-palette" id="colorPalette"></div>
           <input type="hidden" id="groupColorInput" value="#0071e3" />
+        </div>
+        <div class="form-group">
+          <label for="groupPasswordInput">
+            Password <span class="label-opt">(optional — locks this group on the public page)</span>
+          </label>
+          <div class="group-password-row">
+            <input type="password" id="groupPasswordInput" autocomplete="new-password"
+                   placeholder="Leave blank for no password…" />
+            <button type="button" class="btn btn-ghost-danger btn-sm hidden" id="clearGroupPasswordBtn">
+              Clear password
+            </button>
+          </div>
+          <div class="form-hint hidden" id="groupPasswordStatus"></div>
         </div>
         <div class="form-error hidden" id="groupFormError"></div>
         <div class="form-actions">

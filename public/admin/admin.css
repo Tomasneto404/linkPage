@@ -45,6 +45,296 @@
 .toast-error .toast-icon   { color: var(--danger); }
 .toast-info .toast-icon    { color: var(--primary); }
 
+/* ─── Multi-select dropdown (group picker in link modal) ───────────────────── */
+
+.multi-select {
+  position: relative;
+  width: 100%;
+}
+
+.multi-select-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.multi-select-toggle:hover  { border-color: var(--border-strong); }
+.multi-select-toggle:focus  { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.12); }
+.multi-select-toggle svg    { margin-left: auto; opacity: 0.55; flex-shrink: 0; transition: transform var(--transition); }
+.multi-select.open .multi-select-toggle svg { transform: rotate(180deg); }
+
+.multi-select-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.multi-select-label.placeholder { color: var(--text-muted); }
+
+.multi-select-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  z-index: 80;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.multi-select-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text);
+  user-select: none;
+}
+.multi-select-option:hover { background: var(--surface-3); }
+.multi-select-option input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  margin: 0;
+}
+.multi-select-option input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.multi-select-option input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.multi-select-option .group-dot {
+  width: 16px;
+  height: 9px;
+  border-radius: 980px;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
+}
+.multi-select-empty {
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Each row in the dropdown stacks a checkbox option and an (optional) section
+   picker that appears below it when the group is ticked. */
+.multi-select-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.multi-select-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 6px 28px; /* indent past the checkbox */
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.multi-select-section-arrow {
+  font-size: 0.7rem;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.multi-select-section-select {
+  flex: 1;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+.multi-select-section-select:focus { border-color: var(--primary); }
+
+/* Multiple group badges sit nicely side by side on cards */
+.link-footer { flex-wrap: wrap; }
+.link-footer .group-badge + .group-badge { margin-left: 0; }
+
+/* Group password row in the group modal */
+.group-password-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.group-password-row input {
+  flex: 1;
+}
+.form-hint {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.form-hint.protected { color: var(--primary); }
+
+/* ─── Link/File mode tabs inside the link modal ──────────────────────────── */
+
+.link-mode-tabs {
+  display: inline-flex;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 980px;
+  padding: 3px;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.link-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: 980px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.link-mode-tab:hover { color: var(--text); }
+.link-mode-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.link-mode-tab svg { opacity: 0.7; }
+.link-mode-tab.active svg { opacity: 1; }
+
+/* File-upload control inside the File pane */
+.file-upload {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.file-upload-trigger {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition);
+  overflow: hidden;
+}
+.file-upload-trigger:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+.file-upload-trigger.has-file {
+  border-style: solid;
+  border-color: var(--primary);
+  color: var(--text);
+}
+.file-upload-trigger svg { flex-shrink: 0; opacity: 0.7; }
+.file-upload-trigger.has-file svg { color: var(--primary); opacity: 1; }
+.file-upload-trigger #attachedFileLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Custom colour swatch in the group modal palette */
+.color-swatch-custom {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.color-swatch-custom input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+.color-swatch-plus {
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+  /* Slight shadow so the "+" stays readable on light custom colours */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/* Hidden link state: faded card + "Hidden" badge in the footer */
+.link-card-wrap.hidden-link .link-card { opacity: 0.55; }
+.link-card-wrap.hidden-link .link-card:hover { opacity: 0.85; }
+
+.hidden-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 980px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+/* Lock icon next to protected groups in the sidebar */
+.group-lock-icon {
+  width: 11px;
+  height: 11px;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+.group-nav-item.active .group-lock-icon { opacity: 0.9; }
+
 /* ─── Sort select ────────────────────────────────────────────────────────────── */
 
 .sort-select {
@@ -242,7 +532,66 @@ header {
 .group-nav-item:hover  { background: var(--surface-3); color: var(--text); }
 .group-nav-item.active { background: var(--surface-3); color: var(--text); }
 
-.group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.group-dot {
+  width: 18px;
+  height: 10px;
+  border-radius: 980px; /* full pill — same language as the Add Link button */
+  flex-shrink: 0;
+  /* faint inner ring keeps very light colours legible on white surfaces */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
+}
+
+/* ─── Section rows inside the sidebar ─────────────────────────────────────── */
+
+.section-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px 5px 28px; /* extra left padding = nesting under group */
+  border-radius: var(--radius-sm);
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  position: relative;
+  transition: background var(--transition), color var(--transition);
+}
+.section-nav-item:hover  { background: var(--surface-3); color: var(--text); }
+.section-nav-item.active { background: var(--surface-3); color: var(--text); }
+
+.section-nav-item .section-tick {
+  width: 6px;
+  height: 1.5px;
+  background: var(--text-muted);
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+.section-nav-item:hover .section-tick,
+.section-nav-item.active .section-tick { opacity: 0.7; }
+
+.section-nav-item .section-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-nav-item .group-item-actions { display: none; gap: 2px; flex-shrink: 0; }
+.section-nav-item:hover .group-item-actions { display: flex; }
+
+.section-nav-item.editing { padding-right: 6px; }
+.section-inline-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.8125rem;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+}
 .group-nav-item span:nth-child(2) {
   flex: 1;
   overflow: hidden;
@@ -365,6 +714,101 @@ header {
   letter-spacing: 0.08em;
   color: var(--text-muted);
   margin-bottom: 10px;
+}
+
+/* ─── Sidebar changelog (collapsible <details>) ────────────────────────────── */
+
+.sidebar-changelog {
+  margin-top: 6px;
+  padding-top: 4px;
+}
+.sidebar-changelog > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 11px;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  user-select: none;
+  transition: background var(--transition), color var(--transition);
+}
+.sidebar-changelog > summary::-webkit-details-marker { display: none; }
+.sidebar-changelog > summary:hover { background: var(--surface-3); color: var(--text); }
+
+.sidebar-changelog .changelog-chevron {
+  flex-shrink: 0;
+  transition: transform var(--transition);
+}
+.sidebar-changelog[open] > summary .changelog-chevron { transform: rotate(90deg); }
+
+.sidebar-changelog .changelog-version {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  padding: 1px 7px;
+  border-radius: 980px;
+  background: rgba(0, 113, 227, 0.12);
+  color: var(--primary);
+}
+
+.sidebar-changelog .changelog-release-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 8px 11px 2px;
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.sidebar-changelog .changelog-release-label:first-of-type {
+  border-top: none;
+  margin-top: 4px;
+}
+
+.sidebar-changelog .changelog-list {
+  list-style: none;
+  padding: 4px 0 4px 11px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sidebar-changelog .changelog-list li {
+  position: relative;
+  padding: 8px 10px 8px 18px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.sidebar-changelog .changelog-list li::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 13px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.sidebar-changelog .changelog-entry-title {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.sidebar-changelog .changelog-entry-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.45;
 }
 
 .settings-row {
@@ -699,10 +1143,84 @@ header {
 /* ─── Responsive ─────────────────────────────────────────────────────────────── */
 
 @media (max-width: 720px) {
-  .sidebar { transform: translateX(-100%); }
-  .sidebar.open { transform: none; }
-  .main-content { margin-left: 0 !important; }
-  .search-input { width: 130px; }
-  .links-grid { grid-template-columns: 1fr; }
-  .bulk-bar { left: 16px; right: 16px; transform: none; border-radius: var(--radius-lg); flex-wrap: wrap; }
+  /* Sidebar slides over the main content instead of pushing it */
+  .sidebar         { transform: translateX(-100%); }
+  .sidebar.open    { transform: none; box-shadow: var(--shadow-md); }
+  .main-content    { margin-left: 0 !important; padding: 16px 14px 80px; }
+  .search-input    { width: 130px; }
+  .links-grid      { grid-template-columns: 1fr; }
+  .bulk-bar        { left: 16px; right: 16px; transform: none; border-radius: var(--radius-lg); flex-wrap: wrap; }
+  .header-inner    { padding: 0 14px; gap: 8px; }
+  .admin-badge     { display: none; }
+  .sort-select     { display: none; }
+}
+
+@media (max-width: 480px) {
+  body { font-size: 14px; }
+
+  /* Header: drop power-user buttons; keep brand + search + add + actions */
+  .header-inner   { padding: 0 10px; gap: 6px; }
+  .admin-badge    { display: none; }
+  #importBtn,
+  #exportBtn,
+  #bulkSelectBtn,
+  .sort-select    { display: none; }
+
+  /* Let the search input fill the row */
+  .search-wrap    { flex: 1 1 auto; min-width: 0; }
+  .search-input,
+  .search-input:focus { width: 100% !important; padding: 7px 10px 7px 30px; }
+
+  /* Add Link collapses to an icon-only pill */
+  #openAddLinkBtn         { padding: 8px 12px; gap: 0; }
+  #openAddLinkBtn .add-link-label { display: none; }
+
+  /* Theme / settings / logout — round, comfortable tap targets */
+  .theme-toggle   { width: 34px; height: 34px; }
+
+  .main-content   { padding: 14px 10px 90px; }
+  .links-grid     { gap: 8px; grid-template-columns: 1fr; }
+
+  /* Cards: card-action buttons need bigger touch targets */
+  .link-card-wrap .icon-btn { width: 32px; height: 32px; }
+  .link-actions             { gap: 2px; }
+  .drag-handle              { display: none; } /* drag-to-reorder is mouse-only on phones */
+
+  /* Modals: full-width sheet from the top edge.
+     overflow-y enables scrolling when forms exceed viewport height. */
+  .modal-overlay     { padding: 0; align-items: flex-start; padding-top: 18px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .modal             { border-radius: var(--radius-lg) var(--radius-lg) 0 0; max-width: 100%; margin: 0 8px; }
+  .modal-sm          { max-width: 100%; }
+  .modal-lg          { max-width: 100%; }
+  .modal-header      { padding: 16px 16px 0; }
+
+  /* Stack form layouts and stretch action buttons */
+  .form-row          { flex-direction: column !important; gap: 10px !important; }
+  .form-row > *      { width: 100% !important; }
+  .form-actions      { flex-direction: column-reverse; gap: 8px; padding: 14px 16px 20px; }
+  .form-actions .btn { width: 100%; justify-content: center; }
+  .form-group        { padding-bottom: 4px; }
+
+  /* Settings rows stack instead of squishing into two columns */
+  .settings-row      { flex-direction: column; align-items: stretch; gap: 10px; }
+  .settings-row > div:last-child { display: flex; flex-wrap: wrap; gap: 6px; }
+  .settings-body     { padding: 14px 16px 18px; }
+
+  /* Bulk bar: full-width pill at the bottom */
+  .bulk-bar { bottom: 14px; left: 10px; right: 10px; padding: 12px 14px; gap: 10px; }
+  .bulk-bar > div { width: 100%; justify-content: space-between; }
+  .bulk-bar .btn { flex: 1; justify-content: center; }
+  .bulk-group-select { flex: 1; width: auto; }
+
+  /* Multi-select panel: wider on phones for easier tapping */
+  .multi-select-toggle { padding: 9px 12px; font-size: 0.9rem; }
+  .multi-select-option { padding: 9px 10px; font-size: 0.9rem; }
+  .multi-select-option input[type="checkbox"] { width: 18px; height: 18px; }
+
+  /* Sidebar takes most of the screen when opened */
+  .sidebar          { width: min(280px, 88vw); }
+
+  /* Toasts stay above the bottom bulk bar */
+  .toast-container  { right: 10px; left: 10px; }
+  .toast            { max-width: 100%; }
 }

@@ -43,6 +43,96 @@ function loadOrCreateAdminToken() {
 // Mutable so it can be rotated at runtime
 let ADMIN_TOKEN = loadOrCreateAdminToken();
 
+// ─── Group unlock secret ──────────────────────────────────────────────────────
+
+/**
+ * Long-lived secret used to HMAC-sign per-group "unlocked" cookies.
+ * Persists across restarts so users stay unlocked.
+ */
+const GROUP_SECRET_FILE = path.join(DATA_DIR, 'group-secret.txt');
+function loadOrCreateGroupSecret() {
+  if (fs.existsSync(GROUP_SECRET_FILE)) {
+    return fs.readFileSync(GROUP_SECRET_FILE, 'utf8').trim();
+  }
+  const secret = crypto.randomBytes(32).toString('hex');
+  fs.writeFileSync(GROUP_SECRET_FILE, secret, { mode: 0o600 });
+  return secret;
+}
+const GROUP_SECRET = loadOrCreateGroupSecret();
+
+/**
+ * How long a group stays unlocked after a successful password verification.
+ * Short on purpose: protected groups re-lock so a walk-away user doesn't
+ * leave the page exposed.
+ */
+const GROUP_UNLOCK_TTL_MS = 30 * 1000;
+
+/**
+ * Builds an unlock cookie value: `<expiry-ms>.<hmac>`.
+ * The expiry is part of the signed payload, so a client can't bump it.
+ */
+function signGroupUnlock(groupId, expMs) {
+  const hmac = crypto
+    .createHmac('sha256', GROUP_SECRET)
+    .update(`${groupId}:${expMs}`)
+    .digest('hex');
+  return `${expMs}.${hmac}`;
+}
+
+/** Parses a Cookie header into an object. Tolerant of malformed input. */
+function parseCookies(cookieHeader) {
+  const out = {};
+  if (!cookieHeader) return out;
+  for (const part of cookieHeader.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx < 0) continue;
+    const key = part.slice(0, idx).trim();
+    if (!key) continue;
+    try { out[key] = decodeURIComponent(part.slice(idx + 1).trim()); }
+    catch { /* ignore malformed value */ }
+  }
+  return out;
+}
+
+/**
+ * Returns a Map of group_id → expiry-timestamp-ms for every group the request
+ * has successfully unlocked and whose token hasn't expired yet.
+ */
+function getUnlockedGroupExpiries(req) {
+  const cookies = parseCookies(req.headers.cookie || '');
+  const now     = Date.now();
+  const out     = new Map();
+
+  for (const [name, value] of Object.entries(cookies)) {
+    const match = name.match(/^lp_grp_(\d+)$/);
+    if (!match) continue;
+
+    const gid = Number(match[1]);
+    const dot = value.indexOf('.');
+    if (dot < 0) continue;
+
+    const expMs = Number(value.slice(0, dot));
+    const sig   = value.slice(dot + 1);
+    if (!Number.isFinite(expMs) || expMs <= now) continue;
+
+    const expected = crypto
+      .createHmac('sha256', GROUP_SECRET)
+      .update(`${gid}:${expMs}`)
+      .digest('hex');
+
+    if (sig.length === expected.length &&
+        crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+      out.set(gid, expMs);
+    }
+  }
+  return out;
+}
+
+/** Convenience wrapper that returns just the Set of unlocked IDs. */
+function getUnlockedGroupIds(req) {
+  return new Set(getUnlockedGroupExpiries(req).keys());
+}
+
 // Migrate old single-logo setting to the new light/dark format
 const oldLogoPath = db.readSetting('logo_path');
 if (oldLogoPath && !db.readSetting('logo_light')) {
@@ -118,6 +208,89 @@ function isValidHexColor(value) {
   return typeof value === 'string' && /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(value);
 }
 
+/**
+ * Parses the group membership payload, preferring the richer `groups` shape
+ * (with per-group section_id) and falling back to legacy `group_ids`.
+ *
+ * Returns:
+ *   undefined → request didn't include any group field (leave untouched)
+ *   []        → request explicitly cleared all memberships
+ *   array of { group_id: number, section_id: number|null }
+ */
+function parseGroupAssignments(body) {
+  if (body.groups !== undefined) {
+    let raw = body.groups;
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (trimmed === '' || trimmed === 'null') return [];
+      try { raw = JSON.parse(trimmed); }
+      catch { return []; }
+    }
+    if (!Array.isArray(raw)) return [];
+
+    const out  = [];
+    const seen = new Set();
+    for (const entry of raw) {
+      if (!entry || typeof entry !== 'object') continue;
+      const gid = Number(entry.id ?? entry.group_id);
+      if (!Number.isFinite(gid) || gid <= 0 || seen.has(gid)) continue;
+      seen.add(gid);
+      let sid = entry.section_id;
+      sid = (sid === null || sid === undefined) ? null : Number(sid);
+      if (sid !== null && (!Number.isFinite(sid) || sid <= 0)) sid = null;
+      out.push({ group_id: gid, section_id: sid });
+    }
+    return out;
+  }
+
+  // Legacy plain-IDs shape — no section info.
+  const legacy = parseGroupIds(body);
+  if (legacy === undefined) return undefined;
+  return legacy.map(id => ({ group_id: id, section_id: null }));
+}
+
+/**
+ * Parses a list of group IDs from a request body, accepting any of:
+ *  - body.group_ids as a JSON-encoded array (sent via FormData)
+ *  - body.group_ids as a real array (sent via JSON)
+ *  - body.group_id as a single value (legacy single-group payload)
+ *
+ * Returns an array of positive integers, or undefined if the request didn't
+ * include any group field at all (so updateLink leaves memberships untouched).
+ */
+function parseGroupIds(body) {
+  let raw = body.group_ids;
+
+  if (raw === undefined && body.group_id !== undefined) {
+    raw = body.group_id;
+  }
+  if (raw === undefined) return undefined;
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed === '' || trimmed === 'null') return [];
+    if (trimmed.startsWith('[')) {
+      try { raw = JSON.parse(trimmed); }
+      catch { return []; }
+    } else {
+      raw = [trimmed];
+    }
+  }
+
+  if (!Array.isArray(raw)) raw = [raw];
+
+  const seen = new Set();
+  const out  = [];
+  for (const v of raw) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0 && !seen.has(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  }
+  return out;
+}
+
 const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
@@ -128,6 +301,44 @@ function isAllowedImage(file) {
   const extension = path.extname(file.originalname).toLowerCase();
   return ALLOWED_IMAGE_EXTENSIONS.includes(extension) &&
          ALLOWED_IMAGE_MIME_TYPES.includes(file.mimetype);
+}
+
+// Files a link can point to instead of a URL. Keeps risky types (.exe, .sh,
+// .js, .html, etc.) out of the uploads directory.
+const ALLOWED_FILE_EXTENSIONS = [
+  '.pdf',
+  '.doc', '.docx', '.odt', '.rtf',
+  '.xls', '.xlsx', '.ods', '.csv',
+  '.ppt', '.pptx', '.odp',
+  '.txt', '.md', '.log',
+  '.zip', '.7z', '.tar', '.gz',
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
+];
+const ALLOWED_FILE_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.oasis.opendocument.text',
+  'application/rtf', 'text/rtf',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'text/csv',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.oasis.opendocument.presentation',
+  'text/plain', 'text/markdown',
+  'application/zip', 'application/x-zip-compressed',
+  'application/x-7z-compressed', 'application/x-tar', 'application/gzip',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  // Browsers sometimes report an unknown type for less-common but safe files
+  // (e.g. .md, .log). The extension whitelist still applies, so this is safe.
+  'application/octet-stream',
+]);
+
+function isAllowedAttachment(file) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  return ALLOWED_FILE_EXTENSIONS.includes(ext) && ALLOWED_FILE_MIME_TYPES.has(file.mimetype);
 }
 
 /**
@@ -189,8 +400,54 @@ function createRateLimiter(maxRequests, windowMs) {
   };
 }
 
-const authRateLimit  = createRateLimiter(10, 5 * 60 * 1000); // 10 per 5 minutes
+const authRateLimit  = createRateLimiter(10, 5 * 60 * 1000); // 10 per 5 minutes (legacy)
 const clickRateLimit = createRateLimiter(30, 60 * 1000);      // 30 per minute
+
+/**
+ * Failure-only rate limiter for auth endpoints.
+ *
+ * Successful verifications must not count toward the budget — otherwise a
+ * legitimate admin refreshing the page a few times exhausts the limit and
+ * gets locked out of their own session. Brute-force attempts still trip the
+ * limit since every wrong token is a failure.
+ *
+ * Returns an object with two methods:
+ *   isLimited(req)    → true if this IP has used up its failure budget
+ *   recordFailure(req) → increments the counter for this IP
+ */
+function createFailureRateLimiter(maxFailures, windowMs) {
+  const store = new Map();
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of store.entries()) {
+      if (now - entry.windowStart > windowMs) store.delete(ip);
+    }
+  }, windowMs);
+
+  return {
+    isLimited(req) {
+      const entry = store.get(getClientIp(req));
+      if (!entry) return false;
+      if (Date.now() - entry.windowStart > windowMs) return false;
+      return entry.count >= maxFailures;
+    },
+    recordFailure(req) {
+      const ip  = getClientIp(req);
+      const now = Date.now();
+      const entry = store.get(ip);
+      if (!entry || now - entry.windowStart > windowMs) {
+        store.set(ip, { count: 1, windowStart: now });
+      } else {
+        entry.count++;
+      }
+    },
+  };
+}
+
+const adminAuthLimiter    = createFailureRateLimiter(20, 5 * 60 * 1000);
+const publicAuthLimiter   = createFailureRateLimiter(20, 5 * 60 * 1000);
+const groupUnlockLimiter  = createFailureRateLimiter(15, 5 * 60 * 1000);
 
 // ─── Auth middleware ──────────────────────────────────────────────────────────
 
@@ -240,6 +497,32 @@ const upload = multer({
   },
 });
 
+/**
+ * Combined multer instance used by /api/links: accepts an optional `image`
+ * (custom icon, image-only) and/or an optional `file` (attachment, broader
+ * type whitelist, larger size cap).
+ */
+const uploadLinkPayload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB cap for attachments
+  fileFilter: (req, file, done) => {
+    if (file.fieldname === 'image') {
+      return isAllowedImage(file)
+        ? done(null, true)
+        : done(new Error('Custom icon must be an image (jpg, png, gif, webp, svg)'));
+    }
+    if (file.fieldname === 'file') {
+      return isAllowedAttachment(file)
+        ? done(null, true)
+        : done(new Error('File type not allowed'));
+    }
+    done(new Error(`Unexpected field "${file.fieldname}"`));
+  },
+}).fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'file',  maxCount: 1 },
+]);
+
 // ─── Express setup ────────────────────────────────────────────────────────────
 
 app.use(express.json());
@@ -260,12 +543,22 @@ app.get('/admin', (req, res) =>
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-app.post('/api/auth/verify', authRateLimit, (req, res) => {
+app.post('/api/auth/verify', (req, res) => {
+  if (adminAuthLimiter.isLimited(req)) {
+    return res.status(429).json({ valid: false, error: 'Too many failed attempts. Try again later.' });
+  }
   const token = typeof req.body.token === 'string' ? req.body.token : '';
-  res.json({ valid: isValidAdminToken(token) });
+  if (isValidAdminToken(token)) {
+    return res.json({ valid: true });
+  }
+  adminAuthLimiter.recordFailure(req);
+  res.json({ valid: false });
 });
 
-app.post('/api/auth/verify-public', authRateLimit, (req, res) => {
+app.post('/api/auth/verify-public', (req, res) => {
+  if (publicAuthLimiter.isLimited(req)) {
+    return res.status(429).json({ valid: false, error: 'Too many failed attempts. Try again later.' });
+  }
   const password = typeof req.body.password === 'string' ? req.body.password : '';
   const stored   = db.readSetting('public_password');
 
@@ -274,7 +567,11 @@ app.post('/api/auth/verify-public', authRateLimit, (req, res) => {
     return res.json({ valid: true });
   }
 
-  res.json({ valid: isValidPublicPassword(password) });
+  if (isValidPublicPassword(password)) {
+    return res.json({ valid: true });
+  }
+  publicAuthLimiter.recordFailure(req);
+  res.json({ valid: false });
 });
 
 /** Generates a new admin token, saves it to disk, and returns it. */
@@ -452,6 +749,25 @@ app.get('/r/:id', clickRateLimit, (req, res) => {
   const link = db.getLinkById(linkId);
   if (!link) return res.status(404).send('Link not found');
 
+  const isAdmin = isValidAdminToken(req.headers['x-admin-token']);
+
+  // Hidden links are reachable only by admins; everyone else gets bounced home.
+  if (link.is_hidden && !isAdmin) {
+    return res.redirect(302, '/');
+  }
+
+  // Permissive gate: link with no groups is open; otherwise at least one of its
+  // groups must be public or unlocked. Admin always bypasses.
+  if (!isAdmin && (link.group_ids || []).length > 0) {
+    const groups       = db.getAllGroups();
+    const protectedIds = new Set(groups.filter(g => g.is_protected).map(g => g.id));
+    const unlocked     = getUnlockedGroupIds(req);
+    const openVia      = link.group_ids.some(gid => !protectedIds.has(gid) || unlocked.has(gid));
+    if (!openVia) {
+      return res.redirect(302, '/');
+    }
+  }
+
   db.recordClick(link.id, getClientIp(req), req.headers['user-agent'] || null);
 
   res.setHeader('Cache-Control',   'no-store, no-cache');
@@ -482,14 +798,16 @@ app.get('/api/links/export', requireAdminToken, (req, res) => {
   const groups = db.getAllGroups();
 
   res.json({
-    version:     1,
+    version:     2,
     exported_at: new Date().toISOString(),
     groups:      groups.map(g => ({ name: g.name, color: g.color })),
     links:       links.map(l => ({
       name:        l.name,
       url:         l.url,
       description: l.description || null,
-      group_name:  l.group_name  || null,
+      // group_names: the new multi-group field. group_name kept for back-compat.
+      group_names: (l.groups || []).map(g => g.name),
+      group_name:  l.group_name || null,
     })),
   });
 });
@@ -516,22 +834,28 @@ app.post('/api/links/import', requireAdminToken, (req, res) => {
       continue;
     }
 
-    let groupId = null;
+    // Collect group names from either the new group_names[] array or the
+    // legacy single group_name field, then look them up or create them.
+    const rawNames = Array.isArray(item.group_names) ? item.group_names : [];
+    if (item.group_name) rawNames.push(item.group_name);
 
-    if (item.group_name?.trim()) {
-      // Find or create the group by name
+    const groupIds = [];
+    const seenIds  = new Set();
+    for (const rawName of rawNames) {
+      const name = typeof rawName === 'string' ? rawName.trim() : '';
+      if (!name) continue;
+
       const existingGroups = db.getAllGroups();
-      const found = existingGroups.find(g =>
-        g.name.toLowerCase() === item.group_name.trim().toLowerCase()
-      );
+      const found = existingGroups.find(g => g.name.toLowerCase() === name.toLowerCase());
 
+      let gid;
       if (found) {
-        groupId = found.id;
+        gid = found.id;
       } else {
-        const result = db.createGroup({ name: item.group_name.trim(), color: '#0071e3' });
-        groupId = result.lastInsertRowid;
+        gid = db.createGroup({ name, color: '#0071e3' }).lastInsertRowid;
         groupsCreated++;
       }
+      if (!seenIds.has(gid)) { seenIds.add(gid); groupIds.push(gid); }
     }
 
     const result = db.createLink({
@@ -539,7 +863,7 @@ app.post('/api/links/import', requireAdminToken, (req, res) => {
       url:         item.url.trim(),
       description: item.description?.trim() || null,
       imagePath:   null,
-      groupId,
+      groupIds,
     });
 
     // Kick off favicon download asynchronously
@@ -573,75 +897,175 @@ app.post('/api/groups/reorder', requireAdminToken, (req, res) => {
 
 // ─── Links (public read) ──────────────────────────────────────────────────────
 
-app.get('/api/links',  requirePublicAuth, (req, res) => res.json(db.getAllLinks()));
-app.get('/api/groups', requirePublicAuth, (req, res) => res.json(db.getAllGroups()));
+/**
+ * A link is "visible" to a non-admin viewer if it belongs to no groups at all,
+ * OR to at least one group that is either public or has been unlocked.
+ * (Permissive: putting a link in a public group exposes it even if it also
+ * lives in a protected group.)
+ */
+function filterVisibleLinks(links, groups, unlockedIds) {
+  const protectedIds = new Set(groups.filter(g => g.is_protected).map(g => g.id));
+  return links.filter(link => {
+    const ids = link.group_ids || [];
+    if (ids.length === 0) return true;
+    return ids.some(gid => !protectedIds.has(gid) || unlockedIds.has(gid));
+  });
+}
+
+app.get('/api/links', requirePublicAuth, (req, res) => {
+  const links = db.getAllLinks();
+  if (isValidAdminToken(req.headers['x-admin-token'])) return res.json(links);
+
+  const visible  = links.filter(l => !l.is_hidden);
+  const groups   = db.getAllGroups();
+  const unlocked = getUnlockedGroupIds(req);
+  res.json(filterVisibleLinks(visible, groups, unlocked));
+});
+
+app.get('/api/groups', requirePublicAuth, (req, res) => {
+  const groups   = db.getAllGroups();
+  const expiries = getUnlockedGroupExpiries(req);
+  res.json(groups.map(g => {
+    if (!g.is_protected)        return { ...g, is_unlocked: true };
+    const expMs = expiries.get(g.id);
+    return {
+      ...g,
+      is_unlocked:    !!expMs,
+      unlocked_until: expMs ?? null,
+    };
+  }));
+});
 
 // ─── Links (admin write) ──────────────────────────────────────────────────────
 
-app.post('/api/links', requireAdminToken, upload.single('image'), (req, res) => {
-  const { name, url, description, group_id } = req.body;
+app.post('/api/links', requireAdminToken, uploadLinkPayload, (req, res) => {
+  const { name, url, description } = req.body;
 
-  if (!name?.trim() || !url?.trim()) {
-    return res.status(400).json({ error: 'Name and URL are required' });
+  const imageFile = req.files?.image?.[0] || null;
+  const attached  = req.files?.file?.[0]  || null;
+
+  const trimmedUrl = typeof url === 'string' ? url.trim() : '';
+
+  if (!name?.trim()) {
+    return res.status(400).json({ error: 'Name is required' });
   }
-
-  if (!isValidHttpUrl(url)) {
+  // Either a URL or a file is required — never both required, never neither.
+  if (!trimmedUrl && !attached) {
+    return res.status(400).json({ error: 'Provide a URL or upload a file' });
+  }
+  if (trimmedUrl && !isValidHttpUrl(trimmedUrl)) {
     return res.status(400).json({ error: 'URL must start with http:// or https://' });
   }
 
-  const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
+  const imagePath   = imageFile ? `/uploads/${imageFile.filename}` : null;
+  const filePath    = attached  ? `/uploads/${attached.filename}`  : null;
+  const fileName    = attached  ? attached.originalname            : null;
+  const assignments = parseGroupAssignments(req.body) ?? [];
+
+  // For file-backed links we store the file path in `url` as well, so /r/:id's
+  // redirect target is uniform and click tracking continues to work.
+  const effectiveUrl = filePath ?? trimmedUrl;
 
   const result = db.createLink({
     name:        name.trim(),
-    url:         url.trim(),
+    url:         effectiveUrl,
     description: description?.trim() || null,
     imagePath,
-    groupId:     group_id || null,
+    groupIds:    assignments,
+    filePath,
+    fileName,
   });
 
   const linkId = result.lastInsertRowid;
 
-  // Download and cache the favicon in the background
-  cacheFavicon(linkId, url.trim()).catch(() => {});
+  // Favicons only make sense for real URLs — skip for file-backed links.
+  if (!filePath) cacheFavicon(linkId, effectiveUrl).catch(() => {});
 
   res.status(201).json(db.getLinkById(linkId));
 });
 
-app.put('/api/links/:id', requireAdminToken, upload.single('image'), (req, res) => {
+app.put('/api/links/:id', requireAdminToken, uploadLinkPayload, (req, res) => {
   const existingLink = db.getLinkById(req.params.id);
   if (!existingLink) return res.status(404).json({ error: 'Link not found' });
 
-  const { name, url, description, group_id, remove_image } = req.body;
+  const { name, url, description, remove_image, remove_file } = req.body;
 
-  if (!name?.trim() || !url?.trim()) {
-    return res.status(400).json({ error: 'Name and URL are required' });
+  const imageFile  = req.files?.image?.[0] || null;
+  const attached   = req.files?.file?.[0]  || null;
+  const trimmedUrl = typeof url === 'string' ? url.trim() : '';
+  const shouldRemoveImage = remove_image === 'true';
+  const shouldRemoveFile  = remove_file  === 'true';
+
+  if (!name?.trim()) {
+    return res.status(400).json({ error: 'Name is required' });
   }
 
-  if (!isValidHttpUrl(url)) {
-    return res.status(400).json({ error: 'URL must start with http:// or https://' });
+  // After this update the link must still have either a URL or a file attached.
+  const willHaveFile = attached ? true : (existingLink.file_path && !shouldRemoveFile);
+  if (!willHaveFile) {
+    // URL-only path: validate normally.
+    if (!trimmedUrl) {
+      return res.status(400).json({ error: 'Provide a URL or upload a file' });
+    }
+    if (!isValidHttpUrl(trimmedUrl)) {
+      return res.status(400).json({ error: 'URL must start with http:// or https://' });
+    }
   }
+  // When the link is/stays file-backed, the URL field is ignored — callers may
+  // re-send the stored /uploads/... path without it causing a validation error.
 
-  const newImagePath = req.file ? `/uploads/${req.file.filename}` : null;
-  const shouldRemove = remove_image === 'true';
+  const newImagePath = imageFile ? `/uploads/${imageFile.filename}` : null;
+  const newFilePath  = attached  ? `/uploads/${attached.filename}`  : null;
 
-  if ((newImagePath || shouldRemove) && existingLink.image_path) {
+  // Delete any replaced/cleared files from disk.
+  if ((newImagePath || shouldRemoveImage) && existingLink.image_path) {
     safeDeleteFile(existingLink.image_path);
   }
+  if ((newFilePath || shouldRemoveFile) && existingLink.file_path) {
+    safeDeleteFile(existingLink.file_path);
+  }
+
+  // Compose what to store as the link's `url` field (used by /r/:id):
+  //   - new file → use the new file path
+  //   - keep existing file & not removing it → keep existing url
+  //   - otherwise → the user-provided URL
+  let effectiveUrl;
+  if (newFilePath)                                                effectiveUrl = newFilePath;
+  else if (existingLink.file_path && !shouldRemoveFile)           effectiveUrl = existingLink.url;
+  else                                                            effectiveUrl = trimmedUrl;
 
   db.updateLink(req.params.id, {
     name:        name.trim(),
-    url:         url.trim(),
+    url:         effectiveUrl,
     description: description?.trim() || null,
     imagePath:   newImagePath,
-    groupId:     group_id || null,
-    removeImage: shouldRemove,
+    groupIds:    parseGroupAssignments(req.body),
+    removeImage: shouldRemoveImage,
+    filePath:    newFilePath ?? undefined,
+    fileName:    attached?.originalname ?? undefined,
+    clearFile:   shouldRemoveFile && !newFilePath,
   });
 
-  // Re-cache favicon if URL changed
-  if (url.trim() !== existingLink.url) {
-    cacheFavicon(req.params.id, url.trim()).catch(() => {});
+  // Re-cache favicon only if we're now URL-backed and the URL changed.
+  const nowFileBacked = !!(newFilePath || (existingLink.file_path && !shouldRemoveFile));
+  if (!nowFileBacked && trimmedUrl !== existingLink.url) {
+    cacheFavicon(req.params.id, trimmedUrl).catch(() => {});
   }
 
+  res.json(db.getLinkById(req.params.id));
+});
+
+/**
+ * Toggles or sets a link's hidden flag without rewriting any other fields.
+ * Body: { hidden: boolean }. Hidden links stay in the admin list but never
+ * appear on the public page and `/r/:id` redirects non-admins to /.
+ */
+app.post('/api/links/:id/visibility', requireAdminToken, (req, res) => {
+  const link = db.getLinkById(req.params.id);
+  if (!link) return res.status(404).json({ error: 'Link not found' });
+
+  const hidden = !!req.body.hidden;
+  db.updateLinkVisibility(req.params.id, hidden);
   res.json(db.getLinkById(req.params.id));
 });
 
@@ -651,6 +1075,7 @@ app.delete('/api/links/:id', requireAdminToken, (req, res) => {
 
   safeDeleteFile(existingLink.image_path);
   safeDeleteFile(existingLink.favicon_path);
+  safeDeleteFile(existingLink.file_path);
   db.deleteLink(req.params.id);
   res.status(204).end();
 });
@@ -669,6 +1094,7 @@ app.post('/api/links/bulk-delete', requireAdminToken, (req, res) => {
     if (link) {
       safeDeleteFile(link.image_path);
       safeDeleteFile(link.favicon_path);
+      safeDeleteFile(link.file_path);
       db.deleteLink(id);
       deleted++;
     }
@@ -679,6 +1105,21 @@ app.post('/api/links/bulk-delete', requireAdminToken, (req, res) => {
 
 // ─── Groups (admin write) ─────────────────────────────────────────────────────
 
+/**
+ * Reads `password` from a group request body and normalises it into one of:
+ *   undefined  → don't touch the password on update
+ *   null       → clear the password (group becomes public)
+ *   '<string>' → set this password
+ */
+function normaliseGroupPassword(body) {
+  if (!('password' in body)) return undefined;
+  const raw = body.password;
+  if (raw === null) return null;
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 app.post('/api/groups', requireAdminToken, (req, res) => {
   const { name, color } = req.body;
 
@@ -687,7 +1128,12 @@ app.post('/api/groups', requireAdminToken, (req, res) => {
   }
 
   const safeColor = isValidHexColor(color) ? color : '#0071e3';
-  const result    = db.createGroup({ name: name.trim(), color: safeColor });
+  const password  = normaliseGroupPassword(req.body);
+  const result    = db.createGroup({
+    name: name.trim(),
+    color: safeColor,
+    password: password ?? undefined,
+  });
   res.status(201).json(db.getGroupById(result.lastInsertRowid));
 });
 
@@ -702,8 +1148,95 @@ app.put('/api/groups/:id', requireAdminToken, (req, res) => {
   }
 
   const safeColor = isValidHexColor(color) ? color : existingGroup.color;
-  db.updateGroup(req.params.id, { name: name.trim(), color: safeColor });
+  db.updateGroup(req.params.id, {
+    name:     name.trim(),
+    color:    safeColor,
+    password: normaliseGroupPassword(req.body),
+  });
   res.json(db.getGroupById(req.params.id));
+});
+
+// ─── Group unlock (public) ────────────────────────────────────────────────────
+
+/**
+ * Verifies a password for a protected group. On success, sets a long-lived
+ * HMAC-signed cookie so subsequent requests skip the prompt.
+ * Rate-limited per-IP, but only failed attempts count toward the budget.
+ */
+app.post('/api/groups/:id/unlock', (req, res) => {
+  if (groupUnlockLimiter.isLimited(req)) {
+    return res.status(429).json({ valid: false, error: 'Too many failed attempts. Try again later.' });
+  }
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid group id' });
+
+  const group = db.getGroupById(id);
+  if (!group) return res.status(404).json({ error: 'Group not found' });
+  if (!group.is_protected) return res.json({ valid: true });
+
+  const password = typeof req.body.password === 'string' ? req.body.password : '';
+  if (!db.verifyGroupPassword(id, password)) {
+    groupUnlockLimiter.recordFailure(req);
+    return res.status(401).json({ valid: false, error: 'Wrong password' });
+  }
+
+  const expMs   = Date.now() + GROUP_UNLOCK_TTL_MS;
+  const token   = signGroupUnlock(id, expMs);
+  const maxAge  = Math.ceil(GROUP_UNLOCK_TTL_MS / 1000);
+  const secure  = req.secure || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  res.setHeader('Set-Cookie',
+    `lp_grp_${id}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`);
+  res.json({ valid: true, expires_at: expMs, ttl_ms: GROUP_UNLOCK_TTL_MS });
+});
+
+/** Lets a user forget a previously-unlocked group (used by the public UI's "Lock" action). */
+app.post('/api/groups/:id/lock', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid group id' });
+  res.setHeader('Set-Cookie', `lp_grp_${id}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  res.json({ ok: true });
+});
+
+// ─── Sections (admin write) ───────────────────────────────────────────────────
+
+app.post('/api/groups/:id/sections', requireAdminToken, (req, res) => {
+  const groupId = parseInt(req.params.id, 10);
+  if (isNaN(groupId)) return res.status(400).json({ error: 'Invalid group id' });
+  if (!db.getGroupById(groupId)) return res.status(404).json({ error: 'Group not found' });
+
+  const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+  if (!name) return res.status(400).json({ error: 'Section name is required' });
+
+  const result = db.createSection({ groupId, name });
+  res.status(201).json(db.getSectionById(result.lastInsertRowid));
+});
+
+app.put('/api/sections/:id', requireAdminToken, (req, res) => {
+  const section = db.getSectionById(req.params.id);
+  if (!section) return res.status(404).json({ error: 'Section not found' });
+
+  const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+  if (!name) return res.status(400).json({ error: 'Section name is required' });
+
+  db.updateSection(req.params.id, { name });
+  res.json(db.getSectionById(req.params.id));
+});
+
+app.delete('/api/sections/:id', requireAdminToken, (req, res) => {
+  if (!db.getSectionById(req.params.id)) {
+    return res.status(404).json({ error: 'Section not found' });
+  }
+  db.deleteSection(req.params.id);
+  res.status(204).end();
+});
+
+app.post('/api/sections/reorder', requireAdminToken, (req, res) => {
+  const { order } = req.body;
+  if (!Array.isArray(order) || order.some(id => typeof id !== 'number')) {
+    return res.status(400).json({ error: '"order" must be an array of numeric IDs' });
+  }
+  db.reorderSections(order);
+  res.status(204).end();
 });
 
 app.delete('/api/groups/:id', requireAdminToken, (req, res) => {
@@ -712,6 +1245,30 @@ app.delete('/api/groups/:id', requireAdminToken, (req, res) => {
   }
   db.deleteGroup(req.params.id);
   res.status(204).end();
+});
+
+// ─── Error handler ────────────────────────────────────────────────────────────
+
+/**
+ * Express error handler — keeps multer / upload errors as nice JSON 400s
+ * instead of the default HTML stack-trace page.
+ */
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'File is too large' });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (err && err.message && /^(Only image files|Custom icon must|File type not allowed|Unexpected field)/.test(err.message)) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 app.listen(PORT, () => {});
