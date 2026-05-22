@@ -139,6 +139,12 @@ let activeGroup   = 'all';
 let activeSection = null;
 let searchQuery   = '';
 
+// First-load default group (from settings.pinned_group_id). Applied once,
+// then cleared so subsequent re-loads (e.g. after unlocking a protected group
+// or a relock refresh) don't yank the user back to the pinned tab.
+let pinnedGroupId      = null;
+let pinnedAppliedOnce  = false;
+
 /** Returns the section_id this link has within `groupId`, or null. */
 function linkSectionInGroup(link, groupId) {
   const m = (link.groups || []).find(g => g.id === groupId);
@@ -326,7 +332,7 @@ function buildLinkCard(link) {
     : (link.group_name ? [{ name: link.group_name, color: link.group_color }] : []);
   const badgeHtml = linkGroups.length
     ? `<div class="link-footer">${linkGroups.map(g =>
-        `<span class="group-badge" style="background:${g.color}18; color:${g.color}">${escapeHtml(g.name)}</span>`
+        `<span class="group-badge" style="background:${g.color}18; color:${g.color}" title="${escapeHtml(g.name)}">${escapeHtml(g.name)}</span>`
       ).join('')}</div>`
     : '';
 
@@ -473,6 +479,15 @@ async function loadData() {
   ]);
   links = fl; groups = fg;
 
+  // First-time landing: if a pinned default group is configured and exists,
+  // open it instead of "All". Runs once per page load.
+  if (!pinnedAppliedOnce) {
+    pinnedAppliedOnce = true;
+    if (pinnedGroupId && groups.some(g => g.id === pinnedGroupId)) {
+      activeGroup = pinnedGroupId;
+    }
+  }
+
   // If the active tab was a now-locked group, fall back to "All" so the user
   // isn't stuck looking at an empty filtered grid.
   if (typeof activeGroup === 'number') {
@@ -512,12 +527,21 @@ function scheduleRelockRefresh() {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
+function applyFavicon(url) {
+  const link = document.getElementById('favicon');
+  if (!link) return;
+  if (url) link.setAttribute('href', url);
+  else     link.removeAttribute('href');
+}
+
 async function init() {
   const settings = await fetch('/api/settings').then(r => r.json());
 
   if (settings.site_title) document.title = settings.site_title;
-  logoLightUrl = settings.logo_light || null;
-  logoDarkUrl  = settings.logo_dark  || null;
+  logoLightUrl   = settings.logo_light || null;
+  logoDarkUrl    = settings.logo_dark  || null;
+  pinnedGroupId  = settings.pinned_group_id ?? null;
+  applyFavicon(settings.favicon || null);
   updateHeaderLogo();
 
   if (settings.public_password_required) {

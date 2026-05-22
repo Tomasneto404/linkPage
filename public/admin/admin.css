@@ -308,22 +308,41 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
+/* ─── Long-press to enter bulk mode ──────────────────────────────────────────
+ *
+ * While the user is pressing-and-holding a card, .long-pressing is added to
+ * the wrap. The card scales down a hair (97%) and grows a soft primary-colour
+ * ring over the same duration as the press timer (450 ms). Release before
+ * the timer completes → snap back via the card's normal 0.18s transition.
+ */
+.link-card-wrap.long-pressing .link-card {
+  transform: scale(0.97);
+  box-shadow:
+    0 0 0 3px rgba(0, 113, 227, 0.22),
+    var(--shadow-sm);
+  border-color: rgba(0, 113, 227, 0.45);
+  transition:
+    transform   0.45s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow  0.45s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+[data-theme="dark"] .link-card-wrap.long-pressing .link-card {
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.32), var(--shadow-sm);
+  border-color: rgba(10, 132, 255, 0.55);
+}
+/* Prevent the OS text-selection blue while the user is pressing. */
+.link-card-wrap.long-pressing { -webkit-user-select: none; user-select: none; }
+
 /* Hidden link state: faded card + "Hidden" badge in the footer */
 .link-card-wrap.hidden-link .link-card { opacity: 0.55; }
 .link-card-wrap.hidden-link .link-card:hover { opacity: 0.85; }
 
+/* "Hidden" chip — colour variant of the .card-meta chip baseline (sizes come
+   from the shared rule in public/style.css). */
 .hidden-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 980px;
   background: var(--surface-3);
-  border: 1px solid var(--border);
+  border-color: var(--border);
   color: var(--text-muted);
-  letter-spacing: 0.01em;
 }
 
 /* Lock icon next to protected groups in the sidebar */
@@ -441,30 +460,37 @@ header {
 
 .sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
 
+/* ─── Top-level nav rows (All Links / Ungrouped) ─────────────────────────── */
+
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   width: 100%;
-  padding: 7px 11px;
+  min-height: 34px;
+  padding: 6px 11px;
   border-radius: var(--radius-sm);
   border: none;
   background: none;
-  color: var(--text-muted);
+  color: var(--text-2);
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 500;
   font-family: inherit;
   text-align: left;
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition);
   letter-spacing: -0.01em;
 }
 
 .nav-item:hover  { background: var(--surface-3); color: var(--text); }
-.nav-item.active { background: rgba(0, 113, 227, 0.1); color: var(--primary); }
-[data-theme="dark"] .nav-item.active { background: rgba(10, 132, 255, 0.12); }
+.nav-item.active {
+  background: rgba(0, 113, 227, 0.1);
+  color: var(--primary);
+  font-weight: 600;
+}
+[data-theme="dark"] .nav-item.active { background: rgba(10, 132, 255, 0.14); }
 
-.nav-item svg { opacity: 0.6; flex-shrink: 0; }
+.nav-item svg { opacity: 0.7; flex-shrink: 0; }
 .nav-item.active svg { opacity: 1; }
 .nav-item span:nth-child(2) { flex: 1; }
 
@@ -473,28 +499,33 @@ header {
   background: var(--surface-3);
   color: var(--text-muted);
   border-radius: 980px;
-  padding: 1px 7px;
+  padding: 1px 8px;
   font-weight: 600;
+  min-width: 22px;
+  text-align: center;
+  flex-shrink: 0;
 }
 .nav-item.active .nav-count {
-  background: rgba(0, 113, 227, 0.12);
+  background: rgba(0, 113, 227, 0.16);
   color: var(--primary);
 }
-[data-theme="dark"] .nav-item.active .nav-count { background: rgba(10, 132, 255, 0.15); }
+[data-theme="dark"] .nav-item.active .nav-count { background: rgba(10, 132, 255, 0.18); }
 
-.sidebar-groups { margin-top: 14px; }
+/* ─── Groups label + add button ──────────────────────────────────────────── */
+
+.sidebar-groups { margin-top: 18px; }
 
 .sidebar-label {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 3px 11px;
-  font-size: 0.72rem;
+  padding: 4px 11px;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .add-group-btn {
@@ -502,20 +533,25 @@ header {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 3px;
-  border-radius: 5px;
+  padding: 4px;
+  border-radius: 6px;
   display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all var(--transition);
 }
 .add-group-btn:hover { color: var(--primary); background: rgba(0, 113, 227, 0.08); }
+
+/* ─── Group rows ─────────────────────────────────────────────────────────── */
 
 .groups-list { display: flex; flex-direction: column; gap: 2px; }
 
 .group-nav-item {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 7px 11px;
+  gap: 10px;
+  min-height: 34px;
+  padding: 6px 8px 6px 11px;
   border-radius: var(--radius-sm);
   border: none;
   background: none;
@@ -524,21 +560,36 @@ header {
   font-size: 0.875rem;
   font-weight: 500;
   font-family: inherit;
-  color: var(--text-muted);
+  color: var(--text-2);
   text-align: left;
-  transition: all var(--transition);
   letter-spacing: -0.01em;
+  position: relative;
+  transition: background var(--transition), color var(--transition);
 }
 .group-nav-item:hover  { background: var(--surface-3); color: var(--text); }
-.group-nav-item.active { background: var(--surface-3); color: var(--text); }
-
+.group-nav-item.active {
+  background: var(--surface-3);
+  color: var(--text);
+  font-weight: 600;
+}
 .group-dot {
   width: 18px;
   height: 10px;
   border-radius: 980px; /* full pill — same language as the Add Link button */
   flex-shrink: 0;
-  /* faint inner ring keeps very light colours legible on white surfaces */
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
+}
+
+/* Group name + lock icon container takes remaining space */
+.group-nav-item > span:nth-child(3) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ─── Section rows inside the sidebar ─────────────────────────────────────── */
@@ -547,28 +598,41 @@ header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 11px 5px 28px; /* extra left padding = nesting under group */
-  border-radius: var(--radius-sm);
-  border: none;
+  min-height: 30px;
+  padding: 4px 8px 4px 14px;
+  margin-left: 18px;             /* nest under the group */
+  border-left: 2px solid var(--border);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   background: none;
   cursor: pointer;
   color: var(--text-muted);
   font-size: 0.8125rem;
+  font-weight: 500;
   position: relative;
-  transition: background var(--transition), color var(--transition);
+  transition: background var(--transition),
+              color var(--transition),
+              border-left-color var(--transition);
 }
-.section-nav-item:hover  { background: var(--surface-3); color: var(--text); }
-.section-nav-item.active { background: var(--surface-3); color: var(--text); }
 
-.section-nav-item .section-tick {
-  width: 6px;
-  height: 1.5px;
-  background: var(--text-muted);
-  opacity: 0.4;
-  flex-shrink: 0;
+/* Collapse the 2 px gap between two adjacent sections so the connector line
+   reads as a single continuous bar instead of dashes. */
+.section-nav-item + .section-nav-item { margin-top: -2px; }
+
+.section-nav-item:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-left-color: var(--text-muted);
 }
-.section-nav-item:hover .section-tick,
-.section-nav-item.active .section-tick { opacity: 0.7; }
+.section-nav-item.active {
+  background: rgba(0, 113, 227, 0.08);
+  color: var(--primary);
+  border-left-color: var(--primary);
+  font-weight: 600;
+}
+[data-theme="dark"] .section-nav-item.active { background: rgba(10, 132, 255, 0.12); }
+
+/* The old tick element is replaced by the border-left connector line above. */
+.section-nav-item .section-tick { display: none; }
 
 .section-nav-item .section-name {
   flex: 1;
@@ -577,45 +641,98 @@ header {
   white-space: nowrap;
 }
 
-.section-nav-item .group-item-actions { display: none; gap: 2px; flex-shrink: 0; }
-.section-nav-item:hover .group-item-actions { display: flex; }
+.section-nav-item .nav-count {
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  min-width: 18px;
+}
+.section-nav-item.active .nav-count {
+  background: rgba(0, 113, 227, 0.16);
+  color: var(--primary);
+}
+[data-theme="dark"] .section-nav-item.active .nav-count { background: rgba(10, 132, 255, 0.18); }
 
-.section-nav-item.editing { padding-right: 6px; }
+/* Inline create/rename input keeps the row's visual height. */
+.section-nav-item.editing {
+  padding: 3px 6px 3px 10px;
+  background: transparent;
+}
 .section-inline-input {
   flex: 1;
+  width: 100%;
   background: var(--surface);
-  border: 1px solid var(--primary);
+  border: 1.5px solid var(--primary);
   border-radius: 6px;
-  padding: 3px 8px;
+  padding: 5px 10px;
   font-size: 0.8125rem;
   color: var(--text);
   outline: none;
   font-family: inherit;
-}
-.group-nav-item span:nth-child(2) {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
 }
 
-/* Edit and delete buttons that appear on hover */
-.group-item-actions { display: none; gap: 2px; flex-shrink: 0; }
-.group-nav-item:hover .group-item-actions { display: flex; }
+/* ─── Hover actions: overlay the count badge ──────────────────────────────── */
+
+/*
+ * Actions are absolutely positioned at the right edge so they don't reserve
+ * width when idle — the group name gets the full row. On hover the count
+ * badge fades out and the buttons fade in, occupying the same slot. Zero
+ * layout shift, full name visible until you actually need an action.
+ */
+.group-nav-item .nav-count,
+.section-nav-item .nav-count {
+  transition: opacity var(--transition);
+}
+.group-nav-item:hover .nav-count,
+.section-nav-item:hover .nav-count {
+  opacity: 0;
+}
+
+.group-item-actions {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--surface-3);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--transition);
+}
+.group-nav-item:hover .group-item-actions,
+.section-nav-item:hover .group-item-actions,
+.group-item-actions:focus-within {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
 
 .group-action-btn {
   background: none;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 3px;
-  border-radius: 5px;
-  display: flex;
-  transition: all var(--transition);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition), background var(--transition);
 }
-.group-action-btn:hover { color: var(--text); background: rgba(0, 0, 0, 0.06); }
-[data-theme="dark"] .group-action-btn:hover { background: rgba(255, 255, 255, 0.08); }
-.group-action-btn.danger:hover { color: var(--danger); background: rgba(255, 59, 48, 0.08); }
+.group-action-btn:hover { color: var(--text); background: rgba(0, 0, 0, 0.07); }
+[data-theme="dark"] .group-action-btn:hover { background: rgba(255, 255, 255, 0.09); }
+.group-action-btn.danger:hover { color: var(--danger); background: rgba(255, 59, 48, 0.09); }
+.group-action-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
 
 .sidebar-footer {
   margin-top: auto;
@@ -810,6 +927,30 @@ header {
   color: var(--text-muted);
   line-height: 1.45;
 }
+
+.sidebar-changelog .changelog-repo-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 2px 11px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  transition: color var(--transition), background var(--transition), border-color var(--transition);
+}
+.sidebar-changelog .changelog-repo-link:hover {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+.sidebar-changelog .changelog-repo-link span { flex: 1; }
+.sidebar-changelog .changelog-repo-link svg { flex-shrink: 0; opacity: 0.7; }
+.sidebar-changelog .changelog-repo-link:hover svg { opacity: 1; }
 
 .settings-row {
   display: flex;
@@ -1009,19 +1150,21 @@ header {
   color: var(--text-muted);
 }
 
-/* ─── Card click count badge ─────────────────────────────────────────────────── */
-
-/* Small inline stats shown on every admin link card */
+/* ─── Click-count chip ───────────────────────────────────────────────────────
+ *
+ * Lives in the same .card-meta strip as group/status chips. Borderless and
+ * transparent so it reads as a quiet metric beside the more emphatic tags.
+ * The hover tooltip surfaces the full "N clicks · M unique visitors" line.
+ */
 .card-click-count {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
+  background: transparent;
+  border-color: transparent;
   color: var(--text-muted);
-  margin-top: 4px;
+  padding: 3px 4px;
+  font-weight: 500;
+  cursor: default;
 }
-
-.card-click-count svg { flex-shrink: 0; }
+.card-click-count > svg { opacity: 0.7; }
 
 /* ─── Bulk action bar ────────────────────────────────────────────────────────── */
 

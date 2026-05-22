@@ -26,6 +26,7 @@
 
 let logoLightUrl = null;
 let logoDarkUrl  = null;
+let faviconUrl   = null;
 
 
 // ─── 1. THEME ─────────────────────────────────────────────────────────────────
@@ -166,6 +167,17 @@ async function uploadLogo(variant, file) {
   return apiJson(`/api/settings/logo/${variant}`, { method: 'POST', body: fd });
 }
 async function removeLogo(variant)     { return sendAuthRequest(`/api/settings/logo/${variant}`, { method: 'DELETE' }); }
+
+async function uploadFavicon(file) {
+  const fd = new FormData(); fd.append('favicon', file);
+  return apiJson('/api/settings/favicon', { method: 'POST', body: fd });
+}
+async function removeFaviconApi() {
+  return sendAuthRequest('/api/settings/favicon', { method: 'DELETE' });
+}
+async function savePinnedGroup(groupId) {
+  return jsonPost('/api/settings/pinned-group', { group_id: groupId });
+}
 async function saveSiteTitle(title)    { return jsonPost('/api/settings/site-title', { title }); }
 async function setPublicPassword(pw)   { return jsonPost('/api/settings/public-password', { password: pw }); }
 async function removePublicPassword()  { return sendAuthRequest('/api/settings/public-password', { method: 'DELETE' }); }
@@ -178,12 +190,28 @@ async function loadSettings() {
   const s      = await fetchSettings();
   logoLightUrl = s.logo_light || null;
   logoDarkUrl  = s.logo_dark  || null;
+  faviconUrl   = s.favicon    || null;
   updateHeaderLogo();
+  applyFavicon(faviconUrl);
   if (s.site_title) {
     document.title = `${s.site_title} — Admin`;
     document.getElementById('siteTitleInput').value = s.site_title;
   }
   updatePublicPasswordStatus(s.public_password_required);
+}
+
+function applyFavicon(url) {
+  const link = document.getElementById('favicon');
+  if (!link) return;
+  if (url) link.setAttribute('href', url);
+  else     link.removeAttribute('href');
+}
+
+function updateFaviconPreview(url) {
+  const img = document.getElementById('faviconPreview');
+  const btn = document.getElementById('removeFaviconBtn');
+  if (url) { img.src = url; img.classList.remove('hidden'); btn.classList.remove('hidden'); }
+  else      { img.classList.add('hidden');    btn.classList.add('hidden'); }
 }
 
 function getLogoForCurrentTheme() {
@@ -212,14 +240,30 @@ function updatePublicPasswordStatus(isSet) {
   document.getElementById('removePublicPasswordBtn').classList.toggle('hidden', !isSet);
 }
 
+function populatePinnedGroupSelect(currentId) {
+  const sel = document.getElementById('pinnedGroupSelect');
+  const opts = groups.map(g =>
+    `<option value="${g.id}"${g.id === currentId ? ' selected' : ''}>${escapeHtml(g.name)}</option>`
+  ).join('');
+  sel.innerHTML = `<option value="">All Links (none pinned)</option>${opts}`;
+}
+
 document.getElementById('openSettingsBtn').addEventListener('click', async () => {
   const s = await fetchSettings();
   updateSettingsPreview('light', logoLightUrl);
   updateSettingsPreview('dark',  logoDarkUrl);
+  updateFaviconPreview(faviconUrl);
+  populatePinnedGroupSelect(s.pinned_group_id ?? null);
   document.getElementById('siteTitleInput').value = s.site_title || '';
   updatePublicPasswordStatus(s.public_password_required);
   document.getElementById('newTokenDisplay').classList.add('hidden');
   document.getElementById('settingsOverlay').classList.remove('hidden');
+});
+
+document.getElementById('pinnedGroupSelect').addEventListener('change', async e => {
+  const val = e.target.value;
+  await savePinnedGroup(val === '' ? null : Number(val));
+  showToast(val ? 'Default group pinned' : 'Default group cleared');
 });
 document.getElementById('closeSettingsBtn').addEventListener('click', () =>
   document.getElementById('settingsOverlay').classList.add('hidden'));
@@ -250,6 +294,24 @@ document.getElementById('darkLogoFileInput').addEventListener('change', async e 
 document.getElementById('removeDarkLogoBtn').addEventListener('click', async () => {
   await removeLogo('dark'); logoDarkUrl = null;
   updateHeaderLogo(); updateSettingsPreview('dark', null); showToast('Dark logo removed');
+});
+
+document.getElementById('uploadFaviconBtn').addEventListener('click', () =>
+  document.getElementById('faviconFileInput').click());
+document.getElementById('faviconFileInput').addEventListener('change', async e => {
+  const file = e.target.files[0]; if (!file) return;
+  const r = await uploadFavicon(file);
+  faviconUrl = r.favicon;
+  applyFavicon(faviconUrl);
+  updateFaviconPreview(faviconUrl);
+  e.target.value = ''; showToast('Favicon updated');
+});
+document.getElementById('removeFaviconBtn').addEventListener('click', async () => {
+  await removeFaviconApi();
+  faviconUrl = null;
+  applyFavicon(null);
+  updateFaviconPreview(null);
+  showToast('Favicon removed');
 });
 
 document.getElementById('saveSiteTitleBtn').addEventListener('click', async () => {
@@ -736,7 +798,7 @@ function buildLinkCard(link) {
     ? link.groups
     : (link.group_name ? [{ name: link.group_name, color: link.group_color }] : []);
   for (const g of linkGroups) {
-    footerParts.push(`<span class="group-badge" style="background:${g.color}18; color:${g.color}">${escapeHtml(g.name)}</span>`);
+    footerParts.push(`<span class="group-badge" style="background:${g.color}18; color:${g.color}" title="${escapeHtml(g.name)}">${escapeHtml(g.name)}</span>`);
   }
   if (link.is_hidden) {
     footerParts.push(`<span class="hidden-badge">
@@ -751,12 +813,19 @@ function buildLinkCard(link) {
     </span>`);
   }
 
-  const footerHtml = footerParts.length ? `<div class="link-footer">${footerParts.join('')}</div>` : '';
-  const descHtml   = link.description ? `<p class="link-desc">${highlightText(link.description, q)}</p>` : '';
-  const clickHtml  = stats ? `<div class="card-click-count">
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-    ${stats.total_clicks} click${stats.total_clicks !== 1 ? 's' : ''} &nbsp;·&nbsp; ${stats.unique_visitors} unique
-  </div>` : '';
+  // Stats join the same meta strip as group/status chips so everything lines
+  // up. Chip itself shows the click count; the tooltip carries the full
+  // "N clicks · M unique" detail.
+  if (stats) {
+    const tip = `${stats.total_clicks} click${stats.total_clicks !== 1 ? 's' : ''} · ${stats.unique_visitors} unique visitor${stats.unique_visitors !== 1 ? 's' : ''}`;
+    footerParts.push(`<span class="card-click-count" title="${escapeHtml(tip)}">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      ${stats.total_clicks}
+    </span>`);
+  }
+
+  const metaHtml = footerParts.length ? `<div class="card-meta">${footerParts.join('')}</div>` : '';
+  const descHtml = link.description ? `<p class="link-desc">${highlightText(link.description, q)}</p>` : '';
 
   const canDrag = sortOrder === 'position' && !bulkModeActive;
 
@@ -772,7 +841,7 @@ function buildLinkCard(link) {
       <a class="link-url" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">
         ${highlightText(getLinkDisplayLabel(link), q)}
       </a>
-      ${descHtml}${footerHtml}${clickHtml}
+      ${descHtml}${metaHtml}
     </div>
     <div class="link-side">
       <div class="link-actions">
@@ -804,9 +873,18 @@ function buildLinkCard(link) {
   card.querySelector('.delete-link-btn').addEventListener('click', () => openDeleteLinkModal(link));
 
   wrap.addEventListener('click', e => {
+    // Long-press just triggered: swallow the synthetic click so the card
+    // we just selected isn't immediately deselected by the same press.
+    if (longPressJustFired) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (!bulkModeActive || e.target.closest('.link-actions')) return;
     wrap.classList.toggle('selected'); updateBulkBar();
   });
+
+  setupLongPress(wrap, link.id);
 
   if (canDrag) enableLinkDrag(card, link.id);
 
@@ -1541,6 +1619,76 @@ document.getElementById('cancelDeleteGroupBtn').addEventListener('click', () =>
 
 let bulkModeActive = false;
 
+// ─── Long-press to enter bulk mode (iOS-style) ────────────────────────────────
+
+const LONG_PRESS_MS         = 450;
+const LONG_PRESS_CANCEL_PX  = 10;   // movement that aborts the press (scroll intent)
+let   longPressTimer        = null;
+let   longPressActiveWrap   = null;
+let   longPressJustFired    = false; // suppresses the click that follows a successful press
+
+function cancelLongPress() {
+  if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  if (longPressActiveWrap) {
+    longPressActiveWrap.classList.remove('long-pressing');
+    longPressActiveWrap = null;
+  }
+}
+
+/**
+ * Wires pointer events on a card so that a sustained press enters bulk mode
+ * and selects the card. Re-selects on the new wrap after the re-render.
+ */
+function setupLongPress(wrap, linkId) {
+  let startX = 0, startY = 0;
+
+  wrap.addEventListener('pointerdown', e => {
+    // Don't trigger when already in bulk mode (taps already select).
+    if (bulkModeActive) return;
+    // Skip when the press lands on a real interactive child.
+    if (e.target.closest('.link-actions, .link-url, a, button')) return;
+    // Right-click / middle-click pass through.
+    if (e.button && e.button !== 0) return;
+
+    cancelLongPress();
+    longPressActiveWrap = wrap;
+    startX = e.clientX; startY = e.clientY;
+    wrap.classList.add('long-pressing');
+
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      wrap.classList.remove('long-pressing');
+      longPressJustFired = true;
+
+      // Light haptic tap on supported devices (mobile mostly).
+      if (typeof navigator.vibrate === 'function') {
+        try { navigator.vibrate(30); } catch {}
+      }
+
+      // Enter bulk mode (this re-renders the grid; the wrap reference becomes stale)
+      if (!bulkModeActive) enterBulkMode();
+
+      // Select the freshly-rendered card and refresh the bulk bar.
+      const freshWrap = document.querySelector(`.link-card-wrap[data-link-id="${linkId}"]`);
+      if (freshWrap) { freshWrap.classList.add('selected'); updateBulkBar(); }
+
+      // Release the click-suppression flag after the synthetic tap settles.
+      setTimeout(() => { longPressJustFired = false; }, 350);
+    }, LONG_PRESS_MS);
+  });
+
+  wrap.addEventListener('pointermove', e => {
+    if (!longPressTimer) return;
+    if (Math.abs(e.clientX - startX) > LONG_PRESS_CANCEL_PX ||
+        Math.abs(e.clientY - startY) > LONG_PRESS_CANCEL_PX) {
+      cancelLongPress();
+    }
+  });
+
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(evt =>
+    wrap.addEventListener(evt, cancelLongPress));
+}
+
 function getSelectedIds() {
   return Array.from(document.querySelectorAll('.link-card-wrap.selected'))
     .map(w => Number(w.dataset.linkId));
@@ -1610,6 +1758,20 @@ document.getElementById('bulkMoveBtn').addEventListener('click', async () => {
   showToast(`${ids.length} link${ids.length !== 1 ? 's' : ''} moved`);
   exitBulkMode(); await loadAllData();
 });
+
+/** Sets visibility on every selected link in parallel, then refreshes. */
+async function bulkSetVisibility(hidden) {
+  const ids = getSelectedIds();
+  if (!ids.length) return;
+  await Promise.all(ids.map(id => setLinkVisibility(id, hidden)));
+  const label = hidden ? 'hidden' : 'shown';
+  showToast(`${ids.length} link${ids.length !== 1 ? 's' : ''} ${label}`);
+  exitBulkMode();
+  await loadAllData();
+}
+
+document.getElementById('bulkHideBtn').addEventListener('click', () => bulkSetVisibility(true));
+document.getElementById('bulkShowBtn').addEventListener('click', () => bulkSetVisibility(false));
 
 
 // ─── 16. DRAG TO REORDER ──────────────────────────────────────────────────────

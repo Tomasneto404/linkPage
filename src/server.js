@@ -291,9 +291,10 @@ function parseGroupIds(body) {
   return out;
 }
 
-const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico'];
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  'image/x-icon', 'image/vnd.microsoft.icon',
 ];
 
 /** Returns true if the uploaded file is an allowed image type. */
@@ -591,11 +592,15 @@ app.post('/api/auth/rotate-token', requireAdminToken, (req, res) => {
 
 app.get('/api/settings', (req, res) => {
   const publicPassword = db.readSetting('public_password');
+  const pinnedRaw      = db.readSetting('pinned_group_id');
+  const pinnedId       = pinnedRaw && Number.isFinite(Number(pinnedRaw)) ? Number(pinnedRaw) : null;
   res.json({
     logo_light:              db.readSetting('logo_light') ?? null,
     logo_dark:               db.readSetting('logo_dark')  ?? null,
+    favicon:                 db.readSetting('favicon')    ?? null,
     site_title:              db.readSetting('site_title') ?? null,
     public_password_required: !!publicPassword,
+    pinned_group_id:          pinnedId,
   });
 });
 
@@ -637,6 +642,26 @@ app.delete('/api/settings/logo/:variant', requireAdminToken, (req, res) => {
   res.status(204).end();
 });
 
+app.post('/api/settings/favicon', requireAdminToken, upload.single('favicon'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image file was provided' });
+
+  const existing = db.readSetting('favicon');
+  if (existing) safeDeleteFile(existing);
+
+  const newPath = `/uploads/${req.file.filename}`;
+  db.writeSetting('favicon', newPath);
+  res.json({ favicon: newPath });
+});
+
+app.delete('/api/settings/favicon', requireAdminToken, (req, res) => {
+  const existing = db.readSetting('favicon');
+  if (existing) {
+    safeDeleteFile(existing);
+    db.deleteSetting('favicon');
+  }
+  res.status(204).end();
+});
+
 app.post('/api/settings/site-title', requireAdminToken, (req, res) => {
   const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
   if (title) {
@@ -645,6 +670,24 @@ app.post('/api/settings/site-title', requireAdminToken, (req, res) => {
     db.deleteSetting('site_title');
   }
   res.json({ site_title: title || null });
+});
+
+/**
+ * Sets the group that should be selected by default when a visitor first
+ * lands on the public page. Pass `group_id: null` (or omit) to clear it.
+ */
+app.post('/api/settings/pinned-group', requireAdminToken, (req, res) => {
+  const raw = req.body.group_id;
+  if (raw === null || raw === undefined || raw === '') {
+    db.deleteSetting('pinned_group_id');
+    return res.json({ pinned_group_id: null });
+  }
+  const id = Number(raw);
+  if (!Number.isFinite(id) || id <= 0 || !db.getGroupById(id)) {
+    return res.status(400).json({ error: 'Invalid group id' });
+  }
+  db.writeSetting('pinned_group_id', String(id));
+  res.json({ pinned_group_id: id });
 });
 
 app.post('/api/settings/public-password', requireAdminToken, (req, res) => {

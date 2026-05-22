@@ -311,22 +311,50 @@ header {
   line-height: 1.45;
 }
 
-.link-footer {
+.link-footer,
+.card-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 5px;
   flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
 }
 
-/* ── Group badge ─────────────────────────── */
-.group-badge {
+/* ── Card meta strip + chips ─────────────────────────────────────────────────
+ *
+ * All status indicators on a link card live in a single .card-meta strip,
+ * sharing a common chip baseline so heights, paddings and corner radii line
+ * up regardless of variant (group tag, "Hidden" pill, dead-link pill, click
+ * count). Wraps naturally when there are many chips.
+ */
+
+.group-badge,
+.hidden-badge,
+.broken-badge,
+.card-click-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.7rem;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 980px;
+  border: 1px solid transparent;
   letter-spacing: 0.01em;
+  line-height: 1.4;
+  transition: filter var(--transition);
 }
+.group-badge > svg,
+.hidden-badge > svg,
+.broken-badge > svg,
+.card-click-count > svg { flex-shrink: 0; opacity: 0.9; }
+
+.group-badge:hover { filter: brightness(0.96); }
+[data-theme="dark"] .group-badge:hover { filter: brightness(1.15); }
 
 /* ── Icon buttons ────────────────────────── */
 .icon-btn {
@@ -785,18 +813,11 @@ select option { background: var(--surface); }
 }
 [data-theme="dark"] .form-warning { color: #ffb340; }
 
-/* ── Broken link badge ───────────────────── */
+/* ── Broken link chip — colour variant of .card-meta chip baseline ─────── */
 .broken-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.68rem;
-  font-weight: 600;
   color: var(--danger);
   background: rgba(255,59,48,0.08);
-  border: 1px solid rgba(255,59,48,0.2);
-  border-radius: 980px;
-  padding: 1px 7px;
+  border-color: rgba(255,59,48,0.22);
 }
 
 /* ── Easter egg ───────────────────────────── */
