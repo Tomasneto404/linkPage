@@ -1283,6 +1283,74 @@ header {
   outline: 2px solid var(--primary);
 }
 
+/* ─── Mobile overflow menu (kebab popover) ──────────────────────────────────
+ *
+ * The kebab button is hidden on desktop; on phones (≤480 px) it appears in
+ * place of theme / settings / logout, opening this popover anchored just
+ * below the header.
+ */
+.mobile-more-btn { display: none; }
+.mobile-more-btn svg { color: var(--text-muted); }
+
+.mobile-menu {
+  position: fixed;
+  top: calc(var(--header-h) + 4px);
+  right: 8px;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 5px;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  transform-origin: top right;
+  animation: mobileMenuIn 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes mobileMenuIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.mobile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.mobile-menu-item:hover,
+.mobile-menu-item:focus-visible {
+  background: var(--surface-3);
+  outline: none;
+}
+.mobile-menu-item svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.mobile-menu-item:hover svg { color: var(--text); }
+.mobile-menu-item.danger { color: var(--danger); }
+.mobile-menu-item.danger svg { color: var(--danger); }
+.mobile-menu-item.danger:hover { background: rgba(255, 59, 48, 0.08); }
+
+.mobile-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 6px;
+}
+
 /* ─── Responsive ─────────────────────────────────────────────────────────────── */
 
 @media (max-width: 720px) {
@@ -1301,13 +1369,20 @@ header {
 @media (max-width: 480px) {
   body { font-size: 14px; }
 
-  /* Header: drop power-user buttons; keep brand + search + add + actions */
+  /* Header: drop power-user buttons; keep brand-icon + search + add + more */
   .header-inner   { padding: 0 10px; gap: 6px; }
   .admin-badge    { display: none; }
+  .brand-label    { display: none; }  /* leave only the link-glyph SVG */
   #importBtn,
   #exportBtn,
   #bulkSelectBtn,
   .sort-select    { display: none; }
+
+  /* The three solo icon buttons collapse into a single overflow menu */
+  #themeToggle,
+  #openSettingsBtn,
+  #logoutBtn      { display: none; }
+  .mobile-more-btn { display: inline-flex; }
 
   /* Let the search input fill the row */
   .search-wrap    { flex: 1 1 auto; min-width: 0; }

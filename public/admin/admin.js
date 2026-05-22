@@ -1959,6 +1959,53 @@ function showEasterEgg() {
 }
 
 
+// ─── 22b. MOBILE OVERFLOW MENU ────────────────────────────────────────────────
+//
+// On phones the theme / settings / logout buttons are hidden and replaced by
+// a single kebab button that opens this popover. Menu items just programmatically
+// click the real (hidden) buttons so their existing handlers fire — no duplicate
+// logic.
+
+(function setupMobileMenu() {
+  const moreBtn = document.getElementById('mobileMoreBtn');
+  const menu    = document.getElementById('mobileMenu');
+  if (!moreBtn || !menu) return;
+
+  function setOpen(open) {
+    menu.classList.toggle('hidden', !open);
+    moreBtn.setAttribute('aria-expanded', String(open));
+  }
+
+  moreBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    setOpen(menu.classList.contains('hidden'));
+  });
+
+  document.addEventListener('click', e => {
+    if (menu.classList.contains('hidden')) return;
+    if (menu.contains(e.target) || moreBtn.contains(e.target)) return;
+    setOpen(false);
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !menu.classList.contains('hidden')) setOpen(false);
+  });
+
+  // Forward each item to the real button so existing handlers run unchanged.
+  const forward = (itemId, targetId) => {
+    const item = document.getElementById(itemId);
+    if (!item) return;
+    item.addEventListener('click', () => {
+      setOpen(false);
+      document.getElementById(targetId)?.click();
+    });
+  };
+  forward('mobileThemeItem',    'themeToggle');
+  forward('mobileSettingsItem', 'openSettingsBtn');
+  forward('mobileLogoutItem',   'logoutBtn');
+})();
+
+
 // ─── 23. STARTUP ─────────────────────────────────────────────────────────────
 
 checkStoredToken();
