@@ -52,12 +52,20 @@ The settings modal covers branding (custom site title, separate logos for light 
 
 - **Public page** — clean, searchable landing page for end users with group tabs and live search
 - **Admin panel** — full link and group management behind a secure token gate
+- **Multiple groups per link** — assign a link to as many groups as needed via a checkbox multi-select
+- **Sections within groups** — organize cards under named section headings inside each group
+- **File attachments** — link cards can point to an uploaded file (PDF, Office docs, archives, images, text) instead of a URL, with a 25 MB cap and an extension whitelist
+- **Password-protected groups** — gate sensitive groups with a password; unlock state uses HMAC-signed cookies with a 30 s auto-relock timeout
+- **Hide links from the public page** — keep a link in the admin without exposing it publicly (eye-toggle on every card)
+- **Custom group colors** — pick any color via the native picker swatch
+- **Pinned default group** — choose which group the public page opens on
 - **Click analytics** — per-link stats: total clicks, unique visitors, today/week counts, top IPs
 - **Broken link checker** — automatic health check every 6 hours, flags dead links in the admin
-- **Custom branding** — upload separate logos for light and dark mode, set a custom site title
+- **Custom branding** — upload separate logos for light and dark mode, a custom browser tab favicon, and set a custom site title
 - **Server-side favicon cache** — favicons downloaded and stored locally, no external requests on page load
-- **Drag-to-reorder** — reorder links and groups by dragging
-- **Bulk actions** — multi-select links to delete or move to a group at once
+- **Drag-to-reorder** — reorder links, groups, and sections by dragging
+- **Bulk actions** — multi-select (click or long-press a card) to delete, move, hide, or show multiple links at once
+- **Mobile-friendly UI** — slide-over sidebar, full-width modal sheets, larger tap targets, and a kebab overflow menu on the admin top bar
 - **Import / Export** — backup and restore links as JSON
 - **Public password gate** — optionally protect the public page with a password
 - **Light & dark mode** — Apple-style design with OS preference detection
@@ -92,9 +100,9 @@ All persistent data lives in `/app/data` inside the container, mapped to `./link
 
 | Path | Purpose |
 |------|---------|
-| `data/links.db` | SQLite database — links, groups, settings, click analytics |
+| `data/links.db` | SQLite database — links, groups, sections, link↔group mappings, settings, click analytics |
 | `data/admin-token.txt` | Admin token generated on first startup |
-| `data/uploads/` | Uploaded images, logos, and cached favicons |
+| `data/uploads/` | Uploaded images, logos, favicons, and link file attachments |
 
 ### Authentication
 
@@ -294,15 +302,19 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/auth/verify` | — | Verify admin token |
 | POST | `/api/auth/verify-public` | — | Verify public password |
 | POST | `/api/auth/rotate-token` | Admin | Generate a new admin token |
-| GET | `/api/settings` | — | Get site title, logos, password status |
+| GET | `/api/settings` | — | Get site title, logos, favicon, pinned group, password status |
 | POST | `/api/settings/site-title` | Admin | Set the site title |
 | POST | `/api/settings/logo/:variant` | Admin | Upload logo (`light` or `dark`) |
 | DELETE | `/api/settings/logo/:variant` | Admin | Remove logo |
+| POST | `/api/settings/favicon` | Admin | Upload custom browser-tab favicon |
+| DELETE | `/api/settings/favicon` | Admin | Remove custom favicon |
+| POST | `/api/settings/pinned-group` | Admin | Pin a default group for the public page |
 | POST | `/api/settings/public-password` | Admin | Set public password |
 | DELETE | `/api/settings/public-password` | Admin | Remove public password |
-| GET | `/api/links` | Public | List all links |
-| POST | `/api/links` | Admin | Create a link |
-| PUT | `/api/links/:id` | Admin | Update a link |
+| GET | `/api/links` | Public | List all links (honors `is_hidden`, group locks, and public password) |
+| POST | `/api/links` | Admin | Create a link (URL or file upload) |
+| PUT | `/api/links/:id` | Admin | Update a link (URL or file upload) |
+| POST | `/api/links/:id/visibility` | Admin | Toggle a link's public visibility |
 | DELETE | `/api/links/:id` | Admin | Delete a link |
 | POST | `/api/links/reorder` | Admin | Save new link order |
 | POST | `/api/links/bulk-delete` | Admin | Delete multiple links |
@@ -311,8 +323,14 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | GET | `/api/links/:id/clicks` | Admin | Click detail for a link |
 | GET | `/api/groups` | Public | List all groups |
 | POST | `/api/groups` | Admin | Create a group |
-| PUT | `/api/groups/:id` | Admin | Update a group |
+| PUT | `/api/groups/:id` | Admin | Update a group (name, color, password) |
 | DELETE | `/api/groups/:id` | Admin | Delete a group |
 | POST | `/api/groups/reorder` | Admin | Save new group order |
+| POST | `/api/groups/:id/unlock` | — | Unlock a password-protected group (issues a signed cookie) |
+| POST | `/api/groups/:id/lock` | — | Lock a group (clears the unlock cookie) |
+| POST | `/api/groups/:id/sections` | Admin | Create a section inside a group |
+| PUT | `/api/sections/:id` | Admin | Rename a section |
+| DELETE | `/api/sections/:id` | Admin | Delete a section |
+| POST | `/api/sections/reorder` | Admin | Save new section order |
 | GET | `/api/stats` | Admin | Aggregate click stats for all links |
-| GET | `/r/:id` | — | Redirect and record click |
+| GET | `/r/:id` | — | Redirect (or stream a file attachment) and record the click |
