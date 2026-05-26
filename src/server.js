@@ -583,6 +583,68 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// ─── Live update channel (Server-Sent Events) ────────────────────────────────
+//
+// The public page subscribes to /api/events and re-renders whenever an admin
+// mutation finishes. Lightweight — single bus, no per-event payload (we just
+// signal "data changed"; the client re-fetches the canonical state).
+
+const sseClients = new Set();
+
+function broadcastDataUpdate() {
+  const payload = `event: data\ndata: ${Date.now()}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(payload); } catch { /* client gone, will be cleaned up on close */ }
+  }
+}
+
+app.get('/api/events', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type':      'text/event-stream',
+    'Cache-Control':     'no-cache, no-transform',
+    'Connection':        'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  // Opening comment flushes headers immediately so the EventSource readyState
+  // flips to OPEN without waiting for the first real event.
+  res.write(': ok\n\n');
+  // Tell the browser to back off if the connection drops (default is 3 s).
+  res.write('retry: 4000\n\n');
+
+  sseClients.add(res);
+
+  // Keep proxies happy — many drop idle SSE connections after ~30 s.
+  const ping = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch {}
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(ping);
+    sseClients.delete(res);
+  });
+});
+
+// Fires broadcastDataUpdate() after any successful admin mutation on /api/*.
+// Skips read-only methods, auth flows, the SSE endpoint itself, and the
+// publicly-callable group unlock so we don't echo non-data events.
+const SSE_BROADCAST_SKIP = new Set([
+  '/api/events',
+  '/api/auth/verify',
+  '/api/auth/rotate-token',
+  '/api/auth/verify-public',
+]);
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+  if (SSE_BROADCAST_SKIP.has(req.path)) return next();
+  if (/^\/api\/groups\/\d+\/unlock$/.test(req.path)) return next();
+
+  res.on('finish', () => {
+    if (res.statusCode >= 200 && res.statusCode < 300) broadcastDataUpdate();
+  });
+  next();
+});
+
 app.get('/admin', (req, res) =>
   res.sendFile(path.resolve(__dirname, '..', 'public', 'admin', 'index.html')));
 

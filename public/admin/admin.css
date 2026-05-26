@@ -1594,6 +1594,23 @@ header {
   outline: 2px solid var(--primary);
 }
 
+.section-drag-handle {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  opacity: 0;
+  cursor: grab;
+  flex-shrink: 0;
+  transition: opacity var(--transition);
+}
+.section-nav-item:hover .section-drag-handle { opacity: 0.5; }
+.section-nav-item.drag-over {
+  background: var(--surface-3);
+  border-left-color: var(--primary);
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
 /* ─── Mobile overflow menu (kebab popover) ──────────────────────────────────
  *
  * The kebab button is hidden on desktop; on phones (≤480 px) it appears in

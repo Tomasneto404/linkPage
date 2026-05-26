@@ -74,8 +74,9 @@
         </svg>
       </button>
 
-      <!-- Logo: shows uploaded image or falls back to "LinkPage" text -->
-      <div class="logo" id="headerLogo">
+      <!-- Logo: shows uploaded image or falls back to "LinkPage" text.
+           Clicking it leaves the admin and goes to the public page. -->
+      <a class="logo" id="headerLogo" href="/" aria-label="Open public page">
         <img id="brandImg" class="logo-img hidden" alt="Company logo" />
         <span id="brandText" style="display:flex; align-items:center; gap:8px">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -86,7 +87,7 @@
           <span class="brand-label">LinkPage</span>
         </span>
         <span class="admin-badge">Admin</span>
-      </div>
+      </a>
 
       <div style="display:flex; align-items:center; gap:8px; margin-left:auto">
         <!-- Search -->
@@ -290,8 +291,69 @@
             <polyline points="9 6 15 12 9 18"/>
           </svg>
           <span>Changelog</span>
-          <span class="changelog-version" id="changelogVersion">v1.0.1</span>
+          <span class="changelog-version" id="changelogVersion">v1.0.2</span>
         </summary>
+
+        <div class="changelog-release-label">v1.0.2</div>
+        <ul class="changelog-list">
+          <li>
+            <div class="changelog-entry-title">Reusable icon library</div>
+            <div class="changelog-entry-desc">
+              Every uploaded icon goes into a shared library you can browse, search,
+              and re-use across links — no need to upload the same image twice.
+              An optional setting also saves auto-fetched favicons to the library
+              for the same convenience.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Smarter favicon fetching (intranet-friendly)</div>
+            <div class="changelog-entry-desc">
+              Replaced the Google-only fetch with a three-tier strategy: parse the
+              page for <code>&lt;link rel="icon"&gt;</code>, then try <code>/favicon.ico</code>,
+              then fall back to Google. Intranet URLs now resolve correctly. The
+              live preview while typing uses the same fetcher.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Live updates on the public page</div>
+            <div class="changelog-entry-desc">
+              The public page subscribes to a Server-Sent Events channel and
+              fade-refreshes within a fraction of a second whenever an admin adds,
+              edits, reorders, or deletes anything.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Drag-to-reorder sections</div>
+            <div class="changelog-entry-desc">
+              Sections inside a group now have a drag handle in the sidebar; drop
+              one onto another to reorder. The new order persists and is reflected
+              on the public page immediately.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Remember last viewed group</div>
+            <div class="changelog-entry-desc">
+              Returning visitors stay on the tab they were viewing across refreshes.
+              The admin-configured default group only applies to brand-new
+              (uncached) visitors.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">HTML / XML / JSON attachments + 100 MB cap</div>
+            <div class="changelog-entry-desc">
+              The attachment whitelist now accepts <code>.htm</code>, <code>.html</code>,
+              <code>.xml</code>, and <code>.json</code> files. The per-attachment size
+              limit was raised from 25 MB to 100 MB.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Logo links to the public page</div>
+            <div class="changelog-entry-desc">
+              Clicking the brand logo — on either the admin or public page —
+              navigates to the public home.
+            </div>
+          </li>
+        </ul>
 
         <div class="changelog-release-label">v1.0.1</div>
         <ul class="changelog-list">

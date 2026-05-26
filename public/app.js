@@ -145,6 +145,23 @@ let searchQuery   = '';
 let pinnedGroupId      = null;
 let pinnedAppliedOnce  = false;
 
+// Returning visitors keep the tab they were on across refreshes. The pinned
+// default only kicks in when nothing is stored (a fresh, uncached visitor).
+const LAST_GROUP_KEY = 'linkpage_last_group';
+
+function loadStoredGroup() {
+  try {
+    const raw = localStorage.getItem(LAST_GROUP_KEY);
+    if (raw === 'all') return 'all';
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch { return null; }
+}
+
+function saveStoredGroup(group) {
+  try { localStorage.setItem(LAST_GROUP_KEY, String(group)); } catch {}
+}
+
 /** Returns the section_id this link has within `groupId`, or null. */
 function linkSectionInGroup(link, groupId) {
   const m = (link.groups || []).find(g => g.id === groupId);
@@ -200,6 +217,7 @@ function renderTabs() {
         return;
       }
       activeGroup = btn.dataset.group === 'all' ? 'all' : Number(btn.dataset.group);
+      saveStoredGroup(activeGroup);
       renderTabs(); renderLinks(true);
     });
   });
@@ -265,6 +283,7 @@ document.getElementById('unlockForm').addEventListener('submit', async e => {
     // Switch to the just-unlocked group and reload data so the cookie-aware
     // /api/links call returns its previously-hidden links.
     activeGroup = group.id;
+    saveStoredGroup(activeGroup);
     closeUnlockModal();
     await loadData();
   } catch {
@@ -472,18 +491,24 @@ document.getElementById('searchInput').addEventListener('input', e => {
 
 // ─── Data loading ─────────────────────────────────────────────────────────────
 
-async function loadData() {
+async function loadData({ transition = false } = {}) {
   const [fl, fg] = await Promise.all([
     authorisedFetch('/api/links'),
     authorisedFetch('/api/groups'),
   ]);
   links = fl; groups = fg;
 
-  // First-time landing: if a pinned default group is configured and exists,
-  // open it instead of "All". Runs once per page load.
+  // First-time landing: returning visitors keep the tab they last viewed
+  // (stored in localStorage). Only when nothing is stored do we fall back to
+  // the admin-configured pinned default, so brand-new visitors still see it.
   if (!pinnedAppliedOnce) {
     pinnedAppliedOnce = true;
-    if (pinnedGroupId && groups.some(g => g.id === pinnedGroupId)) {
+    const stored = loadStoredGroup();
+    if (stored === 'all') {
+      activeGroup = 'all';
+    } else if (stored && groups.some(g => g.id === stored)) {
+      activeGroup = stored;
+    } else if (pinnedGroupId && groups.some(g => g.id === pinnedGroupId)) {
       activeGroup = pinnedGroupId;
     }
   }
@@ -495,7 +520,7 @@ async function loadData() {
     if (current && isGroupLocked(current)) activeGroup = 'all';
   }
 
-  renderTabs(); renderLinks();
+  renderTabs(); renderLinks(transition);
   scheduleRelockRefresh();
 }
 
@@ -555,7 +580,49 @@ async function init() {
   }
 
   await loadData();
+  connectLiveUpdates();
 }
+
+// ─── Live updates (Server-Sent Events) ────────────────────────────────────────
+//
+// Whenever the admin mutates data the server broadcasts on /api/events; we
+// debounce a smooth re-render so rapid edits coalesce into a single fade.
+// EventSource auto-reconnects on transient drops; if the stream is closed for
+// good (server restart) we restart it manually after a short backoff.
+
+let liveUpdateTimer  = null;
+let liveUpdateSource = null;
+
+function connectLiveUpdates() {
+  if (typeof EventSource === 'undefined') return;
+  try { liveUpdateSource?.close(); } catch {}
+
+  liveUpdateSource = new EventSource('/api/events');
+
+  liveUpdateSource.addEventListener('data', () => {
+    clearTimeout(liveUpdateTimer);
+    liveUpdateTimer = setTimeout(() => {
+      // Don't fight a typing user: skip the fade while they're searching.
+      const inSearch = !!searchQuery;
+      loadData({ transition: !inSearch }).catch(() => {});
+    }, 250);
+  });
+
+  liveUpdateSource.addEventListener('error', () => {
+    if (liveUpdateSource && liveUpdateSource.readyState === EventSource.CLOSED) {
+      setTimeout(connectLiveUpdates, 4000);
+    }
+  });
+}
+
+// Stop the heartbeat ping from holding the socket open when the tab is hidden
+// for a long time, then reconnect when it comes back. Saves battery on mobile.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (liveUpdateSource && liveUpdateSource.readyState === EventSource.CLOSED) {
+    connectLiveUpdates();
+  }
+});
 
 init();
 

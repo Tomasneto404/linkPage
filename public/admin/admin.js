@@ -151,6 +151,7 @@ const jsonPut = (url, body) =>
 async function bulkDeleteLinks(ids)    { return jsonPost('/api/links/bulk-delete', { ids }); }
 async function reorderLinksApi(order)  { return sendAuthRequest('/api/links/reorder',  { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order }) }); }
 async function reorderGroupsApi(order) { return sendAuthRequest('/api/groups/reorder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order }) }); }
+async function reorderSectionsApi(order) { return sendAuthRequest('/api/sections/reorder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order }) }); }
 async function exportLinksApi()        { return apiJson('/api/links/export'); }
 async function importLinksApi(payload) { return jsonPost('/api/links/import', payload); }
 
@@ -530,7 +531,9 @@ async function loadAllData() {
 
 // ─── 8. SIDEBAR ───────────────────────────────────────────────────────────────
 
-let draggedGroupId = null;
+let draggedGroupId        = null;
+let draggedSectionId      = null;
+let draggedSectionGroupId = null;
 
 function linkBelongsToGroup(link, groupId) {
   return Array.isArray(link.group_ids)
@@ -592,7 +595,8 @@ function renderSidebar() {
 
       return `
         <div class="section-nav-item${sActive ? ' active' : ''}"
-             data-section-id="${s.id}" data-group-id="${g.id}">
+             data-section-id="${s.id}" data-group-id="${g.id}" draggable="true">
+          <span class="section-drag-handle" title="Drag to reorder">${SIDEBAR_ICONS.drag}</span>
           <span class="section-tick"></span>
           <span class="section-name">${escapeHtml(s.name)}</span>
           <span class="nav-count" style="${sCountStyle}">${sCount}</span>
@@ -740,6 +744,50 @@ function renderSidebar() {
       const ti = groups.findIndex(g => g.id === gid);
       const [m] = groups.splice(fi, 1); groups.splice(ti, 0, m);
       renderSidebar(); reorderGroupsApi(groups.map(g => g.id));
+    });
+  });
+
+  // ─── Section drag-to-reorder (within a single group only) ─────────────────
+  nav.querySelectorAll('.section-nav-item:not(.editing)').forEach(item => {
+    const sid = Number(item.dataset.sectionId);
+    const gid = Number(item.dataset.groupId);
+    item.addEventListener('dragstart', e => {
+      // Don't let a section drag bubble up and trigger a group drag.
+      e.stopPropagation();
+      draggedSectionId      = sid;
+      draggedSectionGroupId = gid;
+      item.style.opacity    = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => {
+      item.style.opacity = '';
+      nav.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      draggedSectionId      = null;
+      draggedSectionGroupId = null;
+    });
+    item.addEventListener('dragover', e => {
+      if (!draggedSectionId || draggedSectionGroupId !== gid || draggedSectionId === sid) return;
+      e.preventDefault();
+      e.stopPropagation();
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', e => {
+      item.classList.remove('drag-over');
+      if (!draggedSectionId || draggedSectionGroupId !== gid || draggedSectionId === sid) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const group = groups.find(g => g.id === gid);
+      if (!group || !Array.isArray(group.sections)) return;
+      const fi = group.sections.findIndex(s => s.id === draggedSectionId);
+      const ti = group.sections.findIndex(s => s.id === sid);
+      if (fi === -1 || ti === -1) return;
+
+      const [moved] = group.sections.splice(fi, 1);
+      group.sections.splice(ti, 0, moved);
+      renderSidebar();
+      reorderSectionsApi(group.sections.map(s => s.id));
     });
   });
 }
