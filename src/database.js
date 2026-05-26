@@ -16,83 +16,20 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 
-// Create all tables on first run.
-// IF NOT EXISTS makes this safe to run on every startup.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS settings (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
+// ─── Schema migrations ────────────────────────────────────────────────────────
+//
+// Every migration step is fully idempotent (CREATE TABLE IF NOT EXISTS, the
+// addColumnIfMissing helper, INSERT OR IGNORE). That means re-running them on
+// an already-current schema is a no-op, and any past version upgrades cleanly
+// to the latest schema in a single pass.
+//
+// `schema_version` is stored in the settings table as a bookkeeping hint —
+// we log "migrated v2 → v3" instead of staying silent — but the migrations
+// themselves do not depend on it being accurate. If the row is missing or
+// stale, every migration is still safely re-applied.
 
-  CREATE TABLE IF NOT EXISTS groups (
-    id         INTEGER  PRIMARY KEY AUTOINCREMENT,
-    name       TEXT     NOT NULL,
-    color      TEXT     NOT NULL DEFAULT '#0071e3',
-    position   INTEGER  DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+const CURRENT_SCHEMA_VERSION = 3;
 
-  CREATE TABLE IF NOT EXISTS links (
-    id              INTEGER  PRIMARY KEY AUTOINCREMENT,
-    name            TEXT     NOT NULL,
-    url             TEXT     NOT NULL,
-    description     TEXT,
-    image_path      TEXT,
-    favicon_path    TEXT,
-    group_id        INTEGER,
-    position        INTEGER  DEFAULT 0,
-    is_broken       INTEGER  DEFAULT 0,
-    last_checked_at DATETIME,
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS link_groups (
-    link_id    INTEGER NOT NULL,
-    group_id   INTEGER NOT NULL,
-    section_id INTEGER,
-    PRIMARY KEY (link_id, group_id)
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_link_groups_link  ON link_groups(link_id);
-  CREATE INDEX IF NOT EXISTS idx_link_groups_group ON link_groups(group_id);
-
-  CREATE TABLE IF NOT EXISTS sections (
-    id         INTEGER  PRIMARY KEY AUTOINCREMENT,
-    group_id   INTEGER  NOT NULL,
-    name       TEXT     NOT NULL,
-    position   INTEGER  DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_sections_group ON sections(group_id);
-
-  CREATE TABLE IF NOT EXISTS link_clicks (
-    id          INTEGER  PRIMARY KEY AUTOINCREMENT,
-    link_id     INTEGER  NOT NULL,
-    ip_address  TEXT     NOT NULL,
-    user_agent  TEXT,
-    clicked_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS icons (
-    id            INTEGER  PRIMARY KEY AUTOINCREMENT,
-    file_path     TEXT     NOT NULL UNIQUE,
-    original_name TEXT,
-    mime_type     TEXT,
-    file_size     INTEGER,
-    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_used_at  DATETIME
-  );
-`);
-
-// Backfill the icon library from any image_path already attached to a link.
-// Idempotent thanks to the UNIQUE(file_path) constraint.
-db.exec(`
-  INSERT OR IGNORE INTO icons (file_path)
-  SELECT DISTINCT image_path FROM links WHERE image_path IS NOT NULL AND image_path <> ''
-`);
-
-// Add new columns to existing databases without breaking them.
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
   if (!columns.includes(column)) {
@@ -100,24 +37,181 @@ function addColumnIfMissing(table, column, definition) {
   }
 }
 
-addColumnIfMissing('links',  'group_id',        'INTEGER');
-addColumnIfMissing('links',  'position',        'INTEGER DEFAULT 0');
-addColumnIfMissing('links',  'favicon_path',    'TEXT');
-addColumnIfMissing('links',  'is_broken',       'INTEGER DEFAULT 0');
-addColumnIfMissing('links',  'last_checked_at', 'DATETIME');
-addColumnIfMissing('links',  'is_hidden',       'INTEGER DEFAULT 0');
-addColumnIfMissing('links',  'file_path',       'TEXT');
-addColumnIfMissing('links',  'file_name',       'TEXT');
-addColumnIfMissing('groups', 'position',        'INTEGER DEFAULT 0');
-addColumnIfMissing('groups', 'password_hash',   'TEXT');
-addColumnIfMissing('link_groups', 'section_id',  'INTEGER');
+const MIGRATIONS = [
+  {
+    version: 1,
+    name:    'Base schema (settings, groups, links, sections, clicks)',
+    apply: () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS settings (
+          key   TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
 
-// One-time migration: copy any existing single group_id into the new link_groups
-// join table. Safe to run on every startup — INSERT OR IGNORE skips duplicates.
-db.exec(`
-  INSERT OR IGNORE INTO link_groups (link_id, group_id)
-  SELECT id, group_id FROM links WHERE group_id IS NOT NULL
-`);
+        CREATE TABLE IF NOT EXISTS groups (
+          id         INTEGER  PRIMARY KEY AUTOINCREMENT,
+          name       TEXT     NOT NULL,
+          color      TEXT     NOT NULL DEFAULT '#0071e3',
+          position   INTEGER  DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS links (
+          id              INTEGER  PRIMARY KEY AUTOINCREMENT,
+          name            TEXT     NOT NULL,
+          url             TEXT     NOT NULL,
+          description     TEXT,
+          image_path      TEXT,
+          favicon_path    TEXT,
+          group_id        INTEGER,
+          position        INTEGER  DEFAULT 0,
+          is_broken       INTEGER  DEFAULT 0,
+          last_checked_at DATETIME,
+          created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sections (
+          id         INTEGER  PRIMARY KEY AUTOINCREMENT,
+          group_id   INTEGER  NOT NULL,
+          name       TEXT     NOT NULL,
+          position   INTEGER  DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_sections_group ON sections(group_id);
+
+        CREATE TABLE IF NOT EXISTS link_clicks (
+          id          INTEGER  PRIMARY KEY AUTOINCREMENT,
+          link_id     INTEGER  NOT NULL,
+          ip_address  TEXT     NOT NULL,
+          user_agent  TEXT,
+          clicked_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+    },
+  },
+  {
+    version: 2,
+    name:    'Multi-group memberships, file attachments, hidden links, group passwords',
+    apply: () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS link_groups (
+          link_id    INTEGER NOT NULL,
+          group_id   INTEGER NOT NULL,
+          section_id INTEGER,
+          PRIMARY KEY (link_id, group_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_link_groups_link  ON link_groups(link_id);
+        CREATE INDEX IF NOT EXISTS idx_link_groups_group ON link_groups(group_id);
+      `);
+
+      addColumnIfMissing('links',       'group_id',        'INTEGER');
+      addColumnIfMissing('links',       'position',        'INTEGER DEFAULT 0');
+      addColumnIfMissing('links',       'favicon_path',    'TEXT');
+      addColumnIfMissing('links',       'is_broken',       'INTEGER DEFAULT 0');
+      addColumnIfMissing('links',       'last_checked_at', 'DATETIME');
+      addColumnIfMissing('links',       'is_hidden',       'INTEGER DEFAULT 0');
+      addColumnIfMissing('links',       'file_path',       'TEXT');
+      addColumnIfMissing('links',       'file_name',       'TEXT');
+      addColumnIfMissing('groups',      'position',        'INTEGER DEFAULT 0');
+      addColumnIfMissing('groups',      'password_hash',   'TEXT');
+      addColumnIfMissing('link_groups', 'section_id',      'INTEGER');
+
+      // Promote any pre-existing single group_id into the new join table.
+      db.exec(`
+        INSERT OR IGNORE INTO link_groups (link_id, group_id)
+        SELECT id, group_id FROM links WHERE group_id IS NOT NULL
+      `);
+    },
+  },
+  {
+    version: 3,
+    name:    'Icon library',
+    apply: () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS icons (
+          id            INTEGER  PRIMARY KEY AUTOINCREMENT,
+          file_path     TEXT     NOT NULL UNIQUE,
+          original_name TEXT,
+          mime_type     TEXT,
+          file_size     INTEGER,
+          created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_used_at  DATETIME
+        )
+      `);
+
+      // Backfill the library from any image already attached to a link.
+      db.exec(`
+        INSERT OR IGNORE INTO icons (file_path)
+        SELECT DISTINCT image_path FROM links WHERE image_path IS NOT NULL AND image_path <> ''
+      `);
+    },
+  },
+];
+
+function readSchemaVersion() {
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get();
+    return row ? (Number(row.value) || 0) : 0;
+  } catch {
+    // settings table doesn't exist yet — brand-new database.
+    return 0;
+  }
+}
+
+function writeSchemaVersion(v) {
+  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', ?)").run(String(v));
+}
+
+/**
+ * Runs every migration in order, inside a single transaction so the DB never
+ * ends up half-migrated if one step throws. Each step is idempotent, so this
+ * is safe to call on every startup — old DBs upgrade, new DBs do nothing.
+ */
+/**
+ * Returns true if this looks like a brand-new database (no user tables yet).
+ * Used purely for nicer startup logging — the migrations themselves don't care.
+ */
+function isFreshDatabase() {
+  const row = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='links'"
+  ).get();
+  return !row;
+}
+
+function runMigrations() {
+  const fresh = isFreshDatabase();
+  const from  = readSchemaVersion();
+  const applied = [];
+
+  db.exec('BEGIN');
+  try {
+    for (const migration of MIGRATIONS) {
+      if (migration.version <= from) continue;  // already covered per stored version
+      migration.apply();
+      applied.push(migration);
+    }
+    writeSchemaVersion(CURRENT_SCHEMA_VERSION);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    const failedAt = applied.length ? applied[applied.length - 1].version + 1 : from + 1;
+    console.error(`[db] Migration failed at v${failedAt}:`, err.message);
+    throw err;
+  }
+
+  if (fresh) {
+    console.log(`[db] Initialised schema at v${CURRENT_SCHEMA_VERSION}`);
+  } else if (applied.length > 0) {
+    const label = applied.map(m => `v${m.version} (${m.name})`).join(', ');
+    // `from` is 0 for older DBs that pre-date schema_version; show that as "pre-v1".
+    const fromLabel = from === 0 ? 'pre-versioned' : `v${from}`;
+    console.log(`[db] Migrated schema ${fromLabel} → v${CURRENT_SCHEMA_VERSION}: ${label}`);
+  } else {
+    console.log(`[db] Schema verified at v${CURRENT_SCHEMA_VERSION}`);
+  }
+}
+
+runMigrations();
 
 // ─── Group membership helpers ─────────────────────────────────────────────────
 

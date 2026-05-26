@@ -44,7 +44,7 @@ Per-link analytics show total clicks, unique visitors, today and this-week count
   <img src="linkPagePrints/linkPage-settings.png" width="480" alt="Settings modal" />
 </p>
 
-The settings modal covers branding (custom site title, separate logos for light and dark mode), public access (optional password gate), and security (one-click admin token rotation).
+The settings modal covers branding (custom site title, separate logos for light and dark mode), an icon library (manage reusable icons, opt-in to saving fetched favicons), public access (optional password gate, default group), security (one-click admin token rotation), and an About section with an on-demand "Check for updates" button.
 
 ---
 
@@ -53,18 +53,22 @@ The settings modal covers branding (custom site title, separate logos for light 
 - **Public page** — clean, searchable landing page for end users with group tabs and live search
 - **Admin panel** — full link and group management behind a secure token gate
 - **Multiple groups per link** — assign a link to as many groups as needed via a checkbox multi-select
-- **Sections within groups** — organize cards under named section headings inside each group
+- **Sections within groups** — organize cards under named section headings inside each group; drag sections in the sidebar to reorder them (reflects on the public page)
+- **Live updates on the public page** — opened tabs fade-refresh within a fraction of a second when an admin adds, edits, reorders, or deletes anything (Server-Sent Events)
+- **Reusable icon library** — every uploaded icon goes into a shared, searchable library; pick an existing icon for new links instead of re-uploading, manage and delete unused ones, optionally auto-save fetched favicons to the library
 - **File attachments** — link cards can point to an uploaded file (PDF, Office docs, archives, images, text, HTML/XML/JSON) instead of a URL, with a 100 MB cap and an extension whitelist
 - **Password-protected groups** — gate sensitive groups with a password; unlock state uses HMAC-signed cookies with a 30 s auto-relock timeout
 - **Hide links from the public page** — keep a link in the admin without exposing it publicly (eye-toggle on every card)
 - **Custom group colors** — pick any color via the native picker swatch
-- **Pinned default group** — choose which group the public page opens on
+- **Pinned default group** — choose which group the public page opens on (new visitors only — returning visitors keep the tab they were last viewing)
 - **Click analytics** — per-link stats: total clicks, unique visitors, today/week counts, top IPs
 - **Broken link checker** — automatic health check every 6 hours, flags dead links in the admin
 - **Custom branding** — upload separate logos for light and dark mode, a custom browser tab favicon, and set a custom site title
-- **Server-side favicon cache** — favicons downloaded and stored locally, no external requests on page load
+- **Smart favicon fetching** — three-tier strategy (parse the page for `<link rel="icon">`, then `/favicon.ico`, then Google as fallback) so favicons work for intranet sites too; cached server-side so no external requests on page load
 - **Drag-to-reorder** — reorder links, groups, and sections by dragging
 - **Bulk actions** — multi-select (click or long-press a card) to delete, move, hide, or show multiple links at once
+- **In-app update checker** — Settings shows the current build, and a one-click "Check for updates" button polls GitHub Releases for newer versions and shows the release notes inline
+- **Versioned database migrations** — transactional, idempotent schema upgrades run on every startup; logs what changed so any past version upgrades cleanly
 - **Mobile-friendly UI** — slide-over sidebar, full-width modal sheets, larger tap targets, and a kebab overflow menu on the admin top bar
 - **Import / Export** — backup and restore links as JSON
 - **Public password gate** — optionally protect the public page with a password
@@ -100,7 +104,7 @@ All persistent data lives in `/app/data` inside the container, mapped to `./link
 
 | Path | Purpose |
 |------|---------|
-| `data/links.db` | SQLite database — links, groups, sections, link↔group mappings, settings, click analytics |
+| `data/links.db` | SQLite database — links, groups, sections, link↔group mappings, icon library, settings, click analytics. The schema is auto-migrated on startup. |
 | `data/admin-token.txt` | Admin token generated on first startup |
 | `data/uploads/` | Uploaded images, logos, favicons, and link file attachments |
 
@@ -289,6 +293,7 @@ All configuration is done via environment variables:
 | `PORT` | `3000` | Port the server listens on |
 | `DATA_DIR` | `./data` | Directory for the database and admin token file |
 | `UPLOADS_DIR` | `./data/uploads` | Directory for uploaded images and cached favicons |
+| `RELEASES_REPO` | `Tomasneto404/linkPage` | GitHub `owner/repo` polled by the in-app update checker. Override to point at a fork or private mirror. |
 
 ---
 
@@ -311,6 +316,13 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/settings/pinned-group` | Admin | Pin a default group for the public page |
 | POST | `/api/settings/public-password` | Admin | Set public password |
 | DELETE | `/api/settings/public-password` | Admin | Remove public password |
+| POST | `/api/settings/save-favicons` | Admin | Toggle auto-save of fetched favicons into the icon library |
+| GET | `/api/icons` | Admin | List every icon in the reusable library with usage counts |
+| POST | `/api/icons` | Admin | Upload a new icon directly into the library |
+| DELETE | `/api/icons/:id` | Admin | Delete an icon (also clears it from any link using it) |
+| GET | `/api/favicon-preview` | Admin | Server-side favicon fetch used by the link form's live preview |
+| GET | `/api/version` | Admin | Check current build against the latest GitHub release |
+| GET | `/api/events` | — | Server-Sent Events stream — fires whenever an admin mutation happens, so the public page can fade-refresh in real time |
 | GET | `/api/links` | Public | List all links (honors `is_hidden`, group locks, and public password) |
 | POST | `/api/links` | Admin | Create a link (URL or file upload) |
 | PUT | `/api/links/:id` | Admin | Update a link (URL or file upload) |

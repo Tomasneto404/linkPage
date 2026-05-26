@@ -822,7 +822,28 @@ header {
 
 /* ─── Settings modal ─────────────────────────────────────────────────────────── */
 
-.settings-body { padding: 16px 22px 22px; display: flex; flex-direction: column; gap: 16px; }
+/* Constrain the settings modal so a long body scrolls inside the modal
+   instead of pushing it off the bottom of the viewport. */
+#settingsOverlay .modal {
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 720px);
+}
+#settingsOverlay .modal-header { flex-shrink: 0; }
+
+.settings-body {
+  padding: 16px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  /* iOS momentum scroll */
+  -webkit-overflow-scrolling: touch;
+  /* Keep the rounded modal corners visible against the scroll edge */
+  scrollbar-gutter: stable;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 
 .settings-section-title {
   font-size: 0.72rem;
@@ -865,7 +886,10 @@ header {
 .sidebar-changelog[open] > summary .changelog-chevron { transform: rotate(90deg); }
 
 .sidebar-changelog .changelog-version {
+  position: relative;
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -875,6 +899,309 @@ header {
   background: rgba(0, 113, 227, 0.12);
   color: var(--primary);
 }
+
+/* Small "update available" dot rendered on the version pill. */
+.changelog-update-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #30d158;
+  box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.45);
+  animation: changelog-update-pulse 1.8s ease-out infinite;
+}
+@keyframes changelog-update-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(48, 209, 88, 0.55); }
+  70%  { box-shadow: 0 0 0 6px rgba(48, 209, 88, 0);    }
+  100% { box-shadow: 0 0 0 0   rgba(48, 209, 88, 0);    }
+}
+
+/* ─── "Update available" banner inside the changelog ─────────────────────── */
+
+.changelog-update {
+  margin: 8px 10px 4px;
+  padding: 12px 12px 10px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg,
+    rgba(48, 209, 88, 0.10),
+    rgba(0, 113, 227, 0.08));
+  border: 1px solid rgba(48, 209, 88, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+[data-theme="dark"] .changelog-update {
+  background: linear-gradient(135deg,
+    rgba(48, 209, 88, 0.14),
+    rgba(10, 132, 255, 0.12));
+  border-color: rgba(48, 209, 88, 0.35);
+}
+
+.changelog-update-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.changelog-update-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #30d158;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.55);
+  animation: changelog-update-pulse 1.8s ease-out infinite;
+}
+.changelog-update-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.changelog-update-sub {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0;
+}
+
+.changelog-update-release {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.changelog-update-release + .changelog-update-release {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0,0,0,0.08);
+}
+[data-theme="dark"] .changelog-update-release + .changelog-update-release {
+  border-top-color: rgba(255,255,255,0.1);
+}
+
+.changelog-update-release-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+}
+.changelog-update-tag {
+  font-weight: 700;
+  font-size: 0.7rem;
+  color: var(--text);
+  padding: 1px 6px;
+  border-radius: 980px;
+  background: rgba(48, 209, 88, 0.18);
+}
+.changelog-update-date {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.changelog-update-link {
+  margin-left: auto;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+.changelog-update-link:hover { text-decoration: underline; }
+
+.changelog-update-body {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.changelog-update-body p     { margin: 4px 0; }
+.changelog-update-body strong { color: var(--text); font-weight: 600; }
+.changelog-update-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  list-style: disc;
+}
+.changelog-update-list li { margin: 2px 0; }
+.changelog-update-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.72rem;
+}
+
+/* ─── Version / update-check modal ───────────────────────────────────────── */
+
+.version-modal { max-width: 440px; }
+
+.settings-version-inline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--text);
+  background: var(--surface-3);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
+.version-body {
+  padding: 18px 22px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.version-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  padding: 8px 0;
+}
+.version-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--surface-3);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: version-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes version-spin { to { transform: rotate(360deg); } }
+
+.version-summary {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.version-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+}
+.version-summary-row + .version-summary-row {
+  border-top: 1px solid var(--border);
+}
+.version-summary-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.version-summary-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.version-summary-update { color: #30b558; }
+[data-theme="dark"] .version-summary-update { color: #30d158; }
+.version-summary-muted   { color: var(--text-muted); font-weight: 500; }
+
+.version-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+.version-status-title { font-weight: 600; color: var(--text); line-height: 1.2; }
+.version-status-sub   { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+
+.version-status-update {
+  background: rgba(48, 209, 88, 0.10);
+  border: 1px solid rgba(48, 209, 88, 0.28);
+}
+[data-theme="dark"] .version-status-update {
+  background: rgba(48, 209, 88, 0.14);
+  border-color: rgba(48, 209, 88, 0.35);
+}
+.version-status-update .version-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #30d158;
+  margin-top: 4px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 0 rgba(48, 209, 88, 0.55);
+  animation: changelog-update-pulse 1.8s ease-out infinite;
+}
+
+.version-status-ok {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+.version-status-ok svg { color: #30b558; flex-shrink: 0; margin-top: 2px; }
+[data-theme="dark"] .version-status-ok svg { color: #30d158; }
+
+.version-status-info {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+.version-status-error {
+  background: rgba(225, 29, 72, 0.08);
+  border: 1px solid rgba(225, 29, 72, 0.28);
+  color: var(--text);
+}
+.version-status-error svg { color: var(--danger, #e11d48); flex-shrink: 0; margin-top: 2px; }
+
+.version-changes-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.version-release + .version-release {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(0,0,0,0.08);
+}
+[data-theme="dark"] .version-release + .version-release {
+  border-top-color: rgba(255,255,255,0.1);
+}
+.version-release-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  margin-bottom: 4px;
+}
+.version-release-tag {
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: var(--text);
+  padding: 1px 7px;
+  border-radius: 980px;
+  background: rgba(48, 209, 88, 0.18);
+}
+.version-release-date { color: var(--text-muted); font-weight: 500; }
+.version-release-link {
+  margin-left: auto;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+.version-release-link:hover { text-decoration: underline; }
+.version-release-body {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.version-release-body p     { margin: 4px 0; }
+.version-release-body strong { color: var(--text); font-weight: 600; }
+.version-release-body ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+.version-release-body li { margin: 2px 0; }
 
 .sidebar-changelog .changelog-release-label {
   font-size: 0.65rem;
@@ -1751,6 +2078,10 @@ header {
   .settings-row      { flex-direction: column; align-items: stretch; gap: 10px; }
   .settings-row > div:last-child { display: flex; flex-wrap: wrap; gap: 6px; }
   .settings-body     { padding: 14px 16px 18px; }
+
+  /* Bottom-sheet on phones: the modal can take the full viewport height,
+     internal scroll handles long content. */
+  #settingsOverlay .modal { max-height: calc(100vh - 18px); }
 
   /* Bulk bar: full-width pill at the bottom */
   .bulk-bar { bottom: 14px; left: 10px; right: 10px; padding: 12px 14px; gap: 10px; }

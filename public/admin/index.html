@@ -291,11 +291,53 @@
             <polyline points="9 6 15 12 9 18"/>
           </svg>
           <span>Changelog</span>
-          <span class="changelog-version" id="changelogVersion">v1.0.2</span>
+          <span class="changelog-version" id="changelogVersion">
+            v1.0.2
+            <span class="changelog-update-dot hidden" id="changelogUpdateDot" aria-hidden="true"></span>
+          </span>
         </summary>
+
+        <!-- "Update available" banner is populated and revealed by admin.js
+             when the server detects a newer release on GitHub. -->
+        <div class="changelog-update hidden" id="changelogUpdate"></div>
 
         <div class="changelog-release-label">v1.0.2</div>
         <ul class="changelog-list">
+          <li>
+            <div class="changelog-entry-title">In-app update checker</div>
+            <div class="changelog-entry-desc">
+              Settings has a new <strong>About</strong> section with a "Check for updates"
+              button. Opens a popup showing the current build, the latest available
+              release, and the release notes for every newer version. A subtle pulsing
+              dot also appears next to the sidebar Changelog pill when an update is
+              available.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Versioned database migrations</div>
+            <div class="changelog-entry-desc">
+              The DB layer now runs a transactional, version-tracked migration on every
+              startup and logs what changed. Upgrading from any past LinkPage version
+              applies all missing steps idempotently; <code>schema_version</code> is
+              stored in <code>settings</code> so subsequent boots only verify.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Settings modal scrolls properly</div>
+            <div class="changelog-entry-desc">
+              The Settings popup grew taller as new sections were added. It now caps
+              at the viewport height and scrolls internally — close button and footer
+              stay reachable on small screens and laptops.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Fix: icon bleeding between edits</div>
+            <div class="changelog-entry-desc">
+              When editing two links in a row, the second link could accidentally
+              inherit the icon you just uploaded for the first. The link form now
+              clears the pending icon file before each edit.
+            </div>
+          </li>
           <li>
             <div class="changelog-entry-title">Reusable icon library</div>
             <div class="changelog-entry-desc">
@@ -671,6 +713,57 @@
           <div id="newTokenDisplay" class="new-token-display hidden"></div>
         </div>
 
+        <!-- ── About / Version ────────────────────── -->
+        <div>
+          <div class="settings-section-title">About</div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Version</div>
+              <div class="settings-row-desc">
+                Current build is
+                <span class="settings-version-inline" id="settingsCurrentVersion">v1.0.2</span>.
+                Check GitHub for newer releases.
+              </div>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="checkForUpdatesBtn">Check for updates</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════
+       VERSION / UPDATE CHECK MODAL
+       ════════════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="versionOverlay">
+    <div class="modal modal-sm version-modal">
+      <div class="modal-header">
+        <h2>Version</h2>
+        <button class="modal-close" id="closeVersionBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6"  y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="version-body" id="versionBody">
+        <!-- Populated by admin.js. Starts in the loading state. -->
+        <div class="version-loading">
+          <div class="version-spinner" aria-hidden="true"></div>
+          <span>Checking for updates…</span>
+        </div>
+      </div>
+
+      <div class="form-actions" style="padding: 6px 22px 22px">
+        <a class="btn btn-ghost" id="versionGithubLink"
+           href="https://github.com/Tomasneto404/linkPage/releases"
+           target="_blank" rel="noopener noreferrer">View on GitHub</a>
+        <button class="btn btn-primary" id="versionCloseBtn">Close</button>
       </div>
     </div>
   </div>
