@@ -54,7 +54,7 @@ The settings modal covers branding (custom site title, separate logos for light 
 - **Admin panel** — full link and group management behind a secure token gate
 - **Multiple groups per link** — assign a link to as many groups as needed via a checkbox multi-select
 - **Sections within groups** — organize cards under named section headings inside each group
-- **File attachments** — link cards can point to an uploaded file (PDF, Office docs, archives, images, text) instead of a URL, with a 25 MB cap and an extension whitelist
+- **File attachments** — link cards can point to an uploaded file (PDF, Office docs, archives, images, text, HTML/XML/JSON) instead of a URL, with a 100 MB cap and an extension whitelist
 - **Password-protected groups** — gate sensitive groups with a password; unlock state uses HMAC-signed cookies with a 30 s auto-relock timeout
 - **Hide links from the public page** — keep a link in the admin without exposing it publicly (eye-toggle on every card)
 - **Custom group colors** — pick any color via the native picker swatch

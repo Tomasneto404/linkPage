@@ -305,7 +305,7 @@ function isAllowedImage(file) {
 }
 
 // Files a link can point to instead of a URL. Keeps risky types (.exe, .sh,
-// .js, .html, etc.) out of the uploads directory.
+// .js, etc.) out of the uploads directory.
 const ALLOWED_FILE_EXTENSIONS = [
   '.pdf',
   '.doc', '.docx', '.odt', '.rtf',
@@ -314,6 +314,7 @@ const ALLOWED_FILE_EXTENSIONS = [
   '.txt', '.md', '.log',
   '.zip', '.7z', '.tar', '.gz',
   '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
+  '.htm', '.html', '.xml', '.json',
 ];
 const ALLOWED_FILE_MIME_TYPES = new Set([
   'application/pdf',
@@ -332,6 +333,9 @@ const ALLOWED_FILE_MIME_TYPES = new Set([
   'application/zip', 'application/x-zip-compressed',
   'application/x-7z-compressed', 'application/x-tar', 'application/gzip',
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  'text/html', 'application/xhtml+xml',
+  'text/xml', 'application/xml',
+  'application/json', 'text/json',
   // Browsers sometimes report an unknown type for less-common but safe files
   // (e.g. .md, .log). The extension whitelist still applies, so this is safe.
   'application/octet-stream',
@@ -340,6 +344,16 @@ const ALLOWED_FILE_MIME_TYPES = new Set([
 function isAllowedAttachment(file) {
   const ext = path.extname(file.originalname).toLowerCase();
   return ALLOWED_FILE_EXTENSIONS.includes(ext) && ALLOWED_FILE_MIME_TYPES.has(file.mimetype);
+}
+
+/**
+ * Skips deletion when the stored path is registered in the icon library.
+ * Library files are shared assets; the library owns their lifecycle.
+ */
+function safeDeleteFileUnlessLibrary(storedPath) {
+  if (!storedPath) return;
+  if (db.getIconByPath(storedPath)) return;
+  safeDeleteFile(storedPath);
 }
 
 /**
@@ -505,7 +519,7 @@ const upload = multer({
  */
 const uploadLinkPayload = multer({
   storage: uploadStorage,
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB cap for attachments
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB cap for attachments
   fileFilter: (req, file, done) => {
     if (file.fieldname === 'image') {
       return isAllowedImage(file)
@@ -523,6 +537,36 @@ const uploadLinkPayload = multer({
   { name: 'image', maxCount: 1 },
   { name: 'file',  maxCount: 1 },
 ]);
+
+/**
+ * Resolves the image_path to store on a link, given either a freshly uploaded
+ * file or a library `icon_id`. Auto-registers uploads in the icon library so
+ * every image_path is a library asset (centralises file-lifecycle ownership).
+ *   - imageFile present     → register and return its /uploads/... path
+ *   - iconIdField present   → look up the library icon, bump its last_used_at
+ *   - neither               → returns null (caller decides remove vs. keep)
+ */
+function resolveIconReference({ imageFile, iconIdField }) {
+  if (imageFile) {
+    const storedPath = `/uploads/${imageFile.filename}`;
+    db.createIcon({
+      filePath:     storedPath,
+      originalName: imageFile.originalname,
+      mimeType:     imageFile.mimetype,
+      fileSize:     imageFile.size,
+    });
+    return storedPath;
+  }
+  const iconId = Number.parseInt(iconIdField, 10);
+  if (Number.isFinite(iconId) && iconId > 0) {
+    const icon = db.getIconById(iconId);
+    if (icon) {
+      db.touchIcon(icon.id);
+      return icon.file_path;
+    }
+  }
+  return null;
+}
 
 // ─── Express setup ────────────────────────────────────────────────────────────
 
@@ -595,12 +639,13 @@ app.get('/api/settings', (req, res) => {
   const pinnedRaw      = db.readSetting('pinned_group_id');
   const pinnedId       = pinnedRaw && Number.isFinite(Number(pinnedRaw)) ? Number(pinnedRaw) : null;
   res.json({
-    logo_light:              db.readSetting('logo_light') ?? null,
-    logo_dark:               db.readSetting('logo_dark')  ?? null,
-    favicon:                 db.readSetting('favicon')    ?? null,
-    site_title:              db.readSetting('site_title') ?? null,
+    logo_light:               db.readSetting('logo_light') ?? null,
+    logo_dark:                db.readSetting('logo_dark')  ?? null,
+    favicon:                  db.readSetting('favicon')    ?? null,
+    site_title:               db.readSetting('site_title') ?? null,
     public_password_required: !!publicPassword,
     pinned_group_id:          pinnedId,
+    save_favicons_to_library: db.readSetting('save_favicons_to_library') === '1',
   });
 });
 
@@ -662,6 +707,65 @@ app.delete('/api/settings/favicon', requireAdminToken, (req, res) => {
   res.status(204).end();
 });
 
+// ─── Favicon preview (live preview in the link form, admin only) ────────────
+
+/**
+ * Streams the best-effort favicon for a given URL. Used by the link-modal's
+ * live preview so it works for intranet URLs too. Admin-only to avoid being
+ * an SSRF gadget for anonymous callers.
+ */
+app.get('/api/favicon-preview', requireAdminToken, async (req, res) => {
+  const siteUrl = typeof req.query.url === 'string' ? req.query.url.trim() : '';
+  if (!siteUrl || !isValidHttpUrl(siteUrl)) {
+    return res.status(400).end();
+  }
+  try {
+    const found = await fetchFaviconForUrl(siteUrl);
+    if (!found) return res.status(404).end();
+    res.setHeader('Content-Type',  found.contentType);
+    res.setHeader('Cache-Control', 'private, max-age=120');
+    res.send(found.buffer);
+  } catch {
+    res.status(502).end();
+  }
+});
+
+// ─── Icon library (admin only) ───────────────────────────────────────────────
+
+app.get('/api/icons', requireAdminToken, (req, res) => {
+  res.json(db.getAllIcons());
+});
+
+app.post('/api/icons', requireAdminToken, upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image file was provided' });
+
+  const icon = db.createIcon({
+    filePath:     `/uploads/${req.file.filename}`,
+    originalName: req.file.originalname,
+    mimeType:     req.file.mimetype,
+    fileSize:     req.file.size,
+  });
+  res.status(201).json({ ...icon, usage_count: 0 });
+});
+
+app.delete('/api/icons/:id', requireAdminToken, (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid icon ID' });
+
+  const { changes, fileToDelete } = db.deleteIcon(id);
+  if (!changes) return res.status(404).json({ error: 'Icon not found' });
+
+  if (fileToDelete) safeDeleteFile(fileToDelete);
+  res.status(204).end();
+});
+
+app.post('/api/settings/save-favicons', requireAdminToken, (req, res) => {
+  const enabled = !!req.body.enabled;
+  if (enabled) db.writeSetting('save_favicons_to_library', '1');
+  else         db.deleteSetting('save_favicons_to_library');
+  res.json({ save_favicons_to_library: enabled });
+});
+
 app.post('/api/settings/site-title', requireAdminToken, (req, res) => {
   const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
   if (title) {
@@ -706,41 +810,172 @@ app.delete('/api/settings/public-password', requireAdminToken, (req, res) => {
 
 // ─── Favicon download (server-side cache) ────────────────────────────────────
 
+const FAVICON_REQUEST_TIMEOUT_MS = 4500;
+const FAVICON_MAX_HTML_BYTES     = 256 * 1024;
+const FAVICON_MAX_IMAGE_BYTES    = 2   * 1024 * 1024;
+const FAVICON_USER_AGENT         = 'Mozilla/5.0 (compatible; LinkPage favicon fetcher)';
+const FAVICON_EXT_FROM_TYPE = ct => (
+  /svg/.test(ct)                                ? '.svg'  :
+  /gif/.test(ct)                                ? '.gif'  :
+  /webp/.test(ct)                               ? '.webp' :
+  /(x-icon|vnd\.microsoft\.icon|^image\/ico\b)/.test(ct) ? '.ico'  :
+                                                  '.png'
+);
+
+/** fetch() wrapper with a hard timeout and a body-size cap. Returns null on any failure. */
+async function fetchWithLimits(url, { timeoutMs = FAVICON_REQUEST_TIMEOUT_MS, maxBytes }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal:   controller.signal,
+      redirect: 'follow',
+      headers:  { 'User-Agent': FAVICON_USER_AGENT, 'Accept': '*/*' },
+    });
+    if (!res.ok) return null;
+    const declared = Number(res.headers.get('content-length'));
+    if (Number.isFinite(declared) && declared > maxBytes) return null;
+    return res;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
- * Downloads the favicon for a link from Google's favicon service and saves it
- * locally. This keeps favicons working even if Google's service is unavailable
- * and avoids sending user domains to Google on every page load.
+ * Looks at the first chunk of an HTML page for a declared favicon link.
+ * Returns an absolute URL or null. Picks "icon" / "shortcut icon" over
+ * "apple-touch-icon" when multiple are present.
+ */
+function parseDeclaredIconUrl(html, baseUrl) {
+  const head = html.slice(0, 64 * 1024);
+  const candidates = [];
+  const linkRegex = /<link\b[^>]*>/gi;
+  let m;
+  while ((m = linkRegex.exec(head)) !== null) {
+    const tag  = m[0];
+    const rel  = /\brel\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1]?.toLowerCase();
+    const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1];
+    if (!rel || !href || !rel.includes('icon')) continue;
+    const score = rel.includes('apple') ? 1 : (rel.includes('shortcut') ? 2 : 3);
+    candidates.push({ score, href });
+  }
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => b.score - a.score);
+  try { return new URL(candidates[0].href, baseUrl).href; } catch { return null; }
+}
+
+async function fetchHtml(url) {
+  const res = await fetchWithLimits(url, { maxBytes: FAVICON_MAX_HTML_BYTES });
+  if (!res) return null;
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  if (ct && !ct.includes('html')) return null;
+  return (await res.text()).slice(0, FAVICON_MAX_HTML_BYTES);
+}
+
+async function fetchImageCandidate(url) {
+  const res = await fetchWithLimits(url, { maxBytes: FAVICON_MAX_IMAGE_BYTES });
+  if (!res) return null;
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (!buffer.byteLength || buffer.byteLength > FAVICON_MAX_IMAGE_BYTES) return null;
+  const contentType = (res.headers.get('content-type') || 'application/octet-stream')
+    .split(';')[0].trim().toLowerCase();
+  // Accept image/* and the common .ico variants. Reject HTML disguised as a favicon.
+  const isImage = contentType.startsWith('image/')
+               || contentType === 'application/ico'
+               || contentType === 'application/octet-stream';
+  if (!isImage) return null;
+  return { buffer, contentType };
+}
+
+/**
+ * Best-effort favicon fetcher with three fallbacks. Returns { buffer, contentType }
+ * or null on total failure.
+ *
+ *   1. Parse the page HTML for a declared <link rel="icon"> — works for intranet
+ *      sites because the request goes directly to the site, not via Google.
+ *   2. Hit <origin>/favicon.ico — the legacy convention every browser still tries.
+ *   3. Fall back to Google's favicon service for public URLs.
+ */
+async function fetchFaviconForUrl(siteUrl) {
+  let parsed;
+  try { parsed = new URL(siteUrl); } catch { return null; }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+
+  const html = await fetchHtml(siteUrl);
+  if (html) {
+    const declared = parseDeclaredIconUrl(html, siteUrl);
+    if (declared) {
+      const img = await fetchImageCandidate(declared);
+      if (img) return img;
+    }
+  }
+
+  const root = await fetchImageCandidate(`${parsed.origin}/favicon.ico`);
+  if (root) return root;
+
+  return fetchImageCandidate(
+    `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=64`
+  );
+}
+
+/**
+ * Wraps cacheFavicon with a hard wall-clock budget. Resolves either when the
+ * favicon is written and persisted, or when the budget elapses — whichever is
+ * first. The underlying request is allowed to keep running in the background
+ * so a slow fetch still updates the DB before the next page load. Use this in
+ * request handlers that need the freshly-cached favicon in their response.
+ */
+function cacheFaviconWithBudget(linkId, siteUrl, budgetMs = 5000) {
+  return new Promise(resolve => {
+    let settled = false;
+    const done = () => { if (!settled) { settled = true; resolve(); } };
+    const timer = setTimeout(done, budgetMs);
+    cacheFavicon(linkId, siteUrl).finally(() => {
+      clearTimeout(timer);
+      done();
+    });
+  });
+}
+
+/**
+ * Downloads the favicon for a link and saves it locally. Tries the site itself
+ * first (so intranet URLs work) and falls back to Google's favicon service.
  */
 async function cacheFavicon(linkId, siteUrl) {
   try {
+    const found = await fetchFaviconForUrl(siteUrl);
+    if (!found) return;
+
+    const { buffer, contentType } = found;
     const hostname = new URL(siteUrl).hostname;
-    const faviconApiUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
-
-    const controller = new AbortController();
-    const timeout    = setTimeout(() => controller.abort(), 6000);
-
-    const response = await fetch(faviconApiUrl, { signal: controller.signal });
-    clearTimeout(timeout);
-
-    if (!response.ok) return;
-
-    const buffer      = await response.arrayBuffer();
-    const contentType = response.headers.get('content-type') || 'image/png';
-    const ext = contentType.includes('svg')  ? '.svg'  :
-                contentType.includes('gif')  ? '.gif'  :
-                contentType.includes('webp') ? '.webp' : '.png';
-
+    const ext      = FAVICON_EXT_FROM_TYPE(contentType);
     const filename = `favicon_${linkId}${ext}`;
     const filePath = path.join(UPLOADS_DIR, filename);
 
-    // Remove any previous favicon for this link (different extension)
-    for (const oldExt of ['.svg', '.gif', '.webp', '.png']) {
-      const old = path.join(UPLOADS_DIR, `favicon_${linkId}${oldExt}`);
-      if (old !== filePath && fs.existsSync(old)) fs.unlinkSync(old);
+    // Remove any previous favicon for this link (different extension), but
+    // skip files that the icon library owns — deleting those would orphan rows.
+    for (const oldExt of ['.svg', '.gif', '.webp', '.png', '.ico']) {
+      const old       = path.join(UPLOADS_DIR, `favicon_${linkId}${oldExt}`);
+      const oldStored = `/uploads/favicon_${linkId}${oldExt}`;
+      if (old !== filePath && fs.existsSync(old) && !db.getIconByPath(oldStored)) {
+        fs.unlinkSync(old);
+      }
     }
 
-    fs.writeFileSync(filePath, Buffer.from(buffer));
-    db.updateLinkFavicon(linkId, `/uploads/${filename}`);
+    fs.writeFileSync(filePath, buffer);
+    const storedPath = `/uploads/${filename}`;
+    db.updateLinkFavicon(linkId, storedPath);
+
+    if (db.readSetting('save_favicons_to_library') === '1') {
+      db.createIcon({
+        filePath:     storedPath,
+        originalName: `${hostname} favicon`,
+        mimeType:     contentType,
+        fileSize:     buffer.byteLength,
+      });
+    }
   } catch {
     // Favicon caching is best-effort — silently ignore failures
   }
@@ -981,8 +1216,8 @@ app.get('/api/groups', requirePublicAuth, (req, res) => {
 
 // ─── Links (admin write) ──────────────────────────────────────────────────────
 
-app.post('/api/links', requireAdminToken, uploadLinkPayload, (req, res) => {
-  const { name, url, description } = req.body;
+app.post('/api/links', requireAdminToken, uploadLinkPayload, async (req, res) => {
+  const { name, url, description, icon_id } = req.body;
 
   const imageFile = req.files?.image?.[0] || null;
   const attached  = req.files?.file?.[0]  || null;
@@ -1000,7 +1235,7 @@ app.post('/api/links', requireAdminToken, uploadLinkPayload, (req, res) => {
     return res.status(400).json({ error: 'URL must start with http:// or https://' });
   }
 
-  const imagePath   = imageFile ? `/uploads/${imageFile.filename}` : null;
+  const imagePath   = resolveIconReference({ imageFile, iconIdField: icon_id });
   const filePath    = attached  ? `/uploads/${attached.filename}`  : null;
   const fileName    = attached  ? attached.originalname            : null;
   const assignments = parseGroupAssignments(req.body) ?? [];
@@ -1022,16 +1257,17 @@ app.post('/api/links', requireAdminToken, uploadLinkPayload, (req, res) => {
   const linkId = result.lastInsertRowid;
 
   // Favicons only make sense for real URLs — skip for file-backed links.
-  if (!filePath) cacheFavicon(linkId, effectiveUrl).catch(() => {});
+  // Wait briefly so the response reflects the freshly cached favicon path.
+  if (!filePath) await cacheFaviconWithBudget(linkId, effectiveUrl);
 
   res.status(201).json(db.getLinkById(linkId));
 });
 
-app.put('/api/links/:id', requireAdminToken, uploadLinkPayload, (req, res) => {
+app.put('/api/links/:id', requireAdminToken, uploadLinkPayload, async (req, res) => {
   const existingLink = db.getLinkById(req.params.id);
   if (!existingLink) return res.status(404).json({ error: 'Link not found' });
 
-  const { name, url, description, remove_image, remove_file } = req.body;
+  const { name, url, description, remove_image, remove_file, icon_id } = req.body;
 
   const imageFile  = req.files?.image?.[0] || null;
   const attached   = req.files?.file?.[0]  || null;
@@ -1057,13 +1293,11 @@ app.put('/api/links/:id', requireAdminToken, uploadLinkPayload, (req, res) => {
   // When the link is/stays file-backed, the URL field is ignored — callers may
   // re-send the stored /uploads/... path without it causing a validation error.
 
-  const newImagePath = imageFile ? `/uploads/${imageFile.filename}` : null;
+  const newImagePath = resolveIconReference({ imageFile, iconIdField: icon_id });
   const newFilePath  = attached  ? `/uploads/${attached.filename}`  : null;
 
-  // Delete any replaced/cleared files from disk.
-  if ((newImagePath || shouldRemoveImage) && existingLink.image_path) {
-    safeDeleteFile(existingLink.image_path);
-  }
+  // Image files belong to the shared icon library — never delete them on update.
+  // The library endpoints own that lifecycle. Attached files are still per-link.
   if ((newFilePath || shouldRemoveFile) && existingLink.file_path) {
     safeDeleteFile(existingLink.file_path);
   }
@@ -1090,9 +1324,10 @@ app.put('/api/links/:id', requireAdminToken, uploadLinkPayload, (req, res) => {
   });
 
   // Re-cache favicon only if we're now URL-backed and the URL changed.
+  // Wait briefly so the response reflects the freshly cached favicon path.
   const nowFileBacked = !!(newFilePath || (existingLink.file_path && !shouldRemoveFile));
   if (!nowFileBacked && trimmedUrl !== existingLink.url) {
-    cacheFavicon(req.params.id, trimmedUrl).catch(() => {});
+    await cacheFaviconWithBudget(req.params.id, trimmedUrl);
   }
 
   res.json(db.getLinkById(req.params.id));
@@ -1116,8 +1351,8 @@ app.delete('/api/links/:id', requireAdminToken, (req, res) => {
   const existingLink = db.getLinkById(req.params.id);
   if (!existingLink) return res.status(404).json({ error: 'Link not found' });
 
-  safeDeleteFile(existingLink.image_path);
-  safeDeleteFile(existingLink.favicon_path);
+  // image_path is a shared icon-library reference — leave the file alone.
+  safeDeleteFileUnlessLibrary(existingLink.favicon_path);
   safeDeleteFile(existingLink.file_path);
   db.deleteLink(req.params.id);
   res.status(204).end();
@@ -1135,8 +1370,8 @@ app.post('/api/links/bulk-delete', requireAdminToken, (req, res) => {
   for (const id of ids) {
     const link = db.getLinkById(id);
     if (link) {
-      safeDeleteFile(link.image_path);
-      safeDeleteFile(link.favicon_path);
+      // image_path is a shared icon-library reference — leave the file alone.
+      safeDeleteFileUnlessLibrary(link.favicon_path);
       safeDeleteFile(link.file_path);
       db.deleteLink(id);
       deleted++;

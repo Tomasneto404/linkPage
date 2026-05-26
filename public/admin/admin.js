@@ -255,6 +255,7 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   updateFaviconPreview(faviconUrl);
   populatePinnedGroupSelect(s.pinned_group_id ?? null);
   document.getElementById('siteTitleInput').value = s.site_title || '';
+  document.getElementById('saveFaviconsToggle').checked = !!s.save_favicons_to_library;
   updatePublicPasswordStatus(s.public_password_required);
   document.getElementById('newTokenDisplay').classList.add('hidden');
   document.getElementById('settingsOverlay').classList.remove('hidden');
@@ -312,6 +313,26 @@ document.getElementById('removeFaviconBtn').addEventListener('click', async () =
   applyFavicon(null);
   updateFaviconPreview(null);
   showToast('Favicon removed');
+});
+
+document.getElementById('saveFaviconsToggle').addEventListener('change', async e => {
+  const enabled = e.target.checked;
+  const res = await sendAuthRequest('/api/settings/save-favicons', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    e.target.checked = !enabled;
+    showToast('Could not save setting');
+    return;
+  }
+  showToast(enabled ? 'Fetched favicons will be saved' : 'Setting disabled');
+});
+
+document.getElementById('openIconLibraryFromSettingsBtn').addEventListener('click', () => {
+  document.getElementById('settingsOverlay').classList.add('hidden');
+  openIconLibrary({ pickerMode: false });
 });
 
 document.getElementById('saveSiteTitleBtn').addEventListener('click', async () => {
@@ -1072,6 +1093,7 @@ document.getElementById('closeStatsBtn').addEventListener('click', () =>
 // ─── 11. LINK MODAL ───────────────────────────────────────────────────────────
 
 let shouldRemoveIcon = false;
+let pendingIconId    = null;    // id of an icon picked from the library, if any
 
 // Tracks Link/File mode state for the link modal.
 let linkModalMode      = 'link';        // 'link' or 'file'
@@ -1289,6 +1311,7 @@ function resetLinkModalAttachmentState() {
 
 function openAddLinkModal() {
   shouldRemoveIcon = false;
+  pendingIconId    = null;
   document.getElementById('linkModalTitle').textContent = 'Add Link';
   document.getElementById('editingLinkId').value = '';
   document.getElementById('linkForm').reset();
@@ -1310,6 +1333,7 @@ function openAddLinkModal() {
 
 function openEditLinkModal(link) {
   shouldRemoveIcon = false;
+  pendingIconId    = null;
   document.getElementById('linkModalTitle').textContent = 'Edit Link';
   document.getElementById('editingLinkId').value  = link.id;
   document.getElementById('inputName').value      = link.name;
@@ -1346,18 +1370,20 @@ function openEditLinkModal(link) {
 
 function closeLinkModal() { document.getElementById('linkModalOverlay').classList.add('hidden'); }
 
-function showCustomIconPreview(src) {
+function showCustomIconPreview(src, { fromLibrary = false } = {}) {
   document.getElementById('iconPreviewImg').src = src;
   document.getElementById('iconPreviewWrap').classList.remove('hidden');
-  document.getElementById('iconUploadArea').classList.add('hidden');
+  document.getElementById('iconSourceBadge').classList.toggle('hidden', !fromLibrary);
 }
 function clearCustomIconPreview() {
   document.getElementById('iconPreviewWrap').classList.add('hidden');
-  document.getElementById('iconUploadArea').classList.remove('hidden');
   document.getElementById('iconPreviewImg').src = '';
+  document.getElementById('iconSourceBadge').classList.add('hidden');
 }
 
 let faviconTimer;
+let faviconPreviewAbort;       // AbortController for any in-flight preview fetch
+let faviconPreviewBlobUrl;     // last blob URL we created, so we can revoke it
 document.getElementById('inputUrl').addEventListener('input', e => {
   const url       = e.target.value.trim();
   const editingId = parseInt(document.getElementById('editingLinkId').value) || null;
@@ -1369,18 +1395,37 @@ document.getElementById('inputUrl').addEventListener('input', e => {
   if (dup && url) { wEl.textContent = `URL already exists: "${dup.name}"`; wEl.classList.remove('hidden'); }
   else              wEl.classList.add('hidden');
 
-  // Favicon: clear immediately, then fetch if URL looks complete
+  // Cancel anything still running from the previous keystroke.
   clearTimeout(faviconTimer);
+  if (faviconPreviewAbort) faviconPreviewAbort.abort();
+  if (faviconPreviewBlobUrl) { URL.revokeObjectURL(faviconPreviewBlobUrl); faviconPreviewBlobUrl = null; }
   fi.src = ''; fi.className = '';
 
-  let hostname = null;
-  try { const p = new URL(url); if ((p.protocol === 'http:' || p.protocol === 'https:') && p.hostname.includes('.')) hostname = p.hostname; } catch {}
-  if (!hostname) return;
+  let validUrl = null;
+  try {
+    const p = new URL(url);
+    if ((p.protocol === 'http:' || p.protocol === 'https:') && p.hostname.length >= 1) {
+      validUrl = p.href;
+    }
+  } catch {}
+  if (!validUrl) return;
 
-  faviconTimer = setTimeout(() => {
-    fi.src     = `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
-    fi.onload  = () => fi.className = 'visible';
-    fi.onerror = () => fi.className = '';
+  faviconTimer = setTimeout(async () => {
+    faviconPreviewAbort = new AbortController();
+    try {
+      const res = await sendAuthRequest(
+        `/api/favicon-preview?url=${encodeURIComponent(validUrl)}`,
+        { signal: faviconPreviewAbort.signal }
+      );
+      if (!res.ok) { fi.className = ''; return; }
+      const blob = await res.blob();
+      faviconPreviewBlobUrl = URL.createObjectURL(blob);
+      fi.src        = faviconPreviewBlobUrl;
+      fi.onload     = () => fi.className = 'visible';
+      fi.onerror    = () => fi.className = '';
+    } catch {
+      // Aborted by the next keystroke, or a network error — leave the box empty.
+    }
   }, 600);
 });
 
@@ -1389,10 +1434,15 @@ document.getElementById('inputImage').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader(); r.onload = ev => showCustomIconPreview(ev.target.result); r.readAsDataURL(f);
   shouldRemoveIcon = false;
+  pendingIconId    = null;
 });
 document.getElementById('removeCustomIconBtn').addEventListener('click', () => {
-  shouldRemoveIcon = true; clearCustomIconPreview(); document.getElementById('inputImage').value = '';
+  shouldRemoveIcon = true;
+  pendingIconId    = null;
+  clearCustomIconPreview();
+  document.getElementById('inputImage').value = '';
 });
+document.getElementById('openIconLibraryBtn').addEventListener('click', () => openIconLibrary({ pickerMode: true }));
 
 document.getElementById('linkForm').addEventListener('submit', async e => {
   e.preventDefault(); hideFormError('linkFormError');
@@ -1417,7 +1467,11 @@ document.getElementById('linkForm').addEventListener('submit', async e => {
   }
 
   const imgFile = document.getElementById('inputImage').files[0];
-  if (imgFile) fd.append('image', imgFile);
+  if (imgFile) {
+    fd.append('image', imgFile);
+  } else if (pendingIconId) {
+    fd.append('icon_id', String(pendingIconId));
+  }
 
   const btn = document.getElementById('saveLinkBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -1895,11 +1949,191 @@ document.getElementById('searchInput').addEventListener('input', e => {
 });
 
 
+// ─── 20.5. ICON LIBRARY ──────────────────────────────────────────────────────
+
+let iconLibraryItems    = [];
+let iconLibraryQuery    = '';
+let iconLibraryPicker   = false;  // true when opened from the link modal
+
+async function fetchIcons() {
+  return apiJson('/api/icons').catch(() => []);
+}
+
+async function uploadIcon(file) {
+  const fd = new FormData(); fd.append('image', file);
+  return apiJson('/api/icons', { method: 'POST', body: fd });
+}
+
+async function deleteIconById(id) {
+  return sendAuthRequest(`/api/icons/${id}`, { method: 'DELETE' });
+}
+
+async function openIconLibrary({ pickerMode = false } = {}) {
+  iconLibraryPicker = pickerMode;
+  iconLibraryQuery  = '';
+  document.getElementById('iconLibrarySearchInput').value = '';
+  document.getElementById('iconLibraryOverlay').classList.remove('hidden');
+  document.getElementById('iconLibraryBody').classList.add('loading');
+  iconLibraryItems = await fetchIcons();
+  document.getElementById('iconLibraryBody').classList.remove('loading');
+  renderIconLibrary();
+  setTimeout(() => document.getElementById('iconLibrarySearchInput').focus(), 60);
+}
+
+function closeIconLibrary() {
+  document.getElementById('iconLibraryOverlay').classList.add('hidden');
+}
+
+function renderIconLibrary() {
+  const grid  = document.getElementById('iconLibraryGrid');
+  const empty = document.getElementById('iconLibraryEmpty');
+  const count = document.getElementById('iconLibraryCount');
+
+  const q       = iconLibraryQuery.toLowerCase();
+  const visible = q
+    ? iconLibraryItems.filter(i => (i.original_name || '').toLowerCase().includes(q))
+    : iconLibraryItems;
+
+  count.textContent = iconLibraryItems.length
+    ? `${iconLibraryItems.length} ${iconLibraryItems.length === 1 ? 'icon' : 'icons'}`
+    : '';
+
+  if (!iconLibraryItems.length) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  if (!visible.length) {
+    grid.innerHTML = `<div class="icon-library-noresults">No icons match “${escapeHtml(iconLibraryQuery)}”.</div>`;
+    return;
+  }
+
+  grid.innerHTML = visible.map(icon => {
+    const label    = icon.original_name || 'icon';
+    const used     = icon.usage_count || 0;
+    const selected = iconLibraryPicker && pendingIconId === icon.id;
+    return `
+      <div class="icon-library-card ${selected ? 'is-selected' : ''}" data-id="${icon.id}" title="${escapeHtml(label)}">
+        <button type="button" class="icon-library-card-pick" data-action="pick" data-id="${icon.id}">
+          <div class="icon-library-thumb">
+            <img src="${escapeHtml(icon.file_path)}" alt="${escapeHtml(label)}" loading="lazy" />
+          </div>
+          <div class="icon-library-meta">
+            <span class="icon-library-name">${escapeHtml(label)}</span>
+            <span class="icon-library-usage">${used} ${used === 1 ? 'use' : 'uses'}</span>
+          </div>
+        </button>
+        <button type="button" class="icon-library-card-delete" data-action="delete" data-id="${icon.id}" title="Delete from library">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/>
+            <path d="M14 11v6"/>
+            <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
+        ${selected ? '<div class="icon-library-selected-tag">Selected</div>' : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+document.getElementById('iconLibrarySearchInput').addEventListener('input', e => {
+  iconLibraryQuery = e.target.value.trim();
+  renderIconLibrary();
+});
+
+document.getElementById('closeIconLibraryBtn').addEventListener('click', closeIconLibrary);
+
+document.getElementById('iconLibraryUploadBtn').addEventListener('click', () => {
+  document.getElementById('iconLibraryUploadInput').click();
+});
+
+document.getElementById('iconLibraryUploadInput').addEventListener('change', async e => {
+  const file = e.target.files[0]; if (!file) return;
+  e.target.value = '';
+  document.getElementById('iconLibraryBody').classList.add('loading');
+  try {
+    const icon = await uploadIcon(file);
+    iconLibraryItems = await fetchIcons();
+    renderIconLibrary();
+    showToast('Icon added to library');
+    if (iconLibraryPicker && icon?.id) {
+      // Auto-pick the freshly uploaded icon for convenience.
+      pickIconFromLibrary(icon.id);
+    }
+  } catch {
+    showToast('Upload failed');
+  } finally {
+    document.getElementById('iconLibraryBody').classList.remove('loading');
+  }
+});
+
+document.getElementById('iconLibraryGrid').addEventListener('click', async e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const id     = Number(btn.dataset.id);
+  const action = btn.dataset.action;
+
+  if (action === 'pick') {
+    if (!iconLibraryPicker) return; // browse-only mode does nothing on click
+    pickIconFromLibrary(id);
+    return;
+  }
+
+  if (action === 'delete') {
+    e.stopPropagation();
+    const icon = iconLibraryItems.find(i => i.id === id);
+    const inUse = icon?.usage_count || 0;
+    const message = inUse
+      ? `This icon is used by ${inUse} ${inUse === 1 ? 'link' : 'links'}. Deleting it will remove the icon from those links (they will fall back to their site favicon). Continue?`
+      : 'Delete this icon from your library?';
+    const ok = await showConfirm({
+      title:       'Delete icon',
+      message,
+      confirmText: 'Delete',
+      danger:      true,
+    });
+    if (!ok) return;
+    const res = await deleteIconById(id);
+    if (res.ok) {
+      iconLibraryItems = iconLibraryItems.filter(i => i.id !== id);
+      // If the link modal had this icon picked, clear the selection.
+      if (pendingIconId === id) {
+        pendingIconId = null;
+        shouldRemoveIcon = true;
+        clearCustomIconPreview();
+      }
+      renderIconLibrary();
+      showToast('Icon deleted');
+      // Refresh link list so any link that lost its custom icon updates.
+      if (inUse) loadAllData();
+    } else {
+      showToast('Delete failed');
+    }
+  }
+});
+
+function pickIconFromLibrary(id) {
+  const icon = iconLibraryItems.find(i => i.id === id);
+  if (!icon) return;
+  pendingIconId    = icon.id;
+  shouldRemoveIcon = false;
+  document.getElementById('inputImage').value = '';
+  showCustomIconPreview(icon.file_path, { fromLibrary: true });
+  closeIconLibrary();
+}
+
+
 // ─── 21. MODAL CLOSE ──────────────────────────────────────────────────────────
 
 const OVERLAY_IDS = [
   'statsOverlay', 'settingsOverlay', 'linkModalOverlay',
   'groupModalOverlay', 'deleteLinkOverlay', 'deleteGroupOverlay', 'confirmOverlay',
+  'iconLibraryOverlay',
 ];
 
 OVERLAY_IDS.forEach(id => {
