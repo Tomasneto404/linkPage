@@ -28,7 +28,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 7;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -146,6 +146,57 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 4,
+    name:    'Subsections inside sections',
+    apply: () => {
+      addColumnIfMissing('sections', 'parent_section_id', 'INTEGER');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_sections_parent ON sections(parent_section_id)');
+    },
+  },
+  {
+    version: 5,
+    name:    'Per-group unlock mode (timeout vs browser session)',
+    apply: () => {
+      // 'timeout' → re-lock after 30 s (legacy default).
+      // 'session' → stay unlocked for the duration of the browser session.
+      addColumnIfMissing('groups', 'unlock_mode', "TEXT DEFAULT 'timeout'");
+    },
+  },
+  {
+    version: 6,
+    name:    'Admin audit log',
+    apply: () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS audit_log (
+          id          INTEGER  PRIMARY KEY AUTOINCREMENT,
+          action      TEXT     NOT NULL,   -- e.g. 'link.create', 'group.delete'
+          entity_type TEXT,                -- 'link' | 'group' | 'section' | 'settings' | 'icon' | 'auth'
+          entity_id   INTEGER,             -- the affected row id, when known
+          summary     TEXT,                -- human-readable one-liner
+          ip_address  TEXT,
+          user_agent  TEXT,
+          created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at)');
+    },
+  },
+  {
+    version: 7,
+    name:    'Seed settings favicon into the icon library',
+    apply: () => {
+      // The "Browser Tab Icon" should be reusable as a link icon. Copy the
+      // current favicon path into the icons table (idempotent via UNIQUE).
+      const row = db.prepare("SELECT value FROM settings WHERE key = 'favicon'").get();
+      if (row && row.value) {
+        db.prepare(`
+          INSERT OR IGNORE INTO icons (file_path, original_name, last_used_at)
+          VALUES (?, 'Site favicon', CURRENT_TIMESTAMP)
+        `).run(row.value);
+      }
+    },
+  },
 ];
 
 function readSchemaVersion() {
@@ -224,13 +275,16 @@ function loadAllMemberships() {
   const rows = db.prepare(`
     SELECT link_groups.link_id,
            link_groups.section_id,
-           groups.id     AS group_id,
-           groups.name   AS group_name,
-           groups.color  AS group_color,
-           sections.name AS section_name
+           groups.id          AS group_id,
+           groups.name        AS group_name,
+           groups.color       AS group_color,
+           sections.name      AS section_name,
+           sections.parent_section_id AS parent_section_id,
+           parent.name        AS parent_section_name
     FROM link_groups
     JOIN groups ON groups.id = link_groups.group_id
-    LEFT JOIN sections ON sections.id = link_groups.section_id
+    LEFT JOIN sections        ON sections.id = link_groups.section_id
+    LEFT JOIN sections parent ON parent.id   = sections.parent_section_id
     ORDER BY groups.position ASC, groups.created_at ASC
   `).all();
 
@@ -238,11 +292,13 @@ function loadAllMemberships() {
   for (const r of rows) {
     if (!byLink.has(r.link_id)) byLink.set(r.link_id, []);
     byLink.get(r.link_id).push({
-      id:           r.group_id,
-      name:         r.group_name,
-      color:        r.group_color,
-      section_id:   r.section_id ?? null,
-      section_name: r.section_name ?? null,
+      id:                  r.group_id,
+      name:                r.group_name,
+      color:               r.group_color,
+      section_id:          r.section_id ?? null,
+      section_name:        r.section_name ?? null,
+      parent_section_id:   r.parent_section_id ?? null,
+      parent_section_name: r.parent_section_name ?? null,
     });
   }
   return byLink;
@@ -251,24 +307,29 @@ function loadAllMemberships() {
 /** Returns the group/section memberships for a single link. */
 function loadMembershipsForLink(linkId) {
   const rows = db.prepare(`
-    SELECT groups.id     AS group_id,
-           groups.name   AS group_name,
-           groups.color  AS group_color,
+    SELECT groups.id          AS group_id,
+           groups.name        AS group_name,
+           groups.color       AS group_color,
            link_groups.section_id,
-           sections.name AS section_name
+           sections.name      AS section_name,
+           sections.parent_section_id AS parent_section_id,
+           parent.name        AS parent_section_name
     FROM link_groups
     JOIN groups ON groups.id = link_groups.group_id
-    LEFT JOIN sections ON sections.id = link_groups.section_id
+    LEFT JOIN sections        ON sections.id = link_groups.section_id
+    LEFT JOIN sections parent ON parent.id   = sections.parent_section_id
     WHERE link_groups.link_id = ?
     ORDER BY groups.position ASC, groups.created_at ASC
   `).all(linkId);
 
   return rows.map(r => ({
-    id:           r.group_id,
-    name:         r.group_name,
-    color:        r.group_color,
-    section_id:   r.section_id ?? null,
-    section_name: r.section_name ?? null,
+    id:                  r.group_id,
+    name:                r.group_name,
+    color:               r.group_color,
+    section_id:          r.section_id ?? null,
+    section_name:        r.section_name ?? null,
+    parent_section_id:   r.parent_section_id ?? null,
+    parent_section_name: r.parent_section_name ?? null,
   }));
 }
 
@@ -478,7 +539,13 @@ function reorderLinks(orderedIds) {
 function safeGroup(row) {
   if (!row) return row;
   const { password_hash, ...rest } = row;
-  return { ...rest, is_protected: !!password_hash };
+  return {
+    ...rest,
+    is_protected: !!password_hash,
+    // Coerce NULLs (groups created before v5 had no unlock_mode column) to
+    // the historical default so the wire format never has nulls.
+    unlock_mode:  rest.unlock_mode || 'timeout',
+  };
 }
 
 /** Hashes a password using scrypt. Format: scrypt$<saltHex>$<hashHex>. */
@@ -506,8 +573,13 @@ function verifyGroupPassword(groupId, password) {
 }
 
 /**
- * Returns all groups ordered by position, with a link_count and a sections
- * array attached. Each section includes its own link_count for that group.
+ * Returns all groups ordered by position, with a `sections` array attached.
+ *
+ * Sections are returned as a two-level hierarchy:
+ *   group.sections   = [ { id, name, position, link_count,
+ *                          subsections: [ { id, name, position, link_count } ] } ]
+ * Subsections are scoped to a single level (no sub-sub-sections) on purpose
+ * to keep the navigation manageable.
  */
 function getAllGroups() {
   const rows = db.prepare(`
@@ -528,20 +600,47 @@ function getAllGroups() {
     ORDER BY sections.position ASC, sections.created_at ASC
   `).all();
 
-  const sectionsByGroup = new Map();
+  // Build a lookup once so we can attach children to parents cheaply.
+  const sectionsById = new Map();
   for (const s of sectionRows) {
-    if (!sectionsByGroup.has(s.group_id)) sectionsByGroup.set(s.group_id, []);
-    sectionsByGroup.get(s.group_id).push({
-      id:         s.id,
-      name:       s.name,
-      position:   s.position,
-      link_count: s.link_count,
+    sectionsById.set(s.id, {
+      id:                s.id,
+      group_id:          s.group_id,
+      name:              s.name,
+      position:          s.position,
+      parent_section_id: s.parent_section_id ?? null,
+      link_count:        s.link_count,
+      subsections:       [],
     });
+  }
+
+  // Walk in position order: any subsection encountered slots into its parent
+  // (preserving sibling order); top-level sections collect into their group.
+  const topByGroup = new Map();
+  for (const s of sectionRows) {
+    const obj = sectionsById.get(s.id);
+    if (obj.parent_section_id && sectionsById.has(obj.parent_section_id)) {
+      sectionsById.get(obj.parent_section_id).subsections.push({
+        id:         obj.id,
+        name:       obj.name,
+        position:   obj.position,
+        link_count: obj.link_count,
+      });
+    } else {
+      if (!topByGroup.has(obj.group_id)) topByGroup.set(obj.group_id, []);
+      topByGroup.get(obj.group_id).push(obj);
+    }
   }
 
   return rows.map(g => ({
     ...safeGroup(g),
-    sections: sectionsByGroup.get(g.id) || [],
+    sections: (topByGroup.get(g.id) || []).map(s => ({
+      id:          s.id,
+      name:        s.name,
+      position:    s.position,
+      link_count:  s.link_count,
+      subsections: s.subsections,
+    })),
   }));
 }
 
@@ -550,35 +649,49 @@ function getGroupById(id) {
   return safeGroup(db.prepare('SELECT * FROM groups WHERE id = ?').get(id));
 }
 
+/** Normalises an unlock-mode input to a known value, falling back to 'timeout'. */
+function sanitizeUnlockMode(value) {
+  return value === 'session' ? 'session' : 'timeout';
+}
+
 /**
  * Inserts a new group placed at the end of the position list.
- * Pass `password` as a non-empty string to protect the group.
+ * Pass `password` as a non-empty string to protect the group, and
+ * `unlockMode` ('timeout' | 'session') to choose how an unlock persists.
  */
-function createGroup({ name, color, password }) {
+function createGroup({ name, color, password, unlockMode }) {
   const maxPos = db.prepare('SELECT COALESCE(MAX(position), -1) AS max FROM groups').get().max;
   const hash   = (typeof password === 'string' && password.length > 0)
     ? hashGroupPassword(password)
     : null;
-  return db
-    .prepare('INSERT INTO groups (name, color, position, password_hash) VALUES (?, ?, ?, ?)')
-    .run(name, color ?? '#0071e3', maxPos + 1, hash);
+  const mode   = sanitizeUnlockMode(unlockMode);
+  return db.prepare(`
+    INSERT INTO groups (name, color, position, password_hash, unlock_mode)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(name, color ?? '#0071e3', maxPos + 1, hash, mode);
 }
 
 /**
- * Updates a group's name and color, and optionally its password.
+ * Updates a group's name, color, password, and unlock mode.
  *   password === undefined → leave password unchanged
  *   password === null or '' → clear the password (group becomes public)
  *   password = '<string>'   → set a new password
+ *   unlockMode === undefined → leave unchanged; otherwise normalised to a known value
  */
-function updateGroup(id, { name, color, password }) {
+function updateGroup(id, { name, color, password, unlockMode }) {
   db.prepare('UPDATE groups SET name=?, color=? WHERE id=?').run(name, color, id);
 
-  if (password === undefined) return { changes: 1 };
+  if (password !== undefined) {
+    if (password === null || password === '') {
+      db.prepare('UPDATE groups SET password_hash = NULL WHERE id = ?').run(id);
+    } else if (typeof password === 'string') {
+      db.prepare('UPDATE groups SET password_hash = ? WHERE id = ?').run(hashGroupPassword(password), id);
+    }
+  }
 
-  if (password === null || password === '') {
-    db.prepare('UPDATE groups SET password_hash = NULL WHERE id = ?').run(id);
-  } else if (typeof password === 'string') {
-    db.prepare('UPDATE groups SET password_hash = ? WHERE id = ?').run(hashGroupPassword(password), id);
+  if (unlockMode !== undefined) {
+    db.prepare('UPDATE groups SET unlock_mode = ? WHERE id = ?')
+      .run(sanitizeUnlockMode(unlockMode), id);
   }
   return { changes: 1 };
 }
@@ -604,7 +717,7 @@ function reorderGroups(orderedIds) {
 
 // ─── Sections ─────────────────────────────────────────────────────────────────
 
-/** Returns every section for a group, ordered by position. */
+/** Returns every section for a group (top-level + sub), ordered by position. */
 function getSectionsForGroup(groupId) {
   return db.prepare(`
     SELECT * FROM sections
@@ -618,14 +731,29 @@ function getSectionById(id) {
   return db.prepare('SELECT * FROM sections WHERE id = ?').get(id);
 }
 
-/** Inserts a new section at the end of its group's position list. */
-function createSection({ groupId, name }) {
-  const maxPos = db
-    .prepare('SELECT COALESCE(MAX(position), -1) AS max FROM sections WHERE group_id = ?')
-    .get(groupId).max;
-  return db
-    .prepare('INSERT INTO sections (group_id, name, position) VALUES (?, ?, ?)')
-    .run(groupId, name, maxPos + 1);
+/**
+ * Inserts a new section at the end of its sibling list. Pass `parentSectionId`
+ * to create a subsection — null/undefined means top-level for the group.
+ * The position is per-sibling-group (top-level sections are ordered against
+ * each other within the group; subsections against their parent's children).
+ */
+function createSection({ groupId, name, parentSectionId }) {
+  let maxPos;
+  if (parentSectionId) {
+    maxPos = db.prepare(`
+      SELECT COALESCE(MAX(position), -1) AS max FROM sections
+      WHERE group_id = ? AND parent_section_id = ?
+    `).get(groupId, parentSectionId).max;
+  } else {
+    maxPos = db.prepare(`
+      SELECT COALESCE(MAX(position), -1) AS max FROM sections
+      WHERE group_id = ? AND parent_section_id IS NULL
+    `).get(groupId).max;
+  }
+  return db.prepare(`
+    INSERT INTO sections (group_id, name, position, parent_section_id)
+    VALUES (?, ?, ?, ?)
+  `).run(groupId, name, maxPos + 1, parentSectionId || null);
 }
 
 /** Renames a section. */
@@ -634,15 +762,23 @@ function updateSection(id, { name }) {
 }
 
 /**
- * Deletes a section. Any link memberships pointing at it have their section_id
- * cleared so the links fall back to "no section" inside the same group.
+ * Deletes a section. Cascade-deletes any subsections first (which in turn
+ * clear their links' section_id), then clears section_id on links pointing at
+ * this section, and finally removes the section row itself.
  */
 function deleteSection(id) {
+  const subs = db.prepare('SELECT id FROM sections WHERE parent_section_id = ?').all(id);
+  for (const sub of subs) deleteSection(sub.id);   // recurse cleanly
   db.prepare('UPDATE link_groups SET section_id = NULL WHERE section_id = ?').run(id);
   return db.prepare('DELETE FROM sections WHERE id = ?').run(id);
 }
 
-/** Updates section positions from a full ordered ID array. */
+/**
+ * Updates section positions from a full ordered ID array. The caller is
+ * expected to send siblings only (all top-level for a group, OR all
+ * subsections of the same parent) — that mirrors the drag-and-drop UI which
+ * never reorders across nesting boundaries.
+ */
 function reorderSections(orderedIds) {
   const update = db.prepare('UPDATE sections SET position = ? WHERE id = ?');
   orderedIds.forEach((id, index) => update.run(index, id));
@@ -757,6 +893,99 @@ function deleteIcon(id) {
   return { changes: res.changes, fileToDelete: icon.file_path };
 }
 
+// ─── Audit log ──────────────────────────────────────────────────────────────
+
+/**
+ * Appends a single entry to the admin audit log. Best-effort — wrapped by the
+ * caller so a logging failure never breaks the underlying mutation.
+ */
+function recordAudit({ action, entityType, entityId, summary, ipAddress, userAgent }) {
+  db.prepare(`
+    INSERT INTO audit_log (action, entity_type, entity_id, summary, ip_address, user_agent)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    action,
+    entityType ?? null,
+    Number.isFinite(entityId) ? entityId : null,
+    summary ?? null,
+    ipAddress ?? null,
+    userAgent ?? null,
+  );
+}
+
+/**
+ * Returns audit entries newest-first, with optional filters.
+ *   opts.limit       — max rows (default 200, capped at 1000)
+ *   opts.beforeId    — keyset pagination: only rows with id < beforeId
+ *   opts.afterId     — only rows with id > afterId (live "new entries" polling)
+ *   opts.entityType  — filter by entity type
+ *   opts.search      — case-insensitive substring match on action/summary
+ */
+function getAuditLog(opts = {}) {
+  const limit = Math.min(Math.max(Number(opts.limit) || 200, 1), 1000);
+  const where = [];
+  const params = [];
+  if (Number.isFinite(opts.beforeId)) { where.push('id < ?'); params.push(opts.beforeId); }
+  if (Number.isFinite(opts.afterId))  { where.push('id > ?'); params.push(opts.afterId); }
+  if (opts.entityType)                { where.push('entity_type = ?'); params.push(opts.entityType); }
+  if (opts.search) {
+    where.push('(LOWER(action) LIKE ? OR LOWER(summary) LIKE ?)');
+    const q = `%${String(opts.search).toLowerCase()}%`;
+    params.push(q, q);
+  }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  return db.prepare(`
+    SELECT id, action, entity_type, entity_id, summary, ip_address, user_agent, created_at
+    FROM audit_log
+    ${clause}
+    ORDER BY id DESC
+    LIMIT ?
+  `).all(...params, limit);
+}
+
+/**
+ * Returns ALL audit entries matching the optional type/search filter, newest
+ * first, with no pagination cap — used for export. Bounded by a hard ceiling
+ * so a runaway log can't exhaust memory.
+ */
+function getAuditLogForExport(opts = {}) {
+  const where = [];
+  const params = [];
+  if (opts.entityType) { where.push('entity_type = ?'); params.push(opts.entityType); }
+  if (opts.search) {
+    where.push('(LOWER(action) LIKE ? OR LOWER(summary) LIKE ?)');
+    const q = `%${String(opts.search).toLowerCase()}%`;
+    params.push(q, q);
+  }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  return db.prepare(`
+    SELECT id, action, entity_type, entity_id, summary, ip_address, user_agent, created_at
+    FROM audit_log
+    ${clause}
+    ORDER BY id DESC
+    LIMIT 100000
+  `).all(...params);
+}
+
+/** Total number of audit entries (for the header count). */
+function getAuditCount() {
+  return db.prepare('SELECT COUNT(*) AS n FROM audit_log').get().n;
+}
+
+/** Deletes all audit entries. Returns the number removed. */
+function clearAuditLog() {
+  return db.prepare('DELETE FROM audit_log').run().changes;
+}
+
+/** Deletes audit entries older than `days` days. Returns rows removed. */
+function pruneAuditLog(days) {
+  const d = Number(days);
+  if (!Number.isFinite(d) || d <= 0) return 0;
+  return db.prepare(
+    `DELETE FROM audit_log WHERE created_at < datetime('now', ?)`
+  ).run(`-${d} days`).changes;
+}
+
 module.exports = {
   readSetting, writeSetting, deleteSetting,
   getAllLinks, getLinkById, checkDuplicateUrl, createLink, updateLink, deleteLink,
@@ -766,4 +995,5 @@ module.exports = {
   getSectionsForGroup, getSectionById, createSection, updateSection, deleteSection, reorderSections,
   recordClick, getAllStats, getRecentClicks, getTopIps,
   getAllIcons, getIconById, getIconByPath, createIcon, touchIcon, deleteIcon,
+  recordAudit, getAuditLog, getAuditLogForExport, getAuditCount, clearAuditLog, pruneAuditLog,
 };

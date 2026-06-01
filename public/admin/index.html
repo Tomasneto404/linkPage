@@ -479,10 +479,15 @@
     <!-- Bulk action bar — visible only when links are selected -->
     <div class="bulk-bar hidden" id="bulkBar">
       <span id="bulkCount">0 selected</span>
-      <div style="display:flex; gap:8px; align-items:center">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" id="bulkSelectAllBtn"
+                title="Select every link currently visible">Select all</button>
         <select id="bulkGroupSelect" class="bulk-group-select">
           <option value="">Move to group…</option>
           <option value="none">Remove from group</option>
+        </select>
+        <select id="bulkSectionSelect" class="bulk-group-select hidden">
+          <option value="">No section</option>
         </select>
         <button class="btn btn-ghost btn-sm" id="bulkMoveBtn">Move</button>
         <button class="btn btn-ghost btn-sm" id="bulkHideBtn"  title="Hide selected from the public page">Hide</button>
@@ -711,6 +716,14 @@
           </div>
 
           <div id="newTokenDisplay" class="new-token-display hidden"></div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Audit Log</div>
+              <div class="settings-row-desc">Every admin change — created, edited, deleted, moved</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="openAuditLogBtn">View Log</button>
+          </div>
         </div>
 
         <!-- ── About / Version ────────────────────── -->
@@ -730,6 +743,86 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════
+       AUDIT LOG MODAL
+       ════════════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="auditOverlay">
+    <div class="modal modal-lg audit-modal">
+      <div class="modal-header">
+        <h2>
+          Audit Log
+          <span class="audit-count" id="auditCount"></span>
+        </h2>
+        <button class="modal-close" id="closeAuditBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6"  y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="audit-toolbar">
+        <div class="audit-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="search" id="auditSearchInput" placeholder="Search actions…" autocomplete="off" />
+        </div>
+        <select id="auditTypeFilter" class="bulk-group-select">
+          <option value="">All types</option>
+          <option value="click">Link clicks</option>
+          <option value="link">Link changes</option>
+          <option value="group">Groups</option>
+          <option value="section">Sections</option>
+          <option value="icon">Icons</option>
+          <option value="settings">Settings</option>
+          <option value="auth">Auth</option>
+        </select>
+        <span class="audit-toolbar-spacer"></span>
+        <label class="audit-live-toggle" title="Automatically show new entries">
+          <input type="checkbox" id="auditLiveToggle" checked />
+          <span class="audit-live-dot"></span>
+          Live
+        </label>
+        <button type="button" class="btn btn-ghost btn-sm" id="auditRefreshBtn" title="Refresh now">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Refresh
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" id="auditExportBtn" title="Download the log as CSV">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Export
+        </button>
+        <button type="button" class="btn btn-ghost-danger btn-sm" id="auditClearBtn">Clear log</button>
+      </div>
+
+      <div class="audit-body" id="auditBody">
+        <div class="audit-loading" id="auditLoading">
+          <div class="audit-spinner" aria-hidden="true"></div>
+          <span>Loading…</span>
+        </div>
+        <div class="audit-empty hidden" id="auditEmpty">
+          <div class="audit-empty-title">No activity yet</div>
+          <div class="audit-empty-sub">Admin changes will appear here as you make them.</div>
+        </div>
+        <div class="audit-list" id="auditList"></div>
+        <button type="button" class="btn btn-ghost btn-sm audit-more hidden" id="auditMoreBtn">Load older entries</button>
       </div>
     </div>
   </div>
@@ -903,6 +996,14 @@
               </svg>
               Library
             </div>
+            <div class="icon-upload-inner icon-presets-trigger" id="openIconPresetsBtn"
+                 title="Pick a stock icon and a color">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              Icons
+            </div>
           </div>
         </div>
 
@@ -945,6 +1046,27 @@
           </svg>
           <input type="search" id="iconLibrarySearchInput" placeholder="Search icons…" autocomplete="off" />
         </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="iconLibraryExportBtn"
+                title="Download the whole library as a file">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Export
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" id="iconLibraryImportBtn"
+                title="Import a previously exported library">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Import
+        </button>
+        <input type="file" id="iconLibraryImportInput" accept=".json,application/json" hidden />
+        <button type="button" class="btn btn-ghost btn-sm" id="iconLibrarySelectBtn"
+                title="Select multiple icons to delete">Select</button>
         <button type="button" class="btn btn-primary btn-sm" id="iconLibraryUploadBtn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -955,6 +1077,15 @@
         </button>
         <input type="file" id="iconLibraryUploadInput" hidden
                accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" />
+      </div>
+
+      <!-- Bulk action bar — visible only while in select mode -->
+      <div class="icon-library-bulkbar hidden" id="iconLibraryBulkBar">
+        <span id="iconLibraryBulkCount">0 selected</span>
+        <span class="icon-library-bulkbar-spacer"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="iconLibrarySelectAllBtn">Select all</button>
+        <button type="button" class="btn btn-danger btn-sm" id="iconLibraryBulkDeleteBtn">Delete selected</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="iconLibraryBulkCancelBtn">Cancel</button>
       </div>
 
       <div class="icon-library-body" id="iconLibraryBody">
@@ -971,6 +1102,171 @@
           <div class="icon-library-empty-sub">Upload an icon to reuse it across any link.</div>
         </div>
         <div class="icon-library-grid" id="iconLibraryGrid"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════
+       FILE EDITOR MODAL
+       ════════════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="fileEditorOverlay">
+    <div class="modal file-editor-modal">
+      <div class="modal-header">
+        <h2 class="file-editor-heading">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <span class="file-editor-filename" id="fileEditorFilename">file</span>
+          <span class="file-editor-badge" id="fileEditorBadge">·</span>
+        </h2>
+        <button class="modal-close" id="closeFileEditorBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6"  y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="file-editor-toolbar">
+        <span class="file-editor-meta" id="fileEditorMeta">—</span>
+        <span class="file-editor-toolbar-spacer"></span>
+        <span class="file-editor-status" id="fileEditorStatus"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="fileEditorRevertBtn" disabled>Revert</button>
+        <button type="button" class="icon-btn file-editor-expand-btn" id="fileEditorExpandBtn"
+                title="Expand editor (Esc collapses)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"/>
+            <polyline points="9 21 3 21 3 15"/>
+            <line x1="21" y1="3" x2="14" y2="10"/>
+            <line x1="3" y1="21" x2="10" y2="14"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="file-editor-body" id="fileEditorBody">
+        <div class="file-editor-loading" id="fileEditorLoading">
+          <div class="file-editor-spinner" aria-hidden="true"></div>
+          <span>Loading file…</span>
+        </div>
+
+        <!-- Find bar: floats over the editor pane, toggled by Ctrl/Cmd+F. -->
+        <div class="file-editor-search hidden" id="fileEditorSearch" role="search">
+          <svg class="file-editor-search-icon" width="13" height="13" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="fileEditorSearchInput" placeholder="Find in file…" autocomplete="off" spellcheck="false" />
+          <span class="file-editor-search-count" id="fileEditorSearchCount"></span>
+          <button type="button" class="file-editor-search-btn" id="fileEditorSearchPrev"
+                  title="Previous (Shift+Enter)" disabled>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="18 15 12 9 6 15"/>
+            </svg>
+          </button>
+          <button type="button" class="file-editor-search-btn" id="fileEditorSearchNext"
+                  title="Next (Enter)" disabled>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <button type="button" class="file-editor-search-btn" id="fileEditorSearchClose"
+                  title="Close (Esc)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6"  y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Three stacked layers: gutter (line numbers), highlight (coloured
+             <pre>), and the real textarea on top with transparent text so the
+             user sees the highlighted layer but types in the textarea. -->
+        <div class="file-editor-pane hidden" id="fileEditorPane">
+          <div class="file-editor-gutter" id="fileEditorGutter" aria-hidden="true"></div>
+          <div class="file-editor-stage">
+            <pre class="file-editor-highlight" id="fileEditorHighlight" aria-hidden="true"><code id="fileEditorHighlightCode"></code></pre>
+            <!-- Search-match overlay: a third <pre> that mirrors the editor
+                 contents but only paints <mark> backgrounds around matches.
+                 Sits between the syntax highlight and the textarea, never
+                 receives pointer events. -->
+            <pre class="file-editor-search-overlay" id="fileEditorSearchOverlay" aria-hidden="true"></pre>
+            <textarea id="fileEditorTextarea" class="file-editor-textarea"
+                      spellcheck="false" autocomplete="off" autocapitalize="off"
+                      wrap="off"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions" style="padding: 6px 22px 22px">
+        <button type="button" class="btn btn-ghost"   id="cancelFileEditorBtn">Close</button>
+        <button type="button" class="btn btn-primary" id="saveFileEditorBtn" disabled>Save</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════
+       ICON PRESETS PICKER MODAL
+       ════════════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="iconPresetsOverlay">
+    <div class="modal modal-lg icon-presets-modal">
+      <div class="modal-header">
+        <h2>
+          Pick an icon
+          <span class="icon-presets-count" id="iconPresetsCount"></span>
+        </h2>
+        <button class="modal-close" id="closeIconPresetsBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6"  y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="icon-presets-toolbar">
+        <div class="icon-presets-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="search" id="iconPresetsSearchInput" placeholder="Search icons…" autocomplete="off" />
+        </div>
+
+        <div class="icon-presets-color-row">
+          <span class="icon-presets-color-label">Color</span>
+          <div class="icon-presets-palette" id="iconPresetsPalette"></div>
+          <label class="icon-presets-color-custom" title="Custom color">
+            <input type="color" id="iconPresetsColorInput" value="#0071e3" />
+          </label>
+        </div>
+      </div>
+
+      <div class="icon-presets-body" id="iconPresetsBody">
+        <div class="icon-presets-grid" id="iconPresetsGrid"></div>
+        <div class="icon-presets-noresults hidden" id="iconPresetsNoResults">
+          No icons match that search.
+        </div>
+      </div>
+
+      <div class="form-actions" style="padding: 6px 22px 22px">
+        <div class="icon-presets-selected" id="iconPresetsSelected">
+          <span class="icon-presets-selected-preview" id="iconPresetsSelectedPreview"></span>
+          <span class="icon-presets-selected-label" id="iconPresetsSelectedLabel">No icon selected</span>
+        </div>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn-ghost"   id="cancelIconPresetsBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="applyIconPresetsBtn" disabled>Use icon</button>
       </div>
     </div>
   </div>
@@ -1014,6 +1310,23 @@
             </button>
           </div>
           <div class="form-hint hidden" id="groupPasswordStatus"></div>
+        </div>
+
+        <!-- How long the unlock sticks once a visitor types the password. -->
+        <div class="form-group group-unlock-mode hidden" id="groupUnlockModeRow">
+          <label>Unlock behavior</label>
+          <div class="radio-row">
+            <label class="radio-pill">
+              <input type="radio" name="groupUnlockMode" value="timeout" checked />
+              <span class="radio-pill-title">Auto-lock after 30 s</span>
+              <span class="radio-pill-sub">Re-prompt for the password shortly after unlocking. Best for shared screens.</span>
+            </label>
+            <label class="radio-pill">
+              <input type="radio" name="groupUnlockMode" value="session" />
+              <span class="radio-pill-title">Stay unlocked for this session</span>
+              <span class="radio-pill-sub">Remains unlocked until the visitor closes the browser tab/window.</span>
+            </label>
+          </div>
         </div>
         <div class="form-error hidden" id="groupFormError"></div>
         <div class="form-actions">
@@ -1079,6 +1392,7 @@
 <!-- Toast notifications -->
 <div class="toast-container" id="toastContainer"></div>
 
+<script src="icon-presets.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>

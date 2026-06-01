@@ -115,44 +115,114 @@ header {
 }
 
 /* ── Search ──────────────────────────────── */
+/*
+ * The wrapper is now the styled pill (chips live inside it alongside the
+ * input). Focus state lights up via :focus-within so the visual ring still
+ * triggers whether the user is typing in the input or interacting with chips.
+ */
 .search-wrap {
   position: relative;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: var(--surface-3);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 4px 8px 4px 32px;
+  min-height: 32px;
+  transition: border-color var(--transition), background var(--transition),
+              box-shadow var(--transition);
+}
+.search-wrap:focus-within {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+}
+[data-theme="dark"] .search-wrap:focus-within {
+  box-shadow: 0 0 0 3px rgba(10,132,255,0.2);
 }
 
 .search-wrap svg {
   position: absolute;
   left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--text-muted);
   pointer-events: none;
 }
 
+.search-chips {
+  display: contents;   /* the wrapper does the layout; chips flow with input */
+}
+
+.search-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 8px;
+  background: rgba(0, 113, 227, 0.12);
+  color: var(--primary);
+  border-radius: 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  max-width: 100%;
+  animation: chipIn 0.14s ease;
+}
+[data-theme="dark"] .search-chip { background: rgba(10,132,255,0.18); }
+@keyframes chipIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
+
+.search-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.search-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.65;
+  line-height: 1;
+  font-size: 14px;
+  transition: opacity var(--transition), background var(--transition);
+}
+.search-chip-remove:hover {
+  background: rgba(0,113,227,0.18);
+  opacity: 1;
+}
+.search-chip-remove:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
 .search-input {
-  background: var(--surface-3);
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 7px 12px 7px 32px;
+  flex: 1;
+  min-width: 80px;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 2px 4px;
   color: var(--text);
   font-size: 0.875rem;
   font-family: inherit;
-  outline: none;
-  transition: border-color var(--transition), background var(--transition);
-  width: 200px;
-}
-
-.search-input:focus {
-  border-color: var(--primary);
-  background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
-  width: 240px;
-}
-
-[data-theme="dark"] .search-input:focus {
-  box-shadow: 0 0 0 3px rgba(10,132,255,0.2);
+  width: auto;
 }
 
 .search-input::placeholder { color: var(--text-muted); }
+.search-wrap:not(:has(.search-chip)) .search-input::placeholder { /* same */ }
+.search-wrap:has(.search-chip) .search-input::placeholder { color: var(--text-muted); opacity: 0.7; }
 
 /* ── Theme toggle ────────────────────────── */
 .theme-toggle {
@@ -249,6 +319,16 @@ header {
 
 .link-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .link-icon .fallback { color: var(--text-muted); opacity: 0.5; }
+/* The Settings-favicon default sits as a small contained glyph, not cropped. */
+.link-icon img.site-favicon-default { object-fit: contain; padding: 7px; }
+
+/* File-type tile paints its own coloured background; let it own the whole
+   icon slot so we don't see the surface-3 chip behind it. */
+.link-icon:has(.file-type-tile) {
+  background: transparent;
+  border: none;
+}
+.file-type-tile { display: block; width: 100%; height: 100%; }
 
 /* Icon fallback wrapper */
 .icon-fallback {
@@ -413,6 +493,28 @@ header {
   text-transform: none;
 }
 
+/* Subsection headings — indented, smaller type, no full-width divider. */
+.section-heading.subsection-heading {
+  border-top: none;
+  margin-top: 2px;
+  padding: 6px 4px 4px 22px;
+  font-size: 0.66rem;
+  position: relative;
+}
+.section-heading.subsection-heading::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 10px;
+  height: 1px;
+  background: var(--border-strong);
+}
+.section-heading.subsection-heading .section-heading-count {
+  font-size: 0.66rem;
+  padding: 0 6px;
+}
+
 /* ── Card entrance animation ──────────────── */
 @keyframes cardIn {
   from { opacity: 0; transform: translateY(10px); }
@@ -450,8 +552,7 @@ mark.hl {
 
 @media (max-width: 720px) {
   .header-inner { padding: 0 14px; gap: 10px; }
-  .search-input { width: 160px; }
-  .search-input:focus { width: 200px; }
+  .search-wrap  { max-width: 260px; }
 }
 
 @media (max-width: 480px) {
@@ -462,9 +563,7 @@ mark.hl {
   .logo-img { max-height: 26px; max-width: 130px; }
 
   /* Let search fill whatever's left between brand and the right-edge buttons */
-  .search-wrap   { flex: 1 1 auto !important; max-width: none !important; min-width: 0; }
-  .search-input  { width: 100% !important; padding: 7px 10px 7px 30px; }
-  .search-input:focus { width: 100% !important; }
+  .search-wrap { flex: 1 1 auto !important; max-width: none !important; min-width: 0; }
 
   .theme-toggle { width: 32px; height: 32px; }
 

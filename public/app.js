@@ -15,6 +15,9 @@
 
 let logoLightUrl = null;
 let logoDarkUrl  = null;
+// The favicon uploaded in Settings ("Browser Tab Icon"). Used as the default
+// link icon whenever a link has no custom/cached/fetchable icon of its own.
+let siteFaviconUrl = null;
 
 function getInitialTheme() {
   const saved = localStorage.getItem('linkpage_theme');
@@ -108,11 +111,38 @@ function escapeHtml(text) {
   return String(text ?? '').replace(/[&<>"']/g, c => e[c]);
 }
 
+/**
+ * Splits a query into search tokens. Whitespace separates tokens, and
+ * "quoted phrases" stay intact so "two words" is a single match.
+ */
+function parseSearchTokens(query) {
+  const out = [];
+  const re  = /"([^"]+)"|(\S+)/g;
+  let m;
+  while ((m = re.exec(query || '')) !== null) {
+    const t = (m[1] ?? m[2] ?? '').trim().toLowerCase();
+    if (t) out.push(t);
+  }
+  return out;
+}
+
+/**
+ * Wraps every occurrence of every search token in <mark> for highlighting.
+ * Accepts either the raw query string (in which case it tokenises) or a
+ * pre-tokenised array. Tokens are matched longest-first so multi-word
+ * phrases highlight as a single span instead of being split by sub-matches.
+ */
 function highlightText(rawText, query) {
   const text = escapeHtml(rawText ?? '');
   if (!query) return text;
-  const safeQ = escapeHtml(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return text.replace(new RegExp(`(${safeQ})`, 'gi'), '<mark class="hl">$1</mark>');
+  const tokens = Array.isArray(query) ? query : parseSearchTokens(query);
+  if (!tokens.length) return text;
+
+  const sorted = [...new Set(tokens)].sort((a, b) => b.length - a.length);
+  const pattern = sorted
+    .map(t => escapeHtml(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  return text.replace(new RegExp(`(${pattern})`, 'gi'), '<mark class="hl">$1</mark>');
 }
 
 function getFaviconUrl(siteUrl) {
@@ -138,6 +168,9 @@ let groups        = [];
 let activeGroup   = 'all';
 let activeSection = null;
 let searchQuery   = '';
+// Pinned keywords. Each one narrows the result set further (AND combined
+// with each other and with whatever's currently typed into the input).
+let searchChips   = [];
 
 // First-load default group (from settings.pinned_group_id). Applied once,
 // then cleared so subsequent re-loads (e.g. after unlocking a protected group
@@ -296,31 +329,99 @@ document.getElementById('unlockForm').addEventListener('submit', async e => {
 
 // ─── Link cards ───────────────────────────────────────────────────────────────
 
+/**
+ * Joins every searchable string on a link into a single lowercased haystack
+ * — name, URL, file name, description, plus every group/section/subsection
+ * name the link belongs to. The "tags" the user sees on a card are the group
+ * names, so searching for a group name surfaces every link that wears that
+ * badge.
+ */
+function buildLinkHaystack(link) {
+  const parts = [
+    link.name,
+    link.url,
+    link.file_name,
+    link.description,
+  ];
+  for (const g of (link.groups || [])) {
+    parts.push(g.name, g.section_name, g.parent_section_name);
+  }
+  return parts.filter(Boolean).join(' \n ').toLowerCase();
+}
+
+/**
+ * Returns every active search keyword — pinned chips plus whatever the user
+ * has typed into the input but not yet pressed Enter on. Lowercased and
+ * deduped so the filter walks a clean list.
+ */
+function effectiveSearchTokens() {
+  const tokens = new Set();
+  for (const c of searchChips) tokens.add(c.toLowerCase());
+  for (const t of parseSearchTokens(searchQuery)) tokens.add(t);
+  return Array.from(tokens);
+}
+
 function getFilteredLinks() {
   let filtered = activeGroup !== 'all'
     ? links.filter(l => linkBelongsToGroup(l, activeGroup))
     : links;
 
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    filtered = filtered.filter(l =>
-      l.name.toLowerCase().includes(q) ||
-      l.url.toLowerCase().includes(q)  ||
-      (l.file_name   || '').toLowerCase().includes(q) ||
-      (l.description || '').toLowerCase().includes(q)
-    );
+  const tokens = effectiveSearchTokens();
+  if (tokens.length) {
+    // AND across tokens — each chip/keyword must match at least one
+    // searchable field. "two words" (quoted) matches as a single phrase.
+    filtered = filtered.filter(l => {
+      const hay = buildLinkHaystack(l);
+      return tokens.every(t => hay.includes(t));
+    });
   }
   return filtered;
 }
 
+/*
+ * Icon fallback chain (shared by every link icon <img>):
+ *   1. the requested icon (custom upload / cached favicon / Google live)
+ *   2. on failure → the Settings "Browser Tab Icon" (siteFaviconUrl), if set
+ *   3. on failure → the generic globe glyph
+ * Implemented with a global error handler so the chain works without nested
+ * inline onerror gymnastics.
+ */
+window.__lpIconLoaded = function (img) {
+  const shimmer = img.parentElement && img.parentElement.querySelector('.favicon-shimmer');
+  if (shimmer) shimmer.remove();
+};
+window.__lpIconError = function (img) {
+  const shimmer = img.parentElement && img.parentElement.querySelector('.favicon-shimmer');
+  if (shimmer) shimmer.remove();
+  // Step down to the site favicon once, if we have one and haven't tried it.
+  if (siteFaviconUrl && img.dataset.fb !== 'site' && img.getAttribute('src') !== siteFaviconUrl) {
+    img.dataset.fb = 'site';
+    img.src = siteFaviconUrl;
+    return;
+  }
+  // Give up → globe glyph.
+  const span = document.createElement('span');
+  span.className = 'icon-fallback';
+  span.innerHTML = FALLBACK_ICON_SVG;
+  img.replaceWith(span);
+};
+
+/** The static fallback shown when a link has no icon URL to even attempt. */
+function fallbackIconHtml() {
+  if (siteFaviconUrl) {
+    return `<img class="site-favicon-default" src="${escapeHtml(siteFaviconUrl)}" alt="" loading="lazy"
+                 onerror="window.__lpIconError(this)" />`;
+  }
+  return `<span class="icon-fallback">${FALLBACK_ICON_SVG}</span>`;
+}
+
 function buildIconHtml(iconUrl) {
-  if (!iconUrl) return `<span class="icon-fallback">${FALLBACK_ICON_SVG}</span>`;
+  if (!iconUrl) return fallbackIconHtml();
   return `
     <span class="favicon-shimmer"></span>
     <img src="${escapeHtml(iconUrl)}" alt="" loading="lazy"
-         onload="this.previousElementSibling.remove()"
-         onerror="this.previousElementSibling.remove(); this.style.display='none'; this.nextElementSibling.style.display='flex'" />
-    <span class="icon-fallback" style="display:none">${FALLBACK_ICON_SVG}</span>`;
+         onload="window.__lpIconLoaded(this)"
+         onerror="window.__lpIconError(this)" />`;
 }
 
 const FILE_ICON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -328,6 +429,42 @@ const FILE_ICON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="non
   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
   <polyline points="14 2 14 8 20 8"/>
 </svg>`;
+
+// Document-style coloured icon for file-backed links that have no custom
+// image. Helps visitors visually scan by file type (PDF, JSON, HTML, …).
+const FILE_TYPE_PALETTE = {
+  pdf:  { c: '#e0392b', l: 'PDF'  },
+  htm:  { c: '#e76a26', l: 'HTML' }, html: { c: '#e76a26', l: 'HTML' },
+  xml:  { c: '#d97706', l: 'XML'  },
+  json: { c: '#10b981', l: 'JSON' },
+  txt:  { c: '#64748b', l: 'TXT'  },
+  md:   { c: '#64748b', l: 'MD'   },
+  log:  { c: '#64748b', l: 'LOG'  },
+  rtf:  { c: '#3b82f6', l: 'RTF'  },
+  doc:  { c: '#2563eb', l: 'DOC'  }, docx: { c: '#2563eb', l: 'DOC'  },
+  odt:  { c: '#2563eb', l: 'ODT'  },
+  xls:  { c: '#16a34a', l: 'XLS'  }, xlsx: { c: '#16a34a', l: 'XLS'  },
+  ods:  { c: '#16a34a', l: 'ODS'  }, csv:  { c: '#16a34a', l: 'CSV'  },
+  ppt:  { c: '#ea580c', l: 'PPT'  }, pptx: { c: '#ea580c', l: 'PPT'  },
+  odp:  { c: '#ea580c', l: 'ODP'  },
+  zip:  { c: '#a855f7', l: 'ZIP'  }, '7z': { c: '#a855f7', l: '7Z'   },
+  tar:  { c: '#a855f7', l: 'TAR'  }, gz:   { c: '#a855f7', l: 'GZ'   },
+  jpg:  { c: '#db2777', l: 'JPG'  }, jpeg: { c: '#db2777', l: 'JPG'  },
+  png:  { c: '#db2777', l: 'PNG'  }, gif:  { c: '#db2777', l: 'GIF'  },
+  webp: { c: '#db2777', l: 'WEBP' }, svg:  { c: '#db2777', l: 'SVG'  },
+};
+
+function fileTypeIconHtml(fileName) {
+  const ext  = (fileName || '').split('.').pop().toLowerCase();
+  const meta = FILE_TYPE_PALETTE[ext] || { c: '#86868b', l: (ext || 'FILE').slice(0, 4).toUpperCase() };
+  const fs   = meta.l.length >= 4 ? 6 : 7.5;
+  return `<svg class="file-type-tile" width="100%" height="100%" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeHtml(meta.l)} file">
+    <rect width="40" height="40" rx="9" ry="9" fill="${meta.c}" fill-opacity="0.14"/>
+    <path d="M13 9h10.5l6.5 6.5V31a2 2 0 0 1-2 2H13a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2z" fill="white" stroke="${meta.c}" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M23.5 9v6.5H30" fill="${meta.c}" fill-opacity="0.32" stroke="${meta.c}" stroke-width="1.5" stroke-linejoin="round"/>
+    <text x="20.5" y="27.5" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif" font-size="${fs}" font-weight="700" fill="${meta.c}" letter-spacing="0.06em">${escapeHtml(meta.l)}</text>
+  </svg>`;
+}
 
 function getLinkDisplayLabel(link) {
   if (link.file_path) return link.file_name || 'Attached file';
@@ -341,9 +478,15 @@ function buildLinkCard(link) {
   card.rel       = 'noopener noreferrer';
   card.href      = `/r/${link.id}`;
 
+  // Icon source: custom upload → server-cached favicon → (nothing). We no
+  // longer fall back to Google's client-side favicon service because it
+  // returns a generic globe (HTTP 404 w/ image body) for unknown hosts, which
+  // browsers render as a successful load and would mask the Settings-favicon
+  // default. The server already tries Google when caching favicon_path.
   const iconUrl  = link.image_path
-                || (link.file_path ? null : (link.favicon_path || getFaviconUrl(link.url)));
-  const q        = searchQuery;
+                || (link.file_path ? null : link.favicon_path);
+  // Highlight using every active keyword (chips + pending input).
+  const q        = effectiveSearchTokens();
   const descHtml = link.description
     ? `<p class="link-desc">${highlightText(link.description, q)}</p>` : '';
   const linkGroups = Array.isArray(link.groups) && link.groups.length
@@ -351,15 +494,15 @@ function buildLinkCard(link) {
     : (link.group_name ? [{ name: link.group_name, color: link.group_color }] : []);
   const badgeHtml = linkGroups.length
     ? `<div class="link-footer">${linkGroups.map(g =>
-        `<span class="group-badge" style="background:${g.color}18; color:${g.color}" title="${escapeHtml(g.name)}">${escapeHtml(g.name)}</span>`
+        `<span class="group-badge" style="background:${g.color}18; color:${g.color}" title="${escapeHtml(g.name)}">${highlightText(g.name, q)}</span>`
       ).join('')}</div>`
     : '';
 
   const iconHtml = iconUrl
     ? buildIconHtml(iconUrl)
     : (link.file_path
-        ? `<span class="icon-fallback">${FILE_ICON_SVG}</span>`
-        : `<span class="icon-fallback">${FALLBACK_ICON_SVG}</span>`);
+        ? fileTypeIconHtml(link.file_name)
+        : fallbackIconHtml());
 
   card.innerHTML = `
     <div class="link-icon">${iconHtml}</div>
@@ -368,13 +511,115 @@ function buildLinkCard(link) {
       <div class="link-domain">${highlightText(getLinkDisplayLabel(link), q)}</div>
       ${descHtml}${badgeHtml}
     </div>
+    <button type="button" class="link-copy-btn" title="Copy link" aria-label="Copy link">
+      <svg class="link-copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+      <svg class="link-copy-check" width="14" height="14" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </button>
     <svg class="link-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none"
          stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
       <line x1="5" y1="12" x2="19" y2="12"/>
       <polyline points="12 5 19 12 12 19"/>
     </svg>`;
 
+  card.querySelector('.link-copy-btn').addEventListener('click', e => copyLinkFromCard(e, link));
+
   return card;
+}
+
+/**
+ * Lightweight toast — appears top-right, auto-dismisses, click to dismiss
+ * early. Mirrors the admin's toast contract for visual consistency. Pass an
+ * optional second-line string (`detail`) to show under the headline.
+ */
+function showToast(message, { type = 'success', detail = '', duration = 2600 } = {}) {
+  const ICONS = {
+    success: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    error:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+    info:    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+  };
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+  toast.innerHTML = `
+    <span class="toast-icon">${ICONS[type] || ICONS.info}</span>
+    <div class="toast-stack">
+      <span>${escapeHtml(message)}</span>
+      ${detail ? `<span class="toast-url" title="${escapeHtml(detail)}">${escapeHtml(detail)}</span>` : ''}
+    </div>`;
+
+  const dismiss = () => {
+    toast.classList.add('removing');
+    setTimeout(() => toast.remove(), 200);
+  };
+  toast.addEventListener('click', dismiss);
+  container.appendChild(toast);
+  setTimeout(dismiss, duration);
+}
+
+/**
+ * Copies a shareable URL for the link to the clipboard, then briefly flashes
+ * the button to a check mark. URL-backed links copy the destination directly;
+ * file-backed links copy the absolute redirect URL through this server so the
+ * file is reachable (and the click is tracked).
+ */
+async function copyLinkFromCard(e, link) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  // CAPTURE the button reference NOW, before the first await. After an await
+  // in an event handler the browser resets `e.currentTarget` to null, so
+  // touching it later silently throws and aborts the rest of the function
+  // (including the toast). This is a Chrome/Safari/Firefox-wide behaviour.
+  const btn = e.currentTarget;
+
+  const toCopy = link.file_path
+    ? `${location.origin}/r/${link.id}`
+    : link.url;
+
+  let ok = false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(toCopy);
+      ok = true;
+    } else {
+      // Fallback for old/insecure contexts: an off-screen textarea + execCommand.
+      const ta = document.createElement('textarea');
+      ta.value = toCopy;
+      ta.style.position = 'fixed';
+      ta.style.opacity  = '0';
+      ta.style.pointerEvents = 'none';
+      document.body.appendChild(ta);
+      ta.select();
+      ok = document.execCommand('copy');
+      ta.remove();
+    }
+  } catch { ok = false; }
+
+  if (btn) {
+    btn.classList.add(ok ? 'is-copied' : 'is-failed');
+    btn.setAttribute('aria-label', ok ? 'Link copied' : 'Copy failed');
+    setTimeout(() => {
+      btn.classList.remove('is-copied', 'is-failed');
+      btn.setAttribute('aria-label', 'Copy link');
+    }, 1300);
+  }
+
+  if (ok) {
+    showToast('Link copied', { type: 'success', detail: toCopy });
+  } else {
+    showToast('Couldn’t copy the link', { type: 'error', detail: 'Clipboard access was blocked.' });
+  }
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
@@ -386,13 +631,16 @@ const EMPTY_ICONS = {
 };
 
 function updateEmptyState() {
+  const tokens = effectiveSearchTokens();
   document.getElementById('emptyIcon').innerHTML =
-    searchQuery ? EMPTY_ICONS.search : (activeGroup !== 'all' ? EMPTY_ICONS.folder : EMPTY_ICONS.links);
+    tokens.length ? EMPTY_ICONS.search : (activeGroup !== 'all' ? EMPTY_ICONS.folder : EMPTY_ICONS.links);
 
   const sub = document.getElementById('emptySubtext');
-  if (searchQuery) {
-    document.getElementById('emptyMsg').textContent = `No results for "${searchQuery}"`;
-    sub.textContent = 'Try a different search term'; sub.classList.remove('hidden');
+  if (tokens.length) {
+    document.getElementById('emptyMsg').textContent =
+      `No results for ${tokens.map(t => `"${t}"`).join(' · ')}`;
+    sub.textContent = 'Try removing a keyword or refining your search';
+    sub.classList.remove('hidden');
   } else if (activeGroup !== 'all') {
     document.getElementById('emptyMsg').textContent = 'No links in this group';
     sub.classList.add('hidden');
@@ -406,25 +654,63 @@ function updateEmptyState() {
 
 let renderTransitionTimer;
 
+/**
+ * Buckets filtered links into a flat, render-ready sequence of section/sub
+ * headings + their cards, in the order the public page should display them:
+ *
+ *   [ungrouped] → [Section A, A's own links, A.sub1, A.sub1's links, …]
+ *
+ * Returns an array of { kind: 'heading'|'links', … } entries the renderer
+ * can iterate without knowing about the section tree.
+ */
 function bucketBySectionForActiveGroup(filteredLinks) {
   const group = groups.find(g => g.id === activeGroup);
   if (!group) return null;
-  const buckets = new Map();
-  buckets.set(null, { id: null, name: 'Ungrouped', links: [] });
+
+  // Map every section id (top-level + sub) to its empty bucket up front so
+  // we never miss an id later.
+  const linksBySection = new Map();
+  linksBySection.set(null, []);
   for (const s of group.sections || []) {
-    buckets.set(s.id, { id: s.id, name: s.name, links: [] });
+    linksBySection.set(s.id, []);
+    for (const sub of (s.subsections || [])) linksBySection.set(sub.id, []);
   }
   for (const link of filteredLinks) {
-    const sid    = linkSectionInGroup(link, activeGroup);
-    const bucket = buckets.get(sid) || buckets.get(null);
-    bucket.links.push(link);
+    const sid = linkSectionInGroup(link, activeGroup);
+    (linksBySection.get(sid) || linksBySection.get(null)).push(link);
   }
-  return Array.from(buckets.values()).filter(b => b.links.length > 0);
+
+  const out = [];
+  // 1) Links not assigned to any section show up first under an "Ungrouped"
+  //    header (only if any exist).
+  const orphans = linksBySection.get(null) || [];
+  if (orphans.length) {
+    out.push({ kind: 'heading', label: 'Ungrouped', count: orphans.length, level: 0 });
+    out.push({ kind: 'links',   items: orphans });
+  }
+  // 2) Then each section, optionally followed by its subsections.
+  for (const s of group.sections || []) {
+    const own  = linksBySection.get(s.id) || [];
+    const subs = (s.subsections || []).map(sub => ({
+      sub,
+      links: linksBySection.get(sub.id) || [],
+    }));
+    const total = own.length + subs.reduce((n, x) => n + x.links.length, 0);
+    if (total === 0) continue;
+    out.push({ kind: 'heading', label: s.name, count: total, level: 0 });
+    if (own.length) out.push({ kind: 'links', items: own });
+    for (const { sub, links } of subs) {
+      if (!links.length) continue;
+      out.push({ kind: 'heading', label: sub.name, count: links.length, level: 1 });
+      out.push({ kind: 'links', items: links });
+    }
+  }
+  return out;
 }
 
-function appendSectionHeading(grid, label, count) {
+function appendSectionHeading(grid, label, count, level = 0) {
   const heading = document.createElement('div');
-  heading.className = 'section-heading';
+  heading.className = 'section-heading' + (level > 0 ? ' subsection-heading' : '');
   heading.innerHTML = `
     <span class="section-heading-text">${escapeHtml(label)}</span>
     <span class="section-heading-count">${count}</span>`;
@@ -458,11 +744,14 @@ function renderLinks(transition = false) {
       (groups.find(g => g.id === activeGroup)?.sections || []).length > 0;
 
     if (shouldGroupBySection) {
-      const buckets = bucketBySectionForActiveGroup(filtered) || [];
+      const entries = bucketBySectionForActiveGroup(filtered) || [];
       let i = 0;
-      for (const b of buckets) {
-        appendSectionHeading(grid, b.name, b.links.length);
-        for (const link of b.links) appendCard(link, i++);
+      for (const entry of entries) {
+        if (entry.kind === 'heading') {
+          appendSectionHeading(grid, entry.label, entry.count, entry.level || 0);
+        } else if (entry.kind === 'links') {
+          for (const link of entry.items) appendCard(link, i++);
+        }
       }
     } else {
       filtered.forEach(appendCard);
@@ -485,8 +774,81 @@ function renderLinks(transition = false) {
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
+/**
+ * Renders the pinned-keyword chips. Each chip has an "×" that removes only
+ * that chip; the rest stay. The placeholder on the input also updates to
+ * give a hint based on whether anything is pinned.
+ */
+function renderSearchChips() {
+  const wrap = document.getElementById('searchChips');
+  if (!wrap) return;
+  wrap.innerHTML = searchChips.map((chip, i) => `
+    <span class="search-chip" data-idx="${i}">
+      <span class="search-chip-text" title="${escapeHtml(chip)}">${escapeHtml(chip)}</span>
+      <button type="button" class="search-chip-remove" data-idx="${i}"
+              aria-label="Remove filter ${escapeHtml(chip)}" title="Remove">×</button>
+    </span>
+  `).join('');
+  const input = document.getElementById('searchInput');
+  if (input) {
+    input.placeholder = searchChips.length
+      ? 'Add another keyword…'
+      : 'Search links, groups, sections…';
+  }
+}
+
+function commitSearchChip() {
+  const input = document.getElementById('searchInput');
+  const raw   = input.value.trim();
+  if (!raw) return;
+  // Multiple chips at once if the user typed several space-separated words
+  // before pressing Enter. Quoted phrases stay together.
+  for (const t of parseSearchTokens(raw)) {
+    if (!searchChips.some(c => c.toLowerCase() === t)) searchChips.push(t);
+  }
+  input.value = '';
+  searchQuery = '';
+  renderSearchChips();
+  renderLinks();
+}
+
+function removeSearchChip(idx) {
+  if (idx < 0 || idx >= searchChips.length) return;
+  searchChips.splice(idx, 1);
+  renderSearchChips();
+  renderLinks();
+}
+
 document.getElementById('searchInput').addEventListener('input', e => {
-  searchQuery = e.target.value.trim(); renderLinks();
+  searchQuery = e.target.value.trim();
+  renderLinks();
+});
+
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    commitSearchChip();
+  } else if (e.key === 'Backspace' && e.target.value === '' && searchChips.length > 0) {
+    // Backspace on an empty input nibbles off the last chip — same trick
+    // every "tags input" uses (browser address bar suggestions, Gmail filter
+    // chips, etc.).
+    removeSearchChip(searchChips.length - 1);
+  }
+});
+
+// Click on a chip's × removes that one specifically. Wrapper-level listener
+// so we don't have to re-bind on every render.
+document.getElementById('searchChips').addEventListener('click', e => {
+  const btn = e.target.closest('.search-chip-remove');
+  if (!btn) return;
+  removeSearchChip(Number(btn.dataset.idx));
+});
+
+// Clicking anywhere on the wrap (but not on a chip) focuses the input — the
+// chips visually hijack the input's old click target, so help the user out.
+document.getElementById('searchWrap').addEventListener('click', e => {
+  if (e.target.closest('.search-chip')) return;
+  document.getElementById('searchInput').focus();
 });
 
 // ─── Data loading ─────────────────────────────────────────────────────────────
@@ -539,8 +901,13 @@ function scheduleRelockRefresh() {
   const now = Date.now();
   let soonest = Infinity;
   for (const g of groups) {
-    if (g.is_protected && g.is_unlocked && typeof g.unlocked_until === 'number') {
-      if (g.unlocked_until < soonest) soonest = g.unlocked_until;
+    if (!g.is_protected || !g.is_unlocked) continue;
+    // Session-mode unlocks never auto-relock client-side; the cookie is
+    // bound to the browser session and disappears on its own when the user
+    // closes the tab/window. No countdown timer needed.
+    if (g.unlock_mode === 'session') continue;
+    if (typeof g.unlocked_until === 'number' && g.unlocked_until < soonest) {
+      soonest = g.unlocked_until;
     }
   }
   if (soonest === Infinity) return;
@@ -565,6 +932,7 @@ async function init() {
   if (settings.site_title) document.title = settings.site_title;
   logoLightUrl   = settings.logo_light || null;
   logoDarkUrl    = settings.logo_dark  || null;
+  siteFaviconUrl = settings.favicon || null;
   pinnedGroupId  = settings.pinned_group_id ?? null;
   applyFavicon(settings.favicon || null);
   updateHeaderLogo();
@@ -603,7 +971,7 @@ function connectLiveUpdates() {
     clearTimeout(liveUpdateTimer);
     liveUpdateTimer = setTimeout(() => {
       // Don't fight a typing user: skip the fade while they're searching.
-      const inSearch = !!searchQuery;
+      const inSearch = !!searchQuery || searchChips.length > 0;
       loadData({ transition: !inSearch }).catch(() => {});
     }, 250);
   });

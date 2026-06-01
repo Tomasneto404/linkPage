@@ -618,6 +618,64 @@ header {
    reads as a single continuous bar instead of dashes. */
 .section-nav-item + .section-nav-item { margin-top: -2px; }
 
+/* Subsections: deeper indent, slimmer connector line, slightly muted name. */
+.section-nav-item.subsection {
+  margin-left: 38px;
+  padding-left: 12px;
+  font-size: 0.78rem;
+  min-height: 26px;
+  border-left-width: 1px;
+}
+.section-nav-item.subsection .section-name { color: var(--text-muted); }
+.section-nav-item.subsection:hover .section-name { color: var(--text); }
+.section-nav-item.subsection.active .section-name { color: var(--primary); }
+
+/* ─── Group unlock-mode radio pills ──────────────────────────────────────── */
+
+.group-unlock-mode .radio-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.radio-pill {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 4px 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition),
+              box-shadow var(--transition);
+}
+.radio-pill:hover { border-color: var(--border-strong); }
+.radio-pill input[type="radio"] {
+  grid-row: 1 / span 2;
+  margin-top: 3px;
+  accent-color: var(--primary);
+}
+.radio-pill-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.radio-pill-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.radio-pill:has(input:checked) {
+  border-color: var(--primary);
+  background: rgba(0, 113, 227, 0.06);
+  box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.12);
+}
+[data-theme="dark"] .radio-pill:has(input:checked) {
+  background: rgba(10, 132, 255, 0.10);
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.22);
+}
+
 .section-nav-item:hover {
   background: var(--surface-3);
   color: var(--text);
@@ -783,21 +841,81 @@ header {
 
 /* ─── Admin card extras (edit/delete buttons, date) ─────────────────────────── */
 
+/* The card needs to be a containing block so the absolutely-positioned action
+   row sits *inside* it, and a steady minimum height so cards line up neatly
+   regardless of whether they have a description, badges, or both. */
+.link-card-wrap .link-card {
+  position: relative;
+  min-height: 78px;
+  align-items: center;       /* vertically centre icon + body */
+}
+
+/* The right column now only holds the date; actions are floated on top of the
+   card, so the title gets the full remaining width. Date sits at the bottom-
+   right so it doesn't clash with the hover-revealed action bar at the top. */
 .link-side {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-shrink: 0;
-  gap: 6px;
   align-self: stretch;
+  padding-left: 8px;
+  white-space: nowrap;
 }
 
-/* Buttons are invisible until you hover the card */
-.link-actions { display: flex; gap: 4px; opacity: 0; transition: opacity var(--transition); }
-.link-card:hover .link-actions { opacity: 1; }
+/*
+ * Actions float in the top-right of the card. They're invisible at rest
+ * (so the title can use the full row) and fade in on hover with a soft
+ * backdrop so they read well over any underlying content.
+ */
+.link-actions {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: saturate(160%) blur(8px);
+  backdrop-filter:        saturate(160%) blur(8px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xs);
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  z-index: 2;
+}
+.link-card:hover .link-actions,
+.link-card:focus-within .link-actions {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+[data-theme="dark"] .link-actions {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+}
 
-.link-date { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+/* Slightly tighter icon buttons inside the floating bar so 5 fit nicely. */
+.link-actions .icon-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+}
+.link-actions .icon-btn:hover {
+  background: var(--surface-3);
+  border-color: transparent;
+}
+
+.link-date {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  align-self: flex-end;
+}
 
 /* ─── Button variants ────────────────────────────────────────────────────────── */
 
@@ -1386,6 +1504,602 @@ header {
   box-shadow: 0 0 0 3px rgba(10,132,255,0.28);
 }
 
+/* ─── File editor modal ──────────────────────────────────────────────────────── */
+
+.file-editor-modal {
+  max-width: 880px;
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 800px);
+  transition: max-width 0.18s ease, max-height 0.18s ease;
+}
+
+/* Expanded mode swallows nearly the whole viewport so big HTML/JSON files
+   are comfortable to navigate. Click the expand button again (or hit Esc)
+   to drop back to the standard size. */
+.file-editor-modal.is-expanded {
+  max-width: 96vw;
+  max-height: 96vh;
+}
+
+.file-editor-expand-btn { margin-left: 4px; }
+.file-editor-expand-btn.is-expanded svg { color: var(--primary); }
+
+.file-editor-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.file-editor-heading svg { color: var(--text-muted); flex-shrink: 0; }
+.file-editor-filename {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.file-editor-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 980px;
+  background: rgba(0, 113, 227, 0.14);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.file-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.file-editor-meta {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.file-editor-toolbar-spacer { flex: 1; }
+.file-editor-status {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  transition: color 0.18s ease;
+}
+.file-editor-status.is-dirty   { color: #d97706; }
+.file-editor-status.is-saving  { color: var(--primary); }
+.file-editor-status.is-error   { color: var(--danger, #e11d48); }
+[data-theme="dark"] .file-editor-status.is-dirty { color: #fbbf24; }
+
+.file-editor-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  background: var(--surface);
+}
+
+/* The pane holds the gutter + stage. Gutter is a fixed-width column on the
+   left with line numbers; stage is a positioned context where the highlight
+   <pre> and the transparent <textarea> are stacked. */
+.file-editor-pane {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+.file-editor-pane.hidden { display: none; }
+
+.file-editor-gutter {
+  flex-shrink: 0;
+  width: 52px;
+  padding: 16px 10px 16px 0;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  white-space: pre;
+  overflow: hidden;
+  user-select: none;
+  border-right: 1px solid var(--border);
+}
+
+.file-editor-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  /* iOS momentum scroll for the inner layers */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Both layers share font, line-height, padding — every glyph in the
+   textarea sits over the same glyph in the highlight <pre>. Diverging on any
+   of these knocks the caret off the colour layer; keep them locked. */
+.file-editor-highlight,
+.file-editor-textarea {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 16px 22px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre;
+  word-break: normal;
+  overflow: auto;
+  border: none;
+  outline: none;
+  resize: none;
+}
+.file-editor-highlight {
+  pointer-events: none;
+  color: var(--text);   /* fallback for chars no token covers */
+  background: var(--surface);
+  overflow: hidden;     /* the textarea owns scrolling; we sync transform */
+}
+.file-editor-highlight code {
+  font: inherit;
+  display: block;
+  min-height: 100%;
+  color: inherit;
+}
+.file-editor-textarea {
+  /* Strip every default browser/OS form chrome that could paint an opaque
+     surface on focus and hide the highlight layer below. Re-assert
+     transparency through focus/active so no UA stylesheet wins. */
+  appearance: none;
+  -webkit-appearance: none;
+  color: transparent;
+  caret-color: var(--text);
+  background: transparent;
+  -webkit-text-fill-color: transparent;
+  box-shadow: none;
+  z-index: 3;
+}
+.file-editor-textarea:focus,
+.file-editor-textarea:focus-visible,
+.file-editor-textarea:active {
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Explicit z-index so the highlight stays unambiguously below the textarea
+   in every browser regardless of paint order quirks. */
+.file-editor-highlight { z-index: 1; }
+
+/* Search overlay: identical layout to the highlight + textarea so each mark
+   sits perfectly on top of the same character span in both layers. The text
+   itself is invisible — only the <mark> backgrounds paint. */
+.file-editor-search-overlay {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 16px 22px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre;
+  word-break: normal;
+  overflow: hidden;
+  pointer-events: none;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  z-index: 2;       /* above highlight, below textarea (textarea z=3 below) */
+}
+
+.file-editor-search-overlay mark.search-match {
+  background: rgba(255, 196, 0, 0.32);
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  border-radius: 2px;
+  /* slight stroke so matches read on busy syntax-coloured backgrounds too */
+  box-shadow: inset 0 0 0 1px rgba(180, 130, 0, 0.45);
+}
+.file-editor-search-overlay mark.search-match.is-current {
+  background: rgba(255, 149, 0, 0.55);
+  box-shadow: inset 0 0 0 1.5px #ff9500;
+}
+[data-theme="dark"] .file-editor-search-overlay mark.search-match {
+  background: rgba(255, 196, 0, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 196, 0, 0.55);
+}
+[data-theme="dark"] .file-editor-search-overlay mark.search-match.is-current {
+  background: rgba(255, 159, 10, 0.45);
+  box-shadow: inset 0 0 0 1.5px #ff9f0a;
+}
+/* Selection: paint just the translucent highlight rectangle, no text colour.
+   Without forcing color (and -moz-selection for Firefox) the browser repaints
+   selected glyphs in the system's white selection-foreground colour, which
+   covers the highlighted <pre> underneath and the whole code reads blank. */
+.file-editor-textarea::selection {
+  background: rgba(0, 113, 227, 0.22);
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.file-editor-textarea::-moz-selection {
+  background: rgba(0, 113, 227, 0.22);
+  color: transparent;
+}
+[data-theme="dark"] .file-editor-textarea::selection,
+[data-theme="dark"] .file-editor-textarea::-moz-selection {
+  background: rgba(10, 132, 255, 0.32);
+}
+
+/* ─── Find bar (Ctrl/Cmd+F) ─────────────────────────────────────────────── */
+
+.file-editor-search {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+  -webkit-backdrop-filter: saturate(180%) blur(10px);
+  backdrop-filter:         saturate(180%) blur(10px);
+  animation: fadeIn 0.12s ease;
+}
+[data-theme="dark"] .file-editor-search {
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+
+.file-editor-search.hidden { display: none; }
+
+.file-editor-search-icon {
+  color: var(--text-muted);
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.file-editor-search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 4px 6px;
+  width: 200px;
+  font-family: inherit;
+}
+.file-editor-search input::placeholder { color: var(--text-muted); }
+
+.file-editor-search-count {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+  min-width: 26px;
+  text-align: center;
+}
+.file-editor-search-count.is-empty { color: var(--danger, #e11d48); }
+
+.file-editor-search-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), color var(--transition);
+}
+.file-editor-search-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.file-editor-search-btn:disabled { opacity: 0.4; cursor: default; }
+
+@media (max-width: 720px) {
+  .file-editor-search { top: 8px; right: 8px; left: 8px; }
+  .file-editor-search input { width: 100%; flex: 1; }
+}
+
+/* ─── Syntax tokens ─────────────────────────────────────────────────────── */
+.tok-tag      { color: #d73a49; }
+.tok-attr     { color: #6f42c1; }
+.tok-str      { color: #22863a; }
+.tok-num      { color: #005cc5; }
+.tok-bool     { color: #e36209; font-weight: 500; }
+.tok-key      { color: #005cc5; }
+.tok-comment  { color: #6a737d; font-style: italic; }
+.tok-keyword  { color: #d73a49; }
+.tok-property { color: #6f42c1; }
+.tok-punct    { color: var(--text-muted); }
+.tok-heading  { color: #005cc5; font-weight: 600; }
+.tok-link     { color: #032f62; text-decoration: underline; }
+.tok-code     { color: #e36209; background: rgba(0,0,0,0.04); padding: 0 2px; border-radius: 3px; }
+.tok-bold     { font-weight: 700; }
+.tok-em       { font-style: italic; }
+.tok-bullet   { color: var(--text-muted); }
+
+[data-theme="dark"] .tok-tag      { color: #ff7b72; }
+[data-theme="dark"] .tok-attr     { color: #d2a8ff; }
+[data-theme="dark"] .tok-str      { color: #a5d6ff; }
+[data-theme="dark"] .tok-num      { color: #79c0ff; }
+[data-theme="dark"] .tok-bool     { color: #ffa657; }
+[data-theme="dark"] .tok-key      { color: #79c0ff; }
+[data-theme="dark"] .tok-comment  { color: #8b949e; }
+[data-theme="dark"] .tok-keyword  { color: #ff7b72; }
+[data-theme="dark"] .tok-property { color: #d2a8ff; }
+[data-theme="dark"] .tok-heading  { color: #79c0ff; }
+[data-theme="dark"] .tok-link     { color: #a5d6ff; }
+[data-theme="dark"] .tok-code     { background: rgba(255,255,255,0.07); color: #ffa657; }
+
+.file-editor-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.file-editor-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--surface-3);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: version-spin 0.7s linear infinite;
+}
+.file-editor-error-msg {
+  color: var(--danger, #e11d48);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .file-editor-modal { max-height: calc(100vh - 18px); }
+  .file-editor-toolbar { padding: 8px 14px; flex-wrap: wrap; }
+  .file-editor-textarea { padding: 12px 14px; font-size: 0.82rem; }
+}
+
+/* ─── Stock icon picker (with color) ─────────────────────────────────────────── */
+
+.icon-presets-modal {
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 760px);
+}
+
+.icon-presets-count {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0;
+  background: var(--surface-3);
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 10px;
+}
+
+.icon-presets-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.icon-presets-search {
+  position: relative;
+}
+.icon-presets-search svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.icon-presets-search input {
+  width: 100%;
+  padding: 9px 12px 9px 33px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.18s ease;
+}
+.icon-presets-search input:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+}
+[data-theme="dark"] .icon-presets-search input:focus {
+  box-shadow: 0 0 0 3px rgba(10,132,255,0.2);
+}
+
+.icon-presets-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.icon-presets-color-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.icon-presets-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+.icon-presets-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  padding: 0;
+  outline: none;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.icon-presets-swatch:hover { transform: scale(1.12); }
+.icon-presets-swatch.is-active {
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.18), 0 0 0 1px var(--surface);
+}
+[data-theme="dark"] .icon-presets-swatch.is-active {
+  box-shadow: 0 0 0 3px rgba(10,132,255,0.28), 0 0 0 1px var(--surface);
+}
+.icon-presets-color-custom {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px dashed var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.icon-presets-color-custom::after {
+  content: '+';
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.icon-presets-color-custom input[type="color"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.icon-presets-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 22px 6px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.icon-presets-section + .icon-presets-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+.icon-presets-section-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.icon-presets-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+}
+.icon-presets-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+  font: inherit;
+  color: inherit;
+  outline: none;
+}
+.icon-presets-tile:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-xs);
+}
+.icon-presets-tile.is-selected {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 2px rgba(0,113,227,0.16), var(--shadow-xs);
+}
+[data-theme="dark"] .icon-presets-tile.is-selected {
+  box-shadow: 0 0 0 2px rgba(10,132,255,0.28), var(--shadow-xs);
+}
+.icon-presets-tile svg { display: block; }
+.icon-presets-tile-name {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-presets-noresults {
+  text-align: center;
+  padding: 28px 12px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.icon-presets-selected {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+.icon-presets-selected.is-ready { color: var(--text); }
+.icon-presets-selected-preview {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-presets-selected-preview svg { display: block; }
+
+@media (max-width: 720px) {
+  .icon-presets-modal { max-height: calc(100vh - 18px); }
+  .icon-presets-tiles { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+  .icon-presets-tile { padding: 8px 4px 6px; }
+  .icon-presets-tile-name { display: none; }
+  .icon-presets-selected { width: 100%; justify-content: center; margin-bottom: 6px; }
+}
+
 /* ─── Icon library modal ─────────────────────────────────────────────────────── */
 
 .icon-library-modal { max-width: 680px; display: flex; flex-direction: column; max-height: 88vh; }
@@ -1930,6 +2644,25 @@ header {
   flex-shrink: 0;
   transition: opacity var(--transition);
 }
+
+/* While a link card is being dragged, signal that sidebar rows are drop
+   targets — outline the hovered group/section/subsection in green so the
+   user knows the move will land where they're aiming. */
+body.is-link-dragging .group-nav-item,
+body.is-link-dragging .section-nav-item:not(.editing) {
+  cursor: copy;
+}
+.group-nav-item.drag-over-link,
+.section-nav-item.drag-over-link {
+  background: rgba(48, 209, 88, 0.14);
+  outline: 2px solid #30d158;
+  outline-offset: -1px;
+  border-radius: var(--radius-sm);
+}
+[data-theme="dark"] .group-nav-item.drag-over-link,
+[data-theme="dark"] .section-nav-item.drag-over-link {
+  background: rgba(48, 209, 88, 0.18);
+}
 .section-nav-item:hover .section-drag-handle { opacity: 0.5; }
 .section-nav-item.drag-over {
   background: var(--surface-3);
@@ -2054,9 +2787,15 @@ header {
   .main-content   { padding: 14px 10px 90px; }
   .links-grid     { gap: 8px; grid-template-columns: 1fr; }
 
-  /* Cards: card-action buttons need bigger touch targets */
+  /* Cards: card-action buttons need bigger touch targets, and on phones the
+     hover state never fires — so make the action bar always visible there. */
   .link-card-wrap .icon-btn { width: 32px; height: 32px; }
-  .link-actions             { gap: 2px; }
+  .link-actions {
+    gap: 2px;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
   .drag-handle              { display: none; } /* drag-to-reorder is mouse-only on phones */
 
   /* Modals: full-width sheet from the top edge.
@@ -2100,4 +2839,238 @@ header {
   /* Toasts stay above the bottom bulk bar */
   .toast-container  { right: 10px; left: 10px; }
   .toast            { max-width: 100%; }
+}
+
+/* ─── Audit log modal ─────────────────────────────────────────────────────── */
+
+.audit-modal {
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  max-height: min(86vh, 760px);
+}
+.audit-count {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-3);
+  padding: 2px 8px;
+  border-radius: 980px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.audit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.audit-search { position: relative; flex: 1; min-width: 140px; }
+.audit-search svg {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); pointer-events: none;
+}
+.audit-search input {
+  width: 100%;
+  padding: 7px 10px 7px 30px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.85rem;
+  outline: none;
+}
+.audit-search input:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+}
+.audit-toolbar-spacer { flex: 1 1 0; }
+
+.audit-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 14px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.audit-loading {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 40px 0; color: var(--text-muted); font-size: 0.875rem;
+}
+.audit-spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--surface-3);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: version-spin 0.7s linear infinite;
+}
+
+.audit-empty { text-align: center; padding: 48px 16px; }
+.audit-empty-title { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.audit-empty-sub   { font-size: 0.825rem; color: var(--text-muted); }
+
+.audit-list { display: flex; flex-direction: column; }
+
+.audit-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.audit-row:last-child { border-bottom: none; }
+
+.audit-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  margin-top: 5px; flex-shrink: 0;
+  background: var(--text-muted);
+}
+.audit-dot-create { background: #30b558; }
+.audit-dot-update { background: #0a84ff; }
+.audit-dot-delete { background: #e0392b; }
+.audit-dot-click  { background: #8e8e93; }
+
+.audit-main { flex: 1; min-width: 0; }
+.audit-summary {
+  font-size: 0.875rem;
+  color: var(--text);
+  font-weight: 500;
+  line-height: 1.35;
+}
+.audit-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+.audit-badge {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: 980px;
+  background: var(--surface-3);
+  color: var(--text-dim);
+}
+.audit-badge-link     { background: rgba(0,113,227,0.14);  color: #0a6ed1; }
+.audit-badge-group    { background: rgba(175,82,222,0.14); color: #a14fd0; }
+.audit-badge-section  { background: rgba(0,199,190,0.16);  color: #069b94; }
+.audit-badge-icon     { background: rgba(255,149,0,0.16);  color: #c9760a; }
+.audit-badge-settings { background: rgba(142,142,147,0.18);color: var(--text-dim); }
+.audit-badge-auth     { background: rgba(224,57,43,0.14);  color: #d0392b; }
+.audit-badge-click    { background: rgba(142,142,147,0.16);color: var(--text-dim); }
+[data-theme="dark"] .audit-badge-link     { color: #6cb6ff; }
+[data-theme="dark"] .audit-badge-group    { color: #d2a8ff; }
+[data-theme="dark"] .audit-badge-section  { color: #5fd3cb; }
+[data-theme="dark"] .audit-badge-icon     { color: #ffb761; }
+[data-theme="dark"] .audit-badge-auth     { color: #ff8a80; }
+
+.audit-action-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.audit-origin { font-size: 0.72rem; color: var(--text-muted); }
+
+.audit-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.audit-more { margin: 14px auto 4px; display: block; }
+
+@media (max-width: 720px) {
+  .audit-modal { max-height: 100vh; }
+  .audit-action-code { display: none; }
+}
+
+/* Audit: live toggle + new-entry highlight */
+.audit-live-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.audit-live-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.audit-live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text-muted);
+  transition: background var(--transition), box-shadow var(--transition);
+}
+.audit-live-toggle input:checked ~ .audit-live-dot {
+  background: #30b558;
+  box-shadow: 0 0 0 3px rgba(48,181,88,0.18);
+  animation: auditPulse 2s ease-in-out infinite;
+}
+@keyframes auditPulse {
+  0%,100% { box-shadow: 0 0 0 2px rgba(48,181,88,0.20); }
+  50%     { box-shadow: 0 0 0 4px rgba(48,181,88,0.05); }
+}
+
+@keyframes auditRowIn {
+  from { background: rgba(48,181,88,0.18); }
+  to   { background: transparent; }
+}
+.audit-row-new {
+  animation: auditRowIn 2s ease-out;
+}
+
+/* ─── Icon library bulk select ────────────────────────────────────────────── */
+
+.icon-library-bulkbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+.icon-library-bulkbar-spacer { flex: 1; }
+
+/* In select mode the whole tile is a click target; suppress the pick cursor
+   change and show a check badge in the corner. */
+.icon-library-grid.select-mode .icon-library-card { cursor: pointer; }
+.icon-library-grid.select-mode .icon-library-card-pick { cursor: pointer; }
+
+.icon-library-card.is-checked {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(0,113,227,0.18), var(--shadow-sm);
+}
+[data-theme="dark"] .icon-library-card.is-checked {
+  box-shadow: 0 0 0 2px rgba(10,132,255,0.28), var(--shadow-sm);
+}
+
+.icon-library-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: background var(--transition), border-color var(--transition);
+}
+.icon-library-card.is-checked .icon-library-check {
+  background: var(--primary);
+  border-color: var(--primary);
 }

@@ -575,7 +575,9 @@ function resolveIconReference({ imageFile, iconIdField }) {
 
 // ─── Express setup ────────────────────────────────────────────────────────────
 
-app.use(express.json());
+// 32 MB headroom: the icon-library import embeds base64 image bytes inline,
+// which can add up for a large library. All JSON write routes are admin-gated.
+app.use(express.json({ limit: '32mb' }));
 
 // Basic security headers on every response
 app.use((req, res, next) => {
@@ -586,7 +588,14 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
-app.use('/uploads', express.static(UPLOADS_DIR));
+app.use('/uploads', express.static(UPLOADS_DIR, {
+  // ETag-based revalidation. After editing an attached file the bytes change
+  // but the URL stays the same; no-cache forces every browser to re-check
+  // with us so it can never serve a stale copy of an edited file.
+  etag:         true,
+  lastModified: true,
+  setHeaders:   res => res.setHeader('Cache-Control', 'no-cache, must-revalidate'),
+}));
 
 // ─── Live update channel (Server-Sent Events) ────────────────────────────────
 //
@@ -629,14 +638,135 @@ app.get('/api/events', (req, res) => {
   });
 });
 
-// Fires broadcastDataUpdate() after any successful admin mutation on /api/*.
-// Skips read-only methods, auth flows, the SSE endpoint itself, and the
-// publicly-callable group unlock so we don't echo non-data events.
+// ─── Audit log ────────────────────────────────────────────────────────────
+//
+// Every successful admin mutation is recorded with a human-readable summary.
+// Handlers don't need to call anything — a single finish-listener derives the
+// entry from the route, params, and (already-parsed) body. Handlers MAY set
+// `req._auditSummary` / `req._auditAction` to override the derived text.
+
+function truncate(s, n = 80) {
+  s = String(s ?? '');
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+/**
+ * Builds an audit entry { action, entityType, entityId, summary } from a
+ * finished request, or null if this route shouldn't be audited. Runs on
+ * 'finish', so req.body (JSON or multipart) is fully populated.
+ */
+function deriveAuditEntry(req) {
+  const p    = req.path;
+  const body = req.body || {};
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  // /api/<thing>/<id>... — pull the first numeric path segment as entity id.
+  const idMatch = p.match(/\/(\d+)(?:\/|$)/);
+  const id = idMatch ? Number(idMatch[1]) : null;
+  const M = req.method;
+
+  // Resolve a friendly entity name: prefer the request body's `name`, else
+  // look it up live from the DB (the row still exists for non-delete actions).
+  const lookupName = (type) => {
+    if (!Number.isFinite(id)) return null;
+    try {
+      if (type === 'link')    return db.getLinkById(id)?.name ?? null;
+      if (type === 'group')   return db.getGroupById(id)?.name ?? null;
+      if (type === 'section') return db.getSectionById(id)?.name ?? null;
+    } catch { /* fall through */ }
+    return null;
+  };
+  // label + best-known name; falls back to "#id" only when no name is findable.
+  const named = (label, type) => {
+    const nm = name || lookupName(type);
+    return nm ? `${label} "${truncate(nm)}"` : `${label} #${id ?? '?'}`;
+  };
+
+  // Links
+  if (p === '/api/links' && M === 'POST')                return { action: 'link.create',  entityType: 'link',    entityId: id, summary: named('Created link', 'link') };
+  if (/^\/api\/links\/\d+$/.test(p) && M === 'PUT')      return { action: 'link.update',  entityType: 'link',    entityId: id, summary: named('Updated link', 'link') };
+  if (/^\/api\/links\/\d+$/.test(p) && M === 'DELETE')   return { action: 'link.delete',  entityType: 'link',    entityId: id, summary: named('Deleted link', 'link') };
+  if (/^\/api\/links\/\d+\/visibility$/.test(p)) {
+    const nm   = lookupName('link');
+    const who  = nm ? `"${truncate(nm)}"` : `link #${id}`;
+    const hid  = db.getLinkById(id)?.is_hidden;
+    const verb = hid === 1 ? 'Hid' : hid === 0 ? 'Showed' : 'Toggled visibility of';
+    return { action: 'link.visibility', entityType: 'link', entityId: id, summary: `${verb} ${who}` };
+  }
+  if (/^\/api\/links\/\d+\/file$/.test(p))               return { action: 'link.file_edit', entityType: 'link', entityId: id, summary: named('Edited file of', 'link') };
+  if (p === '/api/links/reorder')                        return { action: 'link.reorder', entityType: 'link',    entityId: null, summary: 'Reordered links' };
+  if (p === '/api/links/bulk-delete') {
+    const n = Array.isArray(body.ids) ? body.ids.length : null;
+    return { action: 'link.bulk_delete', entityType: 'link', entityId: null, summary: n ? `Bulk-deleted ${n} link${n !== 1 ? 's' : ''}` : 'Bulk-deleted links' };
+  }
+  if (p === '/api/links/import')                         return { action: 'link.import',  entityType: 'link',    entityId: null, summary: 'Imported links from file' };
+
+  // Groups
+  if (p === '/api/groups' && M === 'POST')               return { action: 'group.create', entityType: 'group',   entityId: id, summary: named('Created group', 'group') };
+  if (/^\/api\/groups\/\d+$/.test(p) && M === 'PUT')     return { action: 'group.update', entityType: 'group',   entityId: id, summary: named('Updated group', 'group') };
+  if (/^\/api\/groups\/\d+$/.test(p) && M === 'DELETE')  return { action: 'group.delete', entityType: 'group',   entityId: id, summary: named('Deleted group', 'group') };
+  if (p === '/api/groups/reorder')                       return { action: 'group.reorder', entityType: 'group',  entityId: null, summary: 'Reordered groups' };
+
+  // Sections
+  if (/^\/api\/groups\/\d+\/sections$/.test(p))          return { action: 'section.create', entityType: 'section', entityId: id, summary: named('Created section', 'section') };
+  if (/^\/api\/sections\/\d+$/.test(p) && M === 'PUT')   return { action: 'section.update', entityType: 'section', entityId: id, summary: named('Renamed section', 'section') };
+  if (/^\/api\/sections\/\d+$/.test(p) && M === 'DELETE')return { action: 'section.delete', entityType: 'section', entityId: id, summary: named('Deleted section', 'section') };
+  if (p === '/api/sections/reorder')                     return { action: 'section.reorder', entityType: 'section', entityId: null, summary: 'Reordered sections' };
+
+  // Icons
+  if (p === '/api/icons' && M === 'POST')                return { action: 'icon.create',  entityType: 'icon',    entityId: null, summary: 'Added an icon to the library' };
+  if (p === '/api/icons/import')                         return { action: 'icon.import',  entityType: 'icon',    entityId: null, summary: 'Imported an icon library' };
+  if (p === '/api/icons/bulk-delete') {
+    const n = Array.isArray(body.ids) ? body.ids.length : null;
+    return { action: 'icon.bulk_delete', entityType: 'icon', entityId: null, summary: n ? `Bulk-deleted ${n} icon${n !== 1 ? 's' : ''}` : 'Bulk-deleted icons' };
+  }
+  if (/^\/api\/icons\/\d+$/.test(p) && M === 'DELETE')   return { action: 'icon.delete',  entityType: 'icon',    entityId: id, summary: `Deleted icon #${id} from the library` };
+
+  // Settings
+  if (/^\/api\/settings\/logo\//.test(p))                return { action: 'settings.logo', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed a logo' : 'Updated a logo' };
+  if (p === '/api/settings/favicon')                     return { action: 'settings.favicon', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the favicon' : 'Updated the favicon' };
+  if (p === '/api/settings/site-title')                  return { action: 'settings.site_title', entityType: 'settings', entityId: null, summary: 'Updated the site title' };
+  if (p === '/api/settings/pinned-group')                return { action: 'settings.pinned_group', entityType: 'settings', entityId: null, summary: 'Changed the default group' };
+  if (p === '/api/settings/save-favicons')               return { action: 'settings.save_favicons', entityType: 'settings', entityId: null, summary: 'Toggled saving fetched favicons' };
+  if (p === '/api/settings/public-password')             return { action: 'settings.public_password', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the public password' : 'Set the public password' };
+
+  // Auth
+  if (p === '/api/auth/rotate-token')                    return { action: 'auth.rotate_token', entityType: 'auth', entityId: null, summary: 'Rotated the admin token' };
+
+  // Audit log itself (clear/prune) — recorded so the clearing is traceable.
+  if (p === '/api/audit' && M === 'DELETE')              return { action: 'audit.clear', entityType: 'audit', entityId: null, summary: 'Cleared the audit log' };
+
+  // Anything else under /api that mutated — generic fallback.
+  return { action: `${M.toLowerCase()} ${p}`, entityType: null, entityId: id, summary: `${M} ${p}` };
+}
+
+function writeAuditFromRequest(req) {
+  try {
+    const derived = deriveAuditEntry(req);
+    if (!derived) return;
+    db.recordAudit({
+      action:     req._auditAction  || derived.action,
+      entityType: derived.entityType,
+      entityId:   derived.entityId,
+      summary:    req._auditSummary || derived.summary,
+      ipAddress:  getClientIp(req),
+      userAgent:  req.headers['user-agent'] || null,
+    });
+  } catch { /* never let audit logging break a request */ }
+}
+
+// Fires broadcastDataUpdate() + records an audit entry after any successful
+// admin mutation on /api/*. Skips read-only methods, auth flows, the SSE
+// endpoint itself, and the publicly-callable group unlock.
 const SSE_BROADCAST_SKIP = new Set([
   '/api/events',
   '/api/auth/verify',
-  '/api/auth/rotate-token',
   '/api/auth/verify-public',
+]);
+// These mutate but should NOT broadcast a public data refresh (no public
+// effect) — they're still audited.
+const AUDIT_ONLY_PATHS = new Set([
+  '/api/auth/rotate-token',
+  '/api/audit',
 ]);
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) return next();
@@ -645,7 +775,9 @@ app.use((req, res, next) => {
   if (/^\/api\/groups\/\d+\/unlock$/.test(req.path)) return next();
 
   res.on('finish', () => {
-    if (res.statusCode >= 200 && res.statusCode < 300) broadcastDataUpdate();
+    if (res.statusCode < 200 || res.statusCode >= 300) return;
+    writeAuditFromRequest(req);
+    if (!AUDIT_ONLY_PATHS.has(req.path)) broadcastDataUpdate();
   });
   next();
 });
@@ -758,17 +890,28 @@ app.post('/api/settings/favicon', requireAdminToken, upload.single('favicon'), (
   if (!req.file) return res.status(400).json({ error: 'No image file was provided' });
 
   const existing = db.readSetting('favicon');
-  if (existing) safeDeleteFile(existing);
+  // Don't delete the previous favicon if the icon library still references it.
+  if (existing) safeDeleteFileUnlessLibrary(existing);
 
   const newPath = `/uploads/${req.file.filename}`;
   db.writeSetting('favicon', newPath);
+
+  // Make the Settings favicon reusable from the icon library too.
+  db.createIcon({
+    filePath:     newPath,
+    originalName: req.file.originalname || 'Site favicon',
+    mimeType:     req.file.mimetype,
+    fileSize:     req.file.size,
+  });
+
   res.json({ favicon: newPath });
 });
 
 app.delete('/api/settings/favicon', requireAdminToken, (req, res) => {
   const existing = db.readSetting('favicon');
   if (existing) {
-    safeDeleteFile(existing);
+    // Keep the file if it lives in the icon library; just unset the setting.
+    safeDeleteFileUnlessLibrary(existing);
     db.deleteSetting('favicon');
   }
   res.status(204).end();
@@ -911,11 +1054,150 @@ app.delete('/api/icons/:id', requireAdminToken, (req, res) => {
   const id = Number.parseInt(req.params.id, 10);
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid icon ID' });
 
+  const icon = db.getIconById(id);
   const { changes, fileToDelete } = db.deleteIcon(id);
   if (!changes) return res.status(404).json({ error: 'Icon not found' });
 
-  if (fileToDelete) safeDeleteFile(fileToDelete);
+  const iconName = icon?.original_name;
+  req._auditSummary = iconName
+    ? `Deleted icon "${iconName}" from the library`
+    : `Deleted icon #${id} from the library`;
+
+  // Don't remove the file from disk if it's still the active Settings favicon
+  // (the icon is just unlinked from the library; the favicon keeps working).
+  if (fileToDelete && db.readSetting('favicon') !== fileToDelete) {
+    safeDeleteFile(fileToDelete);
+  }
   res.status(204).end();
+});
+
+app.post('/api/icons/bulk-delete', requireAdminToken, (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : null;
+  if (!ids) return res.status(400).json({ error: '"ids" must be an array' });
+
+  let deleted = 0;
+  const faviconSetting = db.readSetting('favicon');
+  for (const raw of ids) {
+    const id = Number.parseInt(raw, 10);
+    if (!Number.isFinite(id)) continue;
+    const { changes, fileToDelete } = db.deleteIcon(id);
+    if (!changes) continue;
+    // Same guard as the single delete: keep the active Settings favicon file.
+    if (fileToDelete && faviconSetting !== fileToDelete) safeDeleteFile(fileToDelete);
+    deleted++;
+  }
+  res.json({ deleted });
+});
+
+// ─── Icon library export / import ─────────────────────────────────────────────
+
+const ICON_IMPORT_MAX_BYTES = 3 * 1024 * 1024;   // per icon
+const ICON_EXT_BY_MIME = {
+  'image/png':  '.png',  'image/jpeg': '.jpg', 'image/gif': '.gif',
+  'image/webp': '.webp', 'image/svg+xml': '.svg',
+  'image/x-icon': '.ico', 'image/vnd.microsoft.icon': '.ico',
+};
+
+/**
+ * Exports the whole icon library as a self-contained JSON bundle — each icon's
+ * bytes are base64-encoded inline so the file can be re-imported on another
+ * instance with no separate asset copy. No new dependencies (no zip).
+ */
+app.get('/api/icons/export', requireAdminToken, (req, res) => {
+  const icons = db.getAllIcons();
+  const out = [];
+  for (const ic of icons) {
+    try {
+      const full = path.join(UPLOADS_DIR, path.basename(ic.file_path));
+      if (!fs.existsSync(full)) continue;
+      const buf = fs.readFileSync(full);
+      if (buf.length > ICON_IMPORT_MAX_BYTES) continue;
+      out.push({
+        original_name: ic.original_name,
+        mime_type:     ic.mime_type,
+        // The on-disk extension lets the importer recover the type even when
+        // mime_type is null and original_name carries no extension (e.g.
+        // backfilled "host favicon" / "Site favicon" entries).
+        file_ext:      path.extname(ic.file_path).toLowerCase() || null,
+        file_size:     ic.file_size ?? buf.length,
+        created_at:    ic.created_at,
+        data:          buf.toString('base64'),
+      });
+    } catch { /* skip unreadable icon */ }
+  }
+  const stamp = new Date().toISOString().split('T')[0];
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="icon-library-${stamp}.json"`);
+  res.send(JSON.stringify({ version: 1, exported_at: new Date().toISOString(), count: out.length, icons: out }, null, 2));
+});
+
+/**
+ * Imports an icon-library bundle. Idempotent: each icon's bytes are written to
+ * a content-hashed filename, so re-importing the same bundle de-dupes via the
+ * icons table's UNIQUE(file_path) constraint.
+ */
+app.post('/api/icons/import', requireAdminToken, (req, res) => {
+  const incoming = req.body;
+  if (!Array.isArray(incoming?.icons)) {
+    return res.status(400).json({ error: 'Body must contain an "icons" array' });
+  }
+
+  const ALLOWED_EXTS = new Set(Object.values(ICON_EXT_BY_MIME));
+
+  // Content-hash every existing library file once, so we can de-dupe by
+  // *content* regardless of the various on-disk filename schemes (favicon_N,
+  // timestamp-random, icon-<hash>). Re-importing the same bundle is then a
+  // no-op rather than creating duplicates.
+  const seenHashes = new Set();
+  for (const ic of db.getAllIcons()) {
+    try {
+      const f = path.join(UPLOADS_DIR, path.basename(ic.file_path));
+      if (fs.existsSync(f)) seenHashes.add(crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex'));
+    } catch { /* ignore unreadable */ }
+  }
+
+  let imported = 0, skipped = 0;
+  const errors = [];
+
+  for (const [i, ic] of incoming.icons.entries()) {
+    try {
+      if (typeof ic?.data !== 'string' || !ic.data) { errors.push(`Icon ${i + 1}: missing data`); continue; }
+      const buf = Buffer.from(ic.data, 'base64');
+      if (!buf.length || buf.length > ICON_IMPORT_MAX_BYTES) { errors.push(`Icon ${i + 1}: invalid size`); continue; }
+
+      // Skip content we already have (in the library, or earlier in this run).
+      const fullHash = crypto.createHash('sha256').update(buf).digest('hex');
+      if (seenHashes.has(fullHash)) { skipped++; continue; }
+
+      // Resolve extension: mime → exported on-disk ext → original_name ext.
+      const mime = (ic.mime_type || '').toLowerCase();
+      let ext = ICON_EXT_BY_MIME[mime];
+      if (!ext && ic.file_ext && ALLOWED_EXTS.has(String(ic.file_ext).toLowerCase())) {
+        ext = String(ic.file_ext).toLowerCase();
+      }
+      if (!ext && ic.original_name) {
+        const e = path.extname(ic.original_name).toLowerCase();
+        if (ALLOWED_EXTS.has(e)) ext = e;
+      }
+      if (!ext) { errors.push(`Icon ${i + 1}: unsupported type`); continue; }
+
+      const filename = `icon-${fullHash.slice(0, 20)}${ext}`;
+      const stored   = `/uploads/${filename}`;
+      const full     = path.join(UPLOADS_DIR, filename);
+
+      if (!fs.existsSync(full)) fs.writeFileSync(full, buf);
+      db.createIcon({
+        filePath:     stored,
+        originalName: ic.original_name || null,
+        mimeType:     mime || null,
+        fileSize:     buf.length,
+      });
+      seenHashes.add(fullHash);
+      imported++;
+    } catch { errors.push(`Icon ${i + 1}: failed to import`); }
+  }
+
+  res.json({ imported, skipped, errors });
 });
 
 app.post('/api/settings/save-favicons', requireAdminToken, (req, res) => {
@@ -970,6 +1252,7 @@ app.delete('/api/settings/public-password', requireAdminToken, (req, res) => {
 // ─── Favicon download (server-side cache) ────────────────────────────────────
 
 const FAVICON_REQUEST_TIMEOUT_MS = 4500;
+const FAVICON_TOTAL_BUDGET_MS    = 8000;   // hard ceiling for the whole favicon hunt
 const FAVICON_MAX_HTML_BYTES     = 256 * 1024;
 const FAVICON_MAX_IMAGE_BYTES    = 2   * 1024 * 1024;
 const FAVICON_USER_AGENT         = 'Mozilla/5.0 (compatible; LinkPage favicon fetcher)';
@@ -981,17 +1264,44 @@ const FAVICON_EXT_FROM_TYPE = ct => (
                                                   '.png'
 );
 
-/** fetch() wrapper with a hard timeout and a body-size cap. Returns null on any failure. */
-async function fetchWithLimits(url, { timeoutMs = FAVICON_REQUEST_TIMEOUT_MS, maxBytes }) {
+// undici Agent that skips TLS verification, used ONLY by the favicon fetcher
+// so intranet sites with self-signed certs resolve correctly. Scoped — every
+// other outbound request in this process still verifies certs normally.
+const { Agent: UndiciAgent } = require('undici');
+const faviconInsecureDispatcher = new UndiciAgent({
+  connect:               { rejectUnauthorized: false },
+  connectTimeout:        FAVICON_REQUEST_TIMEOUT_MS,
+  headersTimeout:        FAVICON_REQUEST_TIMEOUT_MS,
+  bodyTimeout:           FAVICON_REQUEST_TIMEOUT_MS,
+});
+
+/**
+ * fetch() wrapper with a hard timeout, body-size cap, and TLS bypass.
+ * Returns the raw Response on success, or null on any failure.
+ *
+ * `redirect: 'manual'` lets the caller walk redirects step-by-step — fetch's
+ * `'follow'` mode has a hidden 20-hop cap that breaks SSO chains looping
+ * without cookies. Callers that want the simple follow behaviour can request
+ * `redirect: 'follow'`.
+ */
+async function fetchWithLimits(url, {
+  timeoutMs = FAVICON_REQUEST_TIMEOUT_MS,
+  maxBytes,
+  redirect  = 'follow',
+} = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
-      signal:   controller.signal,
-      redirect: 'follow',
-      headers:  { 'User-Agent': FAVICON_USER_AGENT, 'Accept': '*/*' },
+      signal:     controller.signal,
+      redirect,
+      headers:    { 'User-Agent': FAVICON_USER_AGENT, 'Accept': '*/*' },
+      // Skip TLS validation — intranet hosts often serve self-signed certs.
+      dispatcher: faviconInsecureDispatcher,
     });
-    if (!res.ok) return null;
+    // Don't reject on !res.ok here — image probes deliberately want to read
+    // bodies from 4xx responses (e.g. Google's "unknown domain" 404 ships a
+    // valid PNG body). HTML/non-image callers re-check res.ok themselves.
     const declared = Number(res.headers.get('content-length'));
     if (Number.isFinite(declared) && declared > maxBytes) return null;
     return res;
@@ -999,6 +1309,39 @@ async function fetchWithLimits(url, { timeoutMs = FAVICON_REQUEST_TIMEOUT_MS, ma
     return null;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * Manually follows redirects up to `maxHops` (default 10), stopping on a loop
+ * or non-3xx. Calls `onHop(url, response)` for every response (3xx or final).
+ * Used to walk SSO chains where Node's built-in redirect handling would either
+ * give up at 20 hops or burn time on an infinite OAuth loop.
+ */
+async function walkRedirects(startUrl, onHop, maxHops = 10) {
+  let url = startUrl;
+  const visited = new Set();
+  for (let i = 0; i < maxHops; i++) {
+    if (visited.has(url)) return;
+    visited.add(url);
+
+    const res = await fetchWithLimits(url, {
+      maxBytes: FAVICON_MAX_HTML_BYTES,
+      redirect: 'manual',
+    });
+    if (!res) return;
+
+    const cont = await onHop(url, res);
+    if (cont === false) return;
+
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get('location');
+      if (!loc) return;
+      try { url = new URL(loc, url).href; }
+      catch { return; }
+      continue;
+    }
+    return; // 2xx/4xx/5xx — the chain is over
   }
 }
 
@@ -1027,34 +1370,95 @@ function parseDeclaredIconUrl(html, baseUrl) {
 
 async function fetchHtml(url) {
   const res = await fetchWithLimits(url, { maxBytes: FAVICON_MAX_HTML_BYTES });
-  if (!res) return null;
+  if (!res || !res.ok) return null;
   const ct = (res.headers.get('content-type') || '').toLowerCase();
   if (ct && !ct.includes('html')) return null;
   return (await res.text()).slice(0, FAVICON_MAX_HTML_BYTES);
 }
 
+/**
+ * Walks the redirect chain manually so we can sniff any HTML page along the
+ * way for a declared favicon link. Bypasses fetch's hidden redirect cap and
+ * stops at loops, so SSO chains that bounce forever don't strand the request.
+ * Returns { html, finalUrl, hopOrigins[] } — hopOrigins is every distinct
+ * origin/base path visited, so callers can probe each for /favicon.ico fallbacks.
+ */
+async function collectFaviconCandidatesAlongRedirects(siteUrl) {
+  const hopOrigins = new Set();
+  const hopBases   = new Set();   // distinct path prefixes, e.g. /ovirt-engine/
+  let bestHtml     = null;
+  let finalUrl     = siteUrl;
+
+  await walkRedirects(siteUrl, async (url, res) => {
+    try {
+      const u = new URL(url);
+      hopOrigins.add(u.origin);
+      // First path segment (e.g. /ovirt-engine) is a useful fallback root.
+      const seg = u.pathname.split('/').filter(Boolean)[0];
+      if (seg) hopBases.add(`${u.origin}/${seg}`);
+    } catch {}
+
+    if (res.ok) {
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('html')) {
+        // The body of an Apache "Found" 302 page is also text/html, so don't
+        // overwrite a real 200 HTML with a redirect-body one.
+        const body = (await res.text()).slice(0, FAVICON_MAX_HTML_BYTES);
+        if (!bestHtml || res.status === 200) {
+          bestHtml = body;
+          finalUrl = url;
+        }
+      }
+    }
+  });
+
+  return { html: bestHtml, finalUrl, hopOrigins: [...hopOrigins], hopBases: [...hopBases] };
+}
+
 async function fetchImageCandidate(url) {
-  const res = await fetchWithLimits(url, { maxBytes: FAVICON_MAX_IMAGE_BYTES });
+  // Use redirect:'manual' here too so we don't burn the 20-hop budget on
+  // /favicon.ico endpoints that lead into the same SSO loop. Follow one
+  // explicit hop manually if needed.
+  const res = await fetchWithLimits(url, {
+    maxBytes: FAVICON_MAX_IMAGE_BYTES,
+    redirect: 'follow',
+  });
   if (!res) return null;
-  const buffer = Buffer.from(await res.arrayBuffer());
-  if (!buffer.byteLength || buffer.byteLength > FAVICON_MAX_IMAGE_BYTES) return null;
   const contentType = (res.headers.get('content-type') || 'application/octet-stream')
     .split(';')[0].trim().toLowerCase();
-  // Accept image/* and the common .ico variants. Reject HTML disguised as a favicon.
-  const isImage = contentType.startsWith('image/')
-               || contentType === 'application/ico'
-               || contentType === 'application/octet-stream';
-  if (!isImage) return null;
+  // Reject anything that clearly isn't an image. Note: we accept the response
+  // even on 404/5xx as long as the body decodes as an image — Google's favicon
+  // API famously serves its "unknown domain" globe with HTTP 404 and the bytes
+  // are a perfectly good PNG. Browsers render them; so should we.
+  const looksImageish = contentType.startsWith('image/')
+                     || contentType === 'application/ico'
+                     || contentType === 'application/octet-stream';
+  if (!looksImageish) return null;
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (!buffer.byteLength || buffer.byteLength > FAVICON_MAX_IMAGE_BYTES) return null;
   return { buffer, contentType };
 }
 
+// Conventional locations a browser would try if nothing is declared in HTML.
+const FAVICON_FALLBACK_PATHS = [
+  '/favicon.ico',
+  '/favicon.png',
+  '/favicon.svg',
+  '/apple-touch-icon.png',
+  '/apple-touch-icon-precomposed.png',
+  '/static/favicon.ico',
+  '/assets/favicon.ico',
+  '/images/favicon.ico',
+];
+
 /**
- * Best-effort favicon fetcher with three fallbacks. Returns { buffer, contentType }
- * or null on total failure.
+ * Best-effort favicon fetcher. Returns { buffer, contentType } or null.
  *
- *   1. Parse the page HTML for a declared <link rel="icon"> — works for intranet
- *      sites because the request goes directly to the site, not via Google.
- *   2. Hit <origin>/favicon.ico — the legacy convention every browser still tries.
+ *   1. Walk the redirect chain (handling SSO loops) and parse any HTML page
+ *      we hit for a declared <link rel="icon">.
+ *   2. Probe a wide set of conventional favicon paths at every origin / path
+ *      prefix we touched along the way — covers servers that hide /favicon.ico
+ *      behind auth but expose one under /<app>/favicon.ico, /static/, etc.
  *   3. Fall back to Google's favicon service for public URLs.
  */
 async function fetchFaviconForUrl(siteUrl) {
@@ -1062,45 +1466,55 @@ async function fetchFaviconForUrl(siteUrl) {
   try { parsed = new URL(siteUrl); } catch { return null; }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
 
-  const html = await fetchHtml(siteUrl);
-  if (html) {
-    const declared = parseDeclaredIconUrl(html, siteUrl);
+  // Overall wall-clock budget for the *entire* favicon hunt. Without this, an
+  // unreachable host could chew through the redirect walk plus a dozen
+  // fallback paths, each waiting out its own per-request timeout — minutes in
+  // the worst case. Once the deadline passes we stop probing and give up.
+  const deadline = Date.now() + FAVICON_TOTAL_BUDGET_MS;
+  const outOfTime = () => Date.now() >= deadline;
+
+  const { html, finalUrl, hopOrigins, hopBases } =
+    await collectFaviconCandidatesAlongRedirects(siteUrl);
+
+  // 1) HTML-declared icon link.
+  if (html && !outOfTime()) {
+    const declared = parseDeclaredIconUrl(html, finalUrl);
     if (declared) {
       const img = await fetchImageCandidate(declared);
       if (img) return img;
     }
   }
 
-  const root = await fetchImageCandidate(`${parsed.origin}/favicon.ico`);
-  if (root) return root;
+  // 2) Conventional locations under every origin/base we visited.
+  const tried = new Set();
+  const roots = [parsed.origin, ...hopOrigins, ...hopBases];
+  for (const root of roots) {
+    if (outOfTime()) return null;
+    for (const p of FAVICON_FALLBACK_PATHS) {
+      if (outOfTime()) return null;
+      const url = `${root.replace(/\/$/, '')}${p}`;
+      if (tried.has(url)) continue;
+      tried.add(url);
+      const img = await fetchImageCandidate(url);
+      if (img) return img;
+    }
+  }
 
+  if (outOfTime()) return null;
+
+  // 3) Google's service — only works for public hostnames.
   return fetchImageCandidate(
     `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=64`
   );
 }
 
 /**
- * Wraps cacheFavicon with a hard wall-clock budget. Resolves either when the
- * favicon is written and persisted, or when the budget elapses — whichever is
- * first. The underlying request is allowed to keep running in the background
- * so a slow fetch still updates the DB before the next page load. Use this in
- * request handlers that need the freshly-cached favicon in their response.
- */
-function cacheFaviconWithBudget(linkId, siteUrl, budgetMs = 5000) {
-  return new Promise(resolve => {
-    let settled = false;
-    const done = () => { if (!settled) { settled = true; resolve(); } };
-    const timer = setTimeout(done, budgetMs);
-    cacheFavicon(linkId, siteUrl).finally(() => {
-      clearTimeout(timer);
-      done();
-    });
-  });
-}
-
-/**
  * Downloads the favicon for a link and saves it locally. Tries the site itself
  * first (so intranet URLs work) and falls back to Google's favicon service.
+ *
+ * Always run fire-and-forget (never awaited by a request handler) so a slow or
+ * unreachable host can't delay the link save. When it *does* land a favicon it
+ * broadcasts an SSE update so open admin/public pages refresh and show it.
  */
 async function cacheFavicon(linkId, siteUrl) {
   try {
@@ -1135,6 +1549,10 @@ async function cacheFavicon(linkId, siteUrl) {
         fileSize:     buffer.byteLength,
       });
     }
+
+    // The link was saved earlier without a favicon; nudge open pages so the
+    // freshly-cached icon appears without a manual reload.
+    broadcastDataUpdate();
   } catch {
     // Favicon caching is best-effort — silently ignore failures
   }
@@ -1205,11 +1623,84 @@ app.get('/r/:id', clickRateLimit, (req, res) => {
     }
   }
 
-  db.recordClick(link.id, getClientIp(req), req.headers['user-agent'] || null);
+  const ip = getClientIp(req);
+  const ua = req.headers['user-agent'] || null;
+  db.recordClick(link.id, ip, ua);
+
+  // Also drop a line in the audit log. Tagged 'click' so it can be filtered
+  // separately from admin mutations (clicks are public + higher-volume).
+  try {
+    db.recordAudit({
+      action:     'link.click',
+      entityType: 'click',
+      entityId:   link.id,
+      summary:    `Visited "${truncate(link.name)}"${isAdmin ? ' (admin)' : ''}`,
+      ipAddress:  ip,
+      userAgent:  ua,
+    });
+  } catch { /* never block the redirect on a logging failure */ }
 
   res.setHeader('Cache-Control',   'no-store, no-cache');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.redirect(302, link.url);
+});
+
+// ─── Audit log (admin only) ───────────────────────────────────────────────────
+
+app.get('/api/audit', requireAdminToken, (req, res) => {
+  const limit      = req.query.limit ? Number(req.query.limit) : 200;
+  const beforeId   = req.query.before ? Number(req.query.before) : undefined;
+  const afterId    = req.query.after ? Number(req.query.after) : undefined;
+  const entityType = typeof req.query.type === 'string' && req.query.type ? req.query.type : undefined;
+  const search     = typeof req.query.q === 'string' && req.query.q.trim() ? req.query.q.trim() : undefined;
+
+  const entries = db.getAuditLog({ limit, beforeId, afterId, entityType, search });
+  res.json({
+    total:   db.getAuditCount(),
+    count:   entries.length,
+    entries,
+  });
+});
+
+app.delete('/api/audit', requireAdminToken, (req, res) => {
+  // Optional ?days=N prunes only entries older than N days; otherwise clears all.
+  if (req.query.days) {
+    const removed = db.pruneAuditLog(Number(req.query.days));
+    return res.json({ removed });
+  }
+  const removed = db.clearAuditLog();
+  res.json({ removed });
+});
+
+/** Wraps a value for safe inclusion in a CSV cell (RFC-4180 quoting). */
+function csvCell(value) {
+  const s = value == null ? '' : String(value);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+app.get('/api/audit/export', requireAdminToken, (req, res) => {
+  const entityType = typeof req.query.type === 'string' && req.query.type ? req.query.type : undefined;
+  const search     = typeof req.query.q === 'string' && req.query.q.trim() ? req.query.q.trim() : undefined;
+  const format     = req.query.format === 'json' ? 'json' : 'csv';
+
+  const entries = db.getAuditLogForExport({ entityType, search });
+  const stamp   = new Date().toISOString().split('T')[0];
+
+  if (format === 'json') {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="audit-log-${stamp}.json"`);
+    return res.send(JSON.stringify({ exported_at: new Date().toISOString(), count: entries.length, entries }, null, 2));
+  }
+
+  const cols = ['id', 'created_at', 'action', 'entity_type', 'entity_id', 'summary', 'ip_address', 'user_agent'];
+  const lines = [cols.join(',')];
+  for (const e of entries) {
+    lines.push(cols.map(c => csvCell(e[c])).join(','));
+  }
+  // Prepend a UTF-8 BOM so Excel opens accented characters correctly.
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="audit-log-${stamp}.csv"`);
+  res.send('﻿' + lines.join('\r\n'));
 });
 
 // ─── Stats (admin only) ───────────────────────────────────────────────────────
@@ -1230,24 +1721,102 @@ app.get('/api/links/:id/clicks', requireAdminToken, (req, res) => {
 
 // ─── Import / Export (admin only) ────────────────────────────────────────────
 
+/**
+ * Exports every link the admin has — name, URL, description, group/section
+ * memberships, file attachment metadata, custom icon, favicon, hidden flag,
+ * position — plus the full groups & sections hierarchy with colours. Designed
+ * so a re-import on a clean instance recreates the same browseable structure.
+ *
+ * What is intentionally NOT exported:
+ *   - group password hashes (security)
+ *   - admin token, secrets
+ *   - the bytes of uploaded files (binary; back up /uploads alongside this JSON)
+ *   - click analytics (per-link history, IPs)
+ */
 app.get('/api/links/export', requireAdminToken, (req, res) => {
   const links  = db.getAllLinks();
   const groups = db.getAllGroups();
 
   res.json({
-    version:     2,
+    version:     4,
     exported_at: new Date().toISOString(),
-    groups:      groups.map(g => ({ name: g.name, color: g.color })),
-    links:       links.map(l => ({
-      name:        l.name,
-      url:         l.url,
-      description: l.description || null,
-      // group_names: the new multi-group field. group_name kept for back-compat.
+    groups: groups.map(g => ({
+      name:         g.name,
+      color:        g.color,
+      position:     g.position,
+      is_protected: !!g.is_protected,
+      sections:     (g.sections || []).map(s => ({
+        name:     s.name,
+        position: s.position,
+        // Nested subsections, one level only.
+        subsections: (s.subsections || []).map(sub => ({
+          name:     sub.name,
+          position: sub.position,
+        })),
+      })),
+    })),
+    links: links.map(l => ({
+      name:         l.name,
+      url:          l.url,
+      description:  l.description || null,
+      position:     l.position,
+      is_hidden:    !!l.is_hidden,
+      image_path:   l.image_path   || null,
+      favicon_path: l.favicon_path || null,
+      file_path:    l.file_path    || null,
+      file_name:    l.file_name    || null,
+      // v4: preserves the full section_name → subsection_name path so a link
+      // assigned to a subsection round-trips correctly.
+      groups: (l.groups || []).map(g => {
+        // section_name is the leaf the link is attached to; if that leaf has
+        // a parent, expose them as "section_name" + "subsection_name" so the
+        // importer can reconnect.
+        const isSubLeaf = g.parent_section_name && g.section_name;
+        return {
+          name:            g.name,
+          section_name:    isSubLeaf ? g.parent_section_name : (g.section_name || null),
+          subsection_name: isSubLeaf ? g.section_name        : null,
+        };
+      }),
+      // Legacy compatibility — keep older importers reading these fields working.
       group_names: (l.groups || []).map(g => g.name),
       group_name:  l.group_name || null,
     })),
   });
 });
+
+/**
+ * Resolves a group by name (case-insensitive). Returns the existing id when
+ * found, otherwise creates the group with the supplied colour.
+ */
+function ensureGroupByName(name, color) {
+  const trimmed = (typeof name === 'string' ? name.trim() : '');
+  if (!trimmed) return { id: null, created: false };
+  const found = db.getAllGroups().find(g => g.name.toLowerCase() === trimmed.toLowerCase());
+  if (found) return { id: found.id, created: false };
+  const result = db.createGroup({ name: trimmed, color: color || '#0071e3' });
+  return { id: result.lastInsertRowid, created: true };
+}
+
+/**
+ * Same as ensureGroupByName but for a section inside an already-known group.
+ * Pass `parentSectionId` to look up / create a subsection. Top-level and
+ * sub names share the same column so the case-insensitive lookup is scoped
+ * to the right sibling list.
+ */
+function ensureSectionByName(groupId, name, parentSectionId = null) {
+  const trimmed = (typeof name === 'string' ? name.trim() : '');
+  if (!trimmed || !groupId) return { id: null, created: false };
+  const all = db.getSectionsForGroup(groupId);
+  const targetParent = parentSectionId || null;
+  const found = all.find(s =>
+    s.name.toLowerCase() === trimmed.toLowerCase() &&
+    (s.parent_section_id ?? null) === targetParent
+  );
+  if (found) return { id: found.id, created: false };
+  const result = db.createSection({ groupId, name: trimmed, parentSectionId: targetParent });
+  return { id: result.lastInsertRowid, created: true };
+}
 
 app.post('/api/links/import', requireAdminToken, (req, res) => {
   const incoming = req.body;
@@ -1256,60 +1825,149 @@ app.post('/api/links/import', requireAdminToken, (req, res) => {
     return res.status(400).json({ error: 'Request body must have a "links" array' });
   }
 
-  let imported      = 0;
-  let groupsCreated = 0;
-  const errors      = [];
+  let imported        = 0;
+  let skipped         = 0;
+  let groupsCreated   = 0;
+  let sectionsCreated = 0;
+  const errors        = [];
 
-  for (const [index, item] of incoming.links.entries()) {
-    if (!item.name?.trim() || !item.url?.trim()) {
-      errors.push(`Item ${index + 1}: name and url are required`);
-      continue;
-    }
-
-    if (!isValidHttpUrl(item.url)) {
-      errors.push(`Item ${index + 1}: invalid URL "${item.url}"`);
-      continue;
-    }
-
-    // Collect group names from either the new group_names[] array or the
-    // legacy single group_name field, then look them up or create them.
-    const rawNames = Array.isArray(item.group_names) ? item.group_names : [];
-    if (item.group_name) rawNames.push(item.group_name);
-
-    const groupIds = [];
-    const seenIds  = new Set();
-    for (const rawName of rawNames) {
-      const name = typeof rawName === 'string' ? rawName.trim() : '';
-      if (!name) continue;
-
-      const existingGroups = db.getAllGroups();
-      const found = existingGroups.find(g => g.name.toLowerCase() === name.toLowerCase());
-
-      let gid;
-      if (found) {
-        gid = found.id;
-      } else {
-        gid = db.createGroup({ name, color: '#0071e3' }).lastInsertRowid;
-        groupsCreated++;
+  // ─── 1. Re-create the groups/sections/subsections hierarchy first ──────
+  // Process explicit groups before scanning links so we keep the colours +
+  // section ordering the export captured. Each helper de-dups by name.
+  if (Array.isArray(incoming.groups)) {
+    for (const g of incoming.groups) {
+      if (!g?.name?.trim()) continue;
+      const { id: gid, created } = ensureGroupByName(g.name, g.color);
+      if (created) groupsCreated++;
+      if (!gid) continue;
+      for (const s of (g.sections || [])) {
+        if (!s?.name?.trim()) continue;
+        const { id: sid, created: secCreated } = ensureSectionByName(gid, s.name);
+        if (secCreated) sectionsCreated++;
+        // Nested subsections (v4 export). One level only — the data layer
+        // rejects deeper nesting on its own, so we just iterate the array.
+        for (const sub of (s.subsections || [])) {
+          if (!sub?.name?.trim()) continue;
+          const { created: subCreated } = ensureSectionByName(gid, sub.name, sid);
+          if (subCreated) sectionsCreated++;
+        }
       }
-      if (!seenIds.has(gid)) { seenIds.add(gid); groupIds.push(gid); }
+    }
+  }
+
+  // ─── 2. Walk the links list ─────────────────────────────────────────────
+  for (const [index, item] of incoming.links.entries()) {
+    if (!item?.name?.trim()) {
+      errors.push(`Item ${index + 1}: name is required`);
+      continue;
+    }
+    const isFileBacked = !!(item.file_path && String(item.file_path).startsWith('/uploads/'));
+    const trimmedUrl   = (item.url || '').trim();
+
+    if (!isFileBacked) {
+      if (!trimmedUrl) {
+        errors.push(`Item ${index + 1}: url is required (or set file_path)`);
+        continue;
+      }
+      if (!isValidHttpUrl(trimmedUrl)) {
+        errors.push(`Item ${index + 1}: invalid URL "${item.url}"`);
+        continue;
+      }
     }
 
+    // Skip links that already exist (dedup by URL — same as the admin form's
+    // duplicate guard). We treat file_path as the de-dup key for file-backed
+    // links, since they all share the URL prefix /uploads/.
+    const dedupKey = isFileBacked ? item.file_path : trimmedUrl;
+    if (db.checkDuplicateUrl(dedupKey)) {
+      skipped++;
+      continue;
+    }
+
+    // ─── 3. Resolve groups + sections referenced by this link ────────────
+    // Accept three input shapes, in priority order:
+    //   item.groups[]  = [{ name, section_name }]    (v3 export)
+    //   item.group_names[]                            (v2 export)
+    //   item.group_name                               (v1 export)
+    const groupSpecs = [];
+    if (Array.isArray(item.groups)) {
+      for (const g of item.groups) {
+        if (typeof g === 'object' && g?.name) {
+          groupSpecs.push({
+            name:        g.name,
+            section:     g.section_name    || null,
+            subsection:  g.subsection_name || null,
+          });
+        } else if (typeof g === 'string') {
+          groupSpecs.push({ name: g, section: null, subsection: null });
+        }
+      }
+    }
+    if (!groupSpecs.length && Array.isArray(item.group_names)) {
+      for (const n of item.group_names) {
+        groupSpecs.push({ name: n, section: null, subsection: null });
+      }
+    }
+    if (!groupSpecs.length && item.group_name) {
+      groupSpecs.push({ name: item.group_name, section: null, subsection: null });
+    }
+
+    const assignments = [];
+    const seenGids    = new Set();
+    for (const { name, section, subsection } of groupSpecs) {
+      const { id: gid, created } = ensureGroupByName(name);
+      if (!gid || seenGids.has(gid)) continue;
+      if (created) groupsCreated++;
+      seenGids.add(gid);
+
+      // Resolve the leaf section the link is attached to. If a subsection is
+      // supplied, that's the leaf; otherwise the top-level section is.
+      let sid = null;
+      if (section) {
+        const { id: parentId, created: parentCreated } = ensureSectionByName(gid, section);
+        if (parentCreated) sectionsCreated++;
+        if (subsection && parentId) {
+          const { id: subId, created: subCreated } = ensureSectionByName(gid, subsection, parentId);
+          if (subCreated) sectionsCreated++;
+          sid = subId || parentId;
+        } else {
+          sid = parentId;
+        }
+      }
+      assignments.push({ group_id: gid, section_id: sid });
+    }
+
+    // ─── 4. Create the link ──────────────────────────────────────────────
     const result = db.createLink({
       name:        item.name.trim(),
-      url:         item.url.trim(),
+      url:         isFileBacked ? item.file_path : trimmedUrl,
       description: item.description?.trim() || null,
-      imagePath:   null,
-      groupIds,
+      imagePath:   item.image_path || null,
+      groupIds:    assignments,
+      filePath:    isFileBacked ? item.file_path : null,
+      fileName:    isFileBacked ? (item.file_name || null) : null,
     });
+    const newId = result.lastInsertRowid;
 
-    // Kick off favicon download asynchronously
-    cacheFavicon(result.lastInsertRowid, item.url.trim()).catch(() => {});
+    // Re-apply per-link flags the schema treats as side-effects.
+    if (item.is_hidden) db.updateLinkVisibility(newId, true);
+
+    // Best-effort favicon cache for URL-backed links. Fire-and-forget so the
+    // import endpoint stays responsive even if a host is slow.
+    if (!isFileBacked && isValidHttpUrl(trimmedUrl)) {
+      cacheFavicon(newId, trimmedUrl).catch(() => {});
+    }
 
     imported++;
   }
 
-  res.json({ imported, groups_created: groupsCreated, errors });
+  res.json({
+    imported,
+    skipped,
+    groups_created:   groupsCreated,
+    sections_created: sectionsCreated,
+    errors,
+  });
 });
 
 // ─── Reorder (admin only) ─────────────────────────────────────────────────────
@@ -1416,8 +2074,10 @@ app.post('/api/links', requireAdminToken, uploadLinkPayload, async (req, res) =>
   const linkId = result.lastInsertRowid;
 
   // Favicons only make sense for real URLs — skip for file-backed links.
-  // Wait briefly so the response reflects the freshly cached favicon path.
-  if (!filePath) await cacheFaviconWithBudget(linkId, effectiveUrl);
+  // Fire-and-forget: the link is saved immediately and the favicon is cached
+  // in the background, then pushed to open pages via SSE when it lands. This
+  // keeps the save instant even when the target host is slow or unreachable.
+  if (!filePath) cacheFavicon(linkId, effectiveUrl).catch(() => {});
 
   res.status(201).json(db.getLinkById(linkId));
 });
@@ -1483,10 +2143,10 @@ app.put('/api/links/:id', requireAdminToken, uploadLinkPayload, async (req, res)
   });
 
   // Re-cache favicon only if we're now URL-backed and the URL changed.
-  // Wait briefly so the response reflects the freshly cached favicon path.
+  // Fire-and-forget (see POST handler) — never block the save on a slow host.
   const nowFileBacked = !!(newFilePath || (existingLink.file_path && !shouldRemoveFile));
   if (!nowFileBacked && trimmedUrl !== existingLink.url) {
-    await cacheFaviconWithBudget(req.params.id, trimmedUrl);
+    cacheFavicon(req.params.id, trimmedUrl).catch(() => {});
   }
 
   res.json(db.getLinkById(req.params.id));
@@ -1510,11 +2170,107 @@ app.delete('/api/links/:id', requireAdminToken, (req, res) => {
   const existingLink = db.getLinkById(req.params.id);
   if (!existingLink) return res.status(404).json({ error: 'Link not found' });
 
+  // Capture the name for the audit log before the row is gone.
+  req._auditSummary = `Deleted link "${existingLink.name}"`;
+
   // image_path is a shared icon-library reference — leave the file alone.
   safeDeleteFileUnlessLibrary(existingLink.favicon_path);
   safeDeleteFile(existingLink.file_path);
   db.deleteLink(req.params.id);
   res.status(204).end();
+});
+
+// ─── In-place file editor (admin only) ───────────────────────────────────────
+//
+// Lets the admin read and overwrite the *contents* of an attached file (the
+// kind of file linked via the URL/File toggle in the link form). The link row
+// itself is untouched — only the bytes on disk change. The /uploads/* static
+// handler above sends no-cache headers, so any visitor clicking the link card
+// after a save sees the new bytes immediately.
+
+const EDITABLE_FILE_EXTENSIONS = new Set([
+  '.htm', '.html', '.xml', '.json', '.txt', '.md', '.log', '.csv', '.svg',
+]);
+const FILE_EDIT_MAX_BYTES = 5 * 1024 * 1024;
+
+function isEditableFile(filename) {
+  if (!filename) return false;
+  return EDITABLE_FILE_EXTENSIONS.has(path.extname(filename).toLowerCase());
+}
+
+/**
+ * Resolves the on-disk path for a link's attached file, defensively scoped
+ * to UPLOADS_DIR so a tampered file_path can't escape (path-traversal guard).
+ * Returns null when the link is missing, file-less, or wandering outside.
+ */
+function resolveLinkFilePath(link) {
+  if (!link || !link.file_path) return null;
+  const filename = path.basename(link.file_path);
+  const fullPath = path.join(UPLOADS_DIR, filename);
+  if (path.relative(UPLOADS_DIR, fullPath).startsWith('..')) return null;
+  return fullPath;
+}
+
+app.get('/api/links/:id/file', requireAdminToken, (req, res) => {
+  const link = db.getLinkById(Number.parseInt(req.params.id, 10));
+  if (!link?.file_path)       return res.status(404).json({ error: 'No file attached to this link' });
+  if (!isEditableFile(link.file_name)) {
+    return res.status(415).json({ error: 'This file type is not text-editable' });
+  }
+
+  const fullPath = resolveLinkFilePath(link);
+  if (!fullPath || !fs.existsSync(fullPath)) {
+    return res.status(404).json({ error: 'File missing on disk' });
+  }
+
+  try {
+    const stat = fs.statSync(fullPath);
+    if (stat.size > FILE_EDIT_MAX_BYTES) {
+      return res.status(413).json({
+        error: `File too large to edit (max ${Math.round(FILE_EDIT_MAX_BYTES / 1024 / 1024)} MB)`,
+      });
+    }
+    const content = fs.readFileSync(fullPath, 'utf8');
+    res.json({
+      file_name: link.file_name,
+      file_path: link.file_path,
+      size:      stat.size,
+      mtime:     stat.mtimeMs,
+      content,
+    });
+  } catch {
+    res.status(500).json({ error: 'Could not read the file' });
+  }
+});
+
+app.put('/api/links/:id/file', requireAdminToken, (req, res) => {
+  const link = db.getLinkById(Number.parseInt(req.params.id, 10));
+  if (!link?.file_path)       return res.status(404).json({ error: 'No file attached to this link' });
+  if (!isEditableFile(link.file_name)) {
+    return res.status(415).json({ error: 'This file type is not text-editable' });
+  }
+
+  const content = typeof req.body?.content === 'string' ? req.body.content : null;
+  if (content === null) return res.status(400).json({ error: 'Missing "content" string' });
+  if (Buffer.byteLength(content, 'utf8') > FILE_EDIT_MAX_BYTES) {
+    return res.status(413).json({ error: 'Content exceeds the 5 MB edit limit' });
+  }
+
+  const fullPath = resolveLinkFilePath(link);
+  if (!fullPath) return res.status(400).json({ error: 'Invalid file path' });
+
+  try {
+    // Atomic-ish write: stage to a sibling and rename, so a partial write
+    // never leaves visitors looking at half a file.
+    const tmpPath = `${fullPath}.tmp`;
+    fs.writeFileSync(tmpPath, content, 'utf8');
+    fs.renameSync(tmpPath, fullPath);
+
+    const stat = fs.statSync(fullPath);
+    res.json({ size: stat.size, mtime: stat.mtimeMs });
+  } catch {
+    res.status(500).json({ error: 'Could not write the file' });
+  }
 });
 
 // ─── Bulk delete (admin only) ─────────────────────────────────────────────────
@@ -1569,7 +2325,8 @@ app.post('/api/groups', requireAdminToken, (req, res) => {
   const result    = db.createGroup({
     name: name.trim(),
     color: safeColor,
-    password: password ?? undefined,
+    password:   password ?? undefined,
+    unlockMode: req.body.unlock_mode,        // sanitised inside createGroup
   });
   res.status(201).json(db.getGroupById(result.lastInsertRowid));
 });
@@ -1586,9 +2343,10 @@ app.put('/api/groups/:id', requireAdminToken, (req, res) => {
 
   const safeColor = isValidHexColor(color) ? color : existingGroup.color;
   db.updateGroup(req.params.id, {
-    name:     name.trim(),
-    color:    safeColor,
-    password: normaliseGroupPassword(req.body),
+    name:       name.trim(),
+    color:      safeColor,
+    password:   normaliseGroupPassword(req.body),
+    unlockMode: req.body.unlock_mode,        // undefined => leave as-is
   });
   res.json(db.getGroupById(req.params.id));
 });
@@ -1600,6 +2358,11 @@ app.put('/api/groups/:id', requireAdminToken, (req, res) => {
  * HMAC-signed cookie so subsequent requests skip the prompt.
  * Rate-limited per-IP, but only failed attempts count toward the budget.
  */
+// Far-future signed expiry used for session-mode cookies. The cookie itself
+// is browser-session-bound (no Max-Age), so it disappears when the user closes
+// the browser; this value just keeps the HMAC payload valid until then.
+const GROUP_SESSION_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
+
 app.post('/api/groups/:id/unlock', (req, res) => {
   if (groupUnlockLimiter.isLimited(req)) {
     return res.status(429).json({ valid: false, error: 'Too many failed attempts. Try again later.' });
@@ -1617,13 +2380,27 @@ app.post('/api/groups/:id/unlock', (req, res) => {
     return res.status(401).json({ valid: false, error: 'Wrong password' });
   }
 
-  const expMs   = Date.now() + GROUP_UNLOCK_TTL_MS;
+  // Choose how the unlock should persist based on the group's mode:
+  //   'timeout' (default) → 30 s, both client-side and server-side.
+  //   'session'           → browser session cookie (no Max-Age), valid for
+  //                         up to a year server-side. The browser deletes it
+  //                         on tab/window close, which is the relock signal.
+  const mode    = group.unlock_mode === 'session' ? 'session' : 'timeout';
+  const ttlMs   = mode === 'session' ? GROUP_SESSION_EXPIRY_MS : GROUP_UNLOCK_TTL_MS;
+  const expMs   = Date.now() + ttlMs;
   const token   = signGroupUnlock(id, expMs);
-  const maxAge  = Math.ceil(GROUP_UNLOCK_TTL_MS / 1000);
   const secure  = req.secure || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  const maxAge  = mode === 'session'
+    ? ''                                          // no Max-Age → browser session cookie
+    : `; Max-Age=${Math.ceil(GROUP_UNLOCK_TTL_MS / 1000)}`;
   res.setHeader('Set-Cookie',
-    `lp_grp_${id}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`);
-  res.json({ valid: true, expires_at: expMs, ttl_ms: GROUP_UNLOCK_TTL_MS });
+    `lp_grp_${id}=${token}; Path=/; HttpOnly; SameSite=Lax${maxAge}${secure}`);
+  res.json({
+    valid:       true,
+    expires_at:  expMs,
+    ttl_ms:      ttlMs,
+    unlock_mode: mode,
+  });
 });
 
 /** Lets a user forget a previously-unlocked group (used by the public UI's "Lock" action). */
@@ -1644,7 +2421,24 @@ app.post('/api/groups/:id/sections', requireAdminToken, (req, res) => {
   const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
   if (!name) return res.status(400).json({ error: 'Section name is required' });
 
-  const result = db.createSection({ groupId, name });
+  // Optional: create as a subsection of an existing section in the same group.
+  // We deliberately enforce a single nesting level (no sub-sub-sections) by
+  // rejecting parents that themselves already have a parent_section_id.
+  let parentSectionId = null;
+  if (req.body.parent_section_id != null && req.body.parent_section_id !== '') {
+    const pid = Number(req.body.parent_section_id);
+    if (!Number.isFinite(pid)) return res.status(400).json({ error: 'Invalid parent_section_id' });
+    const parent = db.getSectionById(pid);
+    if (!parent || parent.group_id !== groupId) {
+      return res.status(400).json({ error: 'Parent section does not belong to this group' });
+    }
+    if (parent.parent_section_id) {
+      return res.status(400).json({ error: 'Subsections cannot have their own subsections' });
+    }
+    parentSectionId = pid;
+  }
+
+  const result = db.createSection({ groupId, name, parentSectionId });
   res.status(201).json(db.getSectionById(result.lastInsertRowid));
 });
 
@@ -1660,9 +2454,11 @@ app.put('/api/sections/:id', requireAdminToken, (req, res) => {
 });
 
 app.delete('/api/sections/:id', requireAdminToken, (req, res) => {
-  if (!db.getSectionById(req.params.id)) {
+  const section = db.getSectionById(req.params.id);
+  if (!section) {
     return res.status(404).json({ error: 'Section not found' });
   }
+  req._auditSummary = `Deleted section "${section.name}"`;
   db.deleteSection(req.params.id);
   res.status(204).end();
 });
@@ -1677,9 +2473,11 @@ app.post('/api/sections/reorder', requireAdminToken, (req, res) => {
 });
 
 app.delete('/api/groups/:id', requireAdminToken, (req, res) => {
-  if (!db.getGroupById(req.params.id)) {
+  const group = db.getGroupById(req.params.id);
+  if (!group) {
     return res.status(404).json({ error: 'Group not found' });
   }
+  req._auditSummary = `Deleted group "${group.name}"`;
   db.deleteGroup(req.params.id);
   res.status(204).end();
 });
