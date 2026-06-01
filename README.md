@@ -50,27 +50,31 @@ The settings modal covers branding (custom site title, separate logos for light 
 
 ## Features
 
-- **Public page** — clean, searchable landing page for end users with group tabs and live search
+- **Public page** — clean, searchable landing page for end users with group tabs and multi-keyword search
 - **Admin panel** — full link and group management behind a secure token gate
 - **Multiple groups per link** — assign a link to as many groups as needed via a checkbox multi-select
-- **Sections within groups** — organize cards under named section headings inside each group; drag sections in the sidebar to reorder them (reflects on the public page)
+- **Sections & subsections** — organize cards under named section headings, and nest one level of subsections inside them; drag to reorder in the sidebar (reflected on the public page), or drag a link straight onto a group/section/subsection
 - **Live updates on the public page** — opened tabs fade-refresh within a fraction of a second when an admin adds, edits, reorders, or deletes anything (Server-Sent Events)
-- **Reusable icon library** — every uploaded icon goes into a shared, searchable library; pick an existing icon for new links instead of re-uploading, manage and delete unused ones, optionally auto-save fetched favicons to the library
+- **Reusable icon library** — every uploaded icon goes into a shared, searchable library; pick an existing icon for new links, bulk-select and delete, and export/import the whole library as a single file; the Settings favicon appears here too
+- **Stock icon picker** — choose from a built-in line-icon set and a colour, instead of uploading; file links get a coloured file-type icon, and links with no icon fall back to the Settings favicon
+- **In-place file editor** — edit attached text files (HTML, XML, JSON, TXT, CSV, MD, SVG) in the admin with an expand view, line numbers, syntax highlighting, and a find bar; saves go live instantly
 - **File attachments** — link cards can point to an uploaded file (PDF, Office docs, archives, images, text, HTML/XML/JSON) instead of a URL, with a 100 MB cap and an extension whitelist
-- **Password-protected groups** — gate sensitive groups with a password; unlock state uses HMAC-signed cookies with a 30 s auto-relock timeout
+- **Password-protected groups** — gate sensitive groups with a password; per-group unlock behaviour: auto-lock after 30 s (kiosk-safe) or stay unlocked for the browser session
+- **Admin audit log** — every admin change and every link click is recorded with the entity name, time, IP and device; live auto-refresh, search/type filters, and CSV/JSON export
 - **Hide links from the public page** — keep a link in the admin without exposing it publicly (eye-toggle on every card)
 - **Custom group colors** — pick any color via the native picker swatch
 - **Pinned default group** — choose which group the public page opens on (new visitors only — returning visitors keep the tab they were last viewing)
+- **Copy link** — one-click copy button on every public card, with a toast confirmation
 - **Click analytics** — per-link stats: total clicks, unique visitors, today/week counts, top IPs
 - **Broken link checker** — automatic health check every 6 hours, flags dead links in the admin
 - **Custom branding** — upload separate logos for light and dark mode, a custom browser tab favicon, and set a custom site title
-- **Smart favicon fetching** — three-tier strategy (parse the page for `<link rel="icon">`, then `/favicon.ico`, then Google as fallback) so favicons work for intranet sites too; cached server-side so no external requests on page load
-- **Drag-to-reorder** — reorder links, groups, and sections by dragging
-- **Bulk actions** — multi-select (click or long-press a card) to delete, move, hide, or show multiple links at once
+- **Smart favicon fetching** — three-tier strategy (parse the page for `<link rel="icon">`, then `/favicon.ico`, then Google as fallback) so favicons work for intranet sites too; fetched in the background so saving a link is never blocked, and cached server-side
+- **Drag-to-reorder** — reorder links, groups, sections, and subsections by dragging
+- **Bulk actions** — multi-select (shift-click for ranges, Select all, Esc to clear) to delete, move into a section, hide, or show multiple links at once
 - **In-app update checker** — Settings shows the current build, and a one-click "Check for updates" button polls GitHub Releases for newer versions and shows the release notes inline
 - **Versioned database migrations** — transactional, idempotent schema upgrades run on every startup; logs what changed so any past version upgrades cleanly
 - **Mobile-friendly UI** — slide-over sidebar, full-width modal sheets, larger tap targets, and a kebab overflow menu on the admin top bar
-- **Import / Export** — backup and restore links as JSON
+- **Import / Export** — backup and restore links, groups, sections and subsections as JSON (idempotent re-import)
 - **Public password gate** — optionally protect the public page with a password
 - **Light & dark mode** — Apple-style design with OS preference detection
 - **Docker ready** — single `docker compose up` to deploy with persistent storage
@@ -104,7 +108,7 @@ All persistent data lives in `/app/data` inside the container, mapped to `./link
 
 | Path | Purpose |
 |------|---------|
-| `data/links.db` | SQLite database — links, groups, sections, link↔group mappings, icon library, settings, click analytics. The schema is auto-migrated on startup. |
+| `data/links.db` | SQLite database — links, groups, sections & subsections, link↔group mappings, icon library, settings, click analytics, and the admin audit log. The schema is auto-migrated on startup. |
 | `data/admin-token.txt` | Admin token generated on first startup |
 | `data/uploads/` | Uploaded images, logos, favicons, and link file attachments |
 
@@ -320,29 +324,37 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | GET | `/api/icons` | Admin | List every icon in the reusable library with usage counts |
 | POST | `/api/icons` | Admin | Upload a new icon directly into the library |
 | DELETE | `/api/icons/:id` | Admin | Delete an icon (also clears it from any link using it) |
+| POST | `/api/icons/bulk-delete` | Admin | Delete multiple icons at once |
+| GET | `/api/icons/export` | Admin | Export the whole icon library as a self-contained JSON bundle |
+| POST | `/api/icons/import` | Admin | Import an icon-library bundle (idempotent, de-duped by content) |
 | GET | `/api/favicon-preview` | Admin | Server-side favicon fetch used by the link form's live preview |
 | GET | `/api/version` | Admin | Check current build against the latest GitHub release |
-| GET | `/api/events` | — | Server-Sent Events stream — fires whenever an admin mutation happens, so the public page can fade-refresh in real time |
+| GET | `/api/audit` | Admin | List audit-log entries (search, type filter, pagination) |
+| DELETE | `/api/audit` | Admin | Clear the audit log (or prune with `?days=N`) |
+| GET | `/api/audit/export` | Admin | Export the audit log as CSV or JSON |
+| GET | `/api/events` | — | Server-Sent Events stream — fires whenever data changes, so the public page can fade-refresh in real time |
 | GET | `/api/links` | Public | List all links (honors `is_hidden`, group locks, and public password) |
 | POST | `/api/links` | Admin | Create a link (URL or file upload) |
 | PUT | `/api/links/:id` | Admin | Update a link (URL or file upload) |
 | POST | `/api/links/:id/visibility` | Admin | Toggle a link's public visibility |
 | DELETE | `/api/links/:id` | Admin | Delete a link |
+| GET | `/api/links/:id/file` | Admin | Read an attached text file's contents (for the editor) |
+| PUT | `/api/links/:id/file` | Admin | Save edited contents back to an attached text file |
 | POST | `/api/links/reorder` | Admin | Save new link order |
 | POST | `/api/links/bulk-delete` | Admin | Delete multiple links |
-| GET | `/api/links/export` | Admin | Export all links as JSON |
-| POST | `/api/links/import` | Admin | Import links from JSON |
+| GET | `/api/links/export` | Admin | Export links, groups, sections & subsections as JSON |
+| POST | `/api/links/import` | Admin | Import from JSON (idempotent — creates only what's missing) |
 | GET | `/api/links/:id/clicks` | Admin | Click detail for a link |
-| GET | `/api/groups` | Public | List all groups |
+| GET | `/api/groups` | Public | List all groups (with nested sections/subsections) |
 | POST | `/api/groups` | Admin | Create a group |
-| PUT | `/api/groups/:id` | Admin | Update a group (name, color, password) |
+| PUT | `/api/groups/:id` | Admin | Update a group (name, color, password, unlock mode) |
 | DELETE | `/api/groups/:id` | Admin | Delete a group |
 | POST | `/api/groups/reorder` | Admin | Save new group order |
 | POST | `/api/groups/:id/unlock` | — | Unlock a password-protected group (issues a signed cookie) |
 | POST | `/api/groups/:id/lock` | — | Lock a group (clears the unlock cookie) |
-| POST | `/api/groups/:id/sections` | Admin | Create a section inside a group |
+| POST | `/api/groups/:id/sections` | Admin | Create a section (or subsection, via `parent_section_id`) in a group |
 | PUT | `/api/sections/:id` | Admin | Rename a section |
-| DELETE | `/api/sections/:id` | Admin | Delete a section |
-| POST | `/api/sections/reorder` | Admin | Save new section order |
+| DELETE | `/api/sections/:id` | Admin | Delete a section (and its subsections) |
+| POST | `/api/sections/reorder` | Admin | Save new section/subsection order |
 | GET | `/api/stats` | Admin | Aggregate click stats for all links |
 | GET | `/r/:id` | — | Redirect (or stream a file attachment) and record the click |

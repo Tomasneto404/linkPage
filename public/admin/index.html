@@ -292,7 +292,7 @@
           </svg>
           <span>Changelog</span>
           <span class="changelog-version" id="changelogVersion">
-            v1.0.2
+            v1.0.3
             <span class="changelog-update-dot hidden" id="changelogUpdateDot" aria-hidden="true"></span>
           </span>
         </summary>
@@ -301,43 +301,114 @@
              when the server detects a newer release on GitHub. -->
         <div class="changelog-update hidden" id="changelogUpdate"></div>
 
-        <div class="changelog-release-label">v1.0.2</div>
+        <div class="changelog-release-label">v1.0.3</div>
         <ul class="changelog-list">
+          <li>
+            <div class="changelog-entry-title">In-place file editor</div>
+            <div class="changelog-entry-desc">
+              Edit the contents of attached text files (HTML, XML, JSON, TXT, CSV, MD…)
+              right in the admin — with an expand view, line numbers, language-aware
+              syntax highlighting, a Ctrl/Cmd+F find bar, and Ctrl/Cmd+S to save.
+              Changes are live on the public page immediately.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Stock icon picker + colours</div>
+            <div class="changelog-entry-desc">
+              Pick from a built-in set of line icons and choose a colour, instead of
+              uploading an image. File-backed links also get a tidy file-type icon,
+              and links with no icon fall back to the Settings favicon.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Icon library: export, import & bulk delete</div>
+            <div class="changelog-entry-desc">
+              Export the whole icon library as a single file and import it elsewhere
+              (idempotent). Multi-select icons (shift-click ranges) to delete in bulk.
+              The Settings favicon now appears in the library for reuse.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Admin audit log</div>
+            <div class="changelog-entry-desc">
+              Every admin change <em>and</em> every link click is recorded with the
+              entity's name, time, IP and device. Live auto-refresh, search and
+              type filters, and CSV/JSON export — under Settings → Security → View Log.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Subsections</div>
+            <div class="changelog-entry-desc">
+              Sections can now contain subsections (one level). Add and drag-reorder
+              them in the sidebar; the public page renders the nesting, and the link
+              form lets you drop a link straight into a subsection.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Smarter bulk editing</div>
+            <div class="changelog-entry-desc">
+              Shift-click to select ranges of links, "Select all", Esc to deselect,
+              and move the selection into a specific group section/subsection. You can
+              also drag a link card onto any group, section, or subsection in the sidebar.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Multi-keyword search</div>
+            <div class="changelog-entry-desc">
+              The public search now pins keywords as chips (press Enter), combines them
+              with AND, and matches link names, URLs, groups, sections and subsections.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Copy link button</div>
+            <div class="changelog-entry-desc">
+              Each public card has a copy-link button with a toast confirmation —
+              copies the destination URL, or a tracked redirect link for file attachments.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Per-group unlock behaviour</div>
+            <div class="changelog-entry-desc">
+              Password-protected groups can either auto-lock after 30 seconds (kiosk-safe)
+              or stay unlocked for the whole browser session — chosen per group.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Redesigned admin cards</div>
+            <div class="changelog-entry-desc">
+              A cleaner, premium link card: icon + title header, description, tags,
+              and a footer showing views and date with the action buttons revealing
+              on hover.
+            </div>
+          </li>
           <li>
             <div class="changelog-entry-title">In-app update checker</div>
             <div class="changelog-entry-desc">
-              Settings has a new <strong>About</strong> section with a "Check for updates"
-              button. Opens a popup showing the current build, the latest available
-              release, and the release notes for every newer version. A subtle pulsing
-              dot also appears next to the sidebar Changelog pill when an update is
-              available.
+              Settings → About has a "Check for updates" button showing the current
+              build, the latest GitHub release, and its notes. A pulsing dot on the
+              Changelog pill flags when an update is available.
             </div>
           </li>
           <li>
             <div class="changelog-entry-title">Versioned database migrations</div>
             <div class="changelog-entry-desc">
-              The DB layer now runs a transactional, version-tracked migration on every
-              startup and logs what changed. Upgrading from any past LinkPage version
-              applies all missing steps idempotently; <code>schema_version</code> is
-              stored in <code>settings</code> so subsequent boots only verify.
+              The DB layer runs transactional, version-tracked migrations on every
+              startup and logs what changed, so upgrading from any past version is
+              safe and automatic.
             </div>
           </li>
           <li>
-            <div class="changelog-entry-title">Settings modal scrolls properly</div>
+            <div class="changelog-entry-title">Faster saves & polish</div>
             <div class="changelog-entry-desc">
-              The Settings popup grew taller as new sections were added. It now caps
-              at the viewport height and scrolls internally — close button and footer
-              stay reachable on small screens and laptops.
+              Favicon fetching no longer blocks saving a link (it loads in the
+              background and appears live). Plus a scrollable Settings modal and a
+              fix for icons bleeding between consecutive edits.
             </div>
           </li>
-          <li>
-            <div class="changelog-entry-title">Fix: icon bleeding between edits</div>
-            <div class="changelog-entry-desc">
-              When editing two links in a row, the second link could accidentally
-              inherit the icon you just uploaded for the first. The link form now
-              clears the pending icon file before each edit.
-            </div>
-          </li>
+        </ul>
+
+        <div class="changelog-release-label">v1.0.2</div>
+        <ul class="changelog-list">
           <li>
             <div class="changelog-entry-title">Reusable icon library</div>
             <div class="changelog-entry-desc">
@@ -735,7 +806,7 @@
               <div class="settings-row-label">Version</div>
               <div class="settings-row-desc">
                 Current build is
-                <span class="settings-version-inline" id="settingsCurrentVersion">v1.0.2</span>.
+                <span class="settings-version-inline" id="settingsCurrentVersion">v1.0.3</span>.
                 Check GitHub for newer releases.
               </div>
             </div>
