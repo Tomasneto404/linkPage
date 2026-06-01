@@ -841,80 +841,106 @@ header {
 
 /* ─── Admin card extras (edit/delete buttons, date) ─────────────────────────── */
 
-/* The card needs to be a containing block so the absolutely-positioned action
-   row sits *inside* it, and a steady minimum height so cards line up neatly
-   regardless of whether they have a description, badges, or both. */
+/* ── Premium vertical link cards (admin) ──────────────────────────────────────
+ * Layout: header (icon + name/url) → description → tags → a divided footer with
+ * view count + date on the left and the action buttons on the right. A uniform
+ * baseline height that grows to fit content, so nothing is ever clipped. */
 .link-card-wrap .link-card {
   position: relative;
-  min-height: 78px;
-  align-items: center;       /* vertically centre icon + body */
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-height: 122px;
+  height: 100%;              /* fill the stretched grid row → even rows */
+  padding: 16px 18px 12px;
 }
 
-/* The right column now only holds the date; actions are floated on top of the
-   card, so the title gets the full remaining width. Date sits at the bottom-
-   right so it doesn't clash with the hover-revealed action bar at the top. */
-.link-side {
+/* The whole card is draggable; the dotted grip isn't needed visually. */
+.link-card-wrap .drag-handle { display: none; }
+
+/* Header row: icon + title block */
+.link-card-wrap .link-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.link-card-wrap .link-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  flex-shrink: 0;
+}
+.link-card-wrap .link-headings {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  justify-content: flex-end;
-  flex-shrink: 0;
-  align-self: stretch;
-  padding-left: 8px;
-  white-space: nowrap;
+  gap: 1px;
+}
+.link-card-wrap .link-name { font-size: 0.95rem; }
+
+/* Description: up to two lines */
+.link-card-wrap .link-desc {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  margin: 11px 0 0;
 }
 
-/*
- * Actions float in the top-right of the card. They're invisible at rest
- * (so the title can use the full row) and fade in on hover with a soft
- * backdrop so they read well over any underlying content.
- */
-.link-actions {
-  position: absolute;
-  top: 8px;
-  right: 10px;
+/* Tags strip wraps so every group/status pill is fully visible */
+.link-card-wrap .card-meta {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+/* Footer sticks to the bottom with a divider above it */
+.link-card-wrap .link-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.link-card-wrap .link-foot-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex-wrap: nowrap;        /* never let a stat wrap to its own line */
+}
+.link-card-wrap .card-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
+  line-height: 1;          /* fixed baseline → views sit at the same spot */
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.link-card-wrap .card-stat svg { opacity: 0.75; flex-shrink: 0; }
+
+/* Action buttons reveal smoothly on hover. They stay in the layout (occupying
+   their space even while invisible) so the footer height never changes — that
+   keeps the views/date from shifting and avoids any reflow on hover. */
+.link-card-wrap .link-actions {
   display: flex;
   gap: 4px;
-  padding: 3px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  -webkit-backdrop-filter: saturate(160%) blur(8px);
-  backdrop-filter:        saturate(160%) blur(8px);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-xs);
+  flex-shrink: 0;
   opacity: 0;
-  transform: translateY(-2px);
+  transform: translateY(2px);
   pointer-events: none;
-  transition: opacity 0.14s ease, transform 0.14s ease;
-  z-index: 2;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
-.link-card:hover .link-actions,
-.link-card:focus-within .link-actions {
+.link-card-wrap .link-card:hover .link-actions,
+.link-card-wrap .link-card:focus-within .link-actions {
   opacity: 1;
   transform: none;
   pointer-events: auto;
 }
-[data-theme="dark"] .link-actions {
-  background: color-mix(in srgb, var(--surface) 78%, transparent);
-}
-
-/* Slightly tighter icon buttons inside the floating bar so 5 fit nicely. */
-.link-actions .icon-btn {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-}
-.link-actions .icon-btn:hover {
-  background: var(--surface-3);
-  border-color: transparent;
-}
-
-.link-date {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  align-self: flex-end;
+.link-card-wrap .link-actions .icon-btn {
+  width: 30px;
+  height: 30px;
 }
 
 /* ─── Button variants ────────────────────────────────────────────────────────── */
@@ -2788,9 +2814,10 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   .links-grid     { gap: 8px; grid-template-columns: 1fr; }
 
   /* Cards: card-action buttons need bigger touch targets, and on phones the
-     hover state never fires — so make the action bar always visible there. */
+     hover state never fires — so make the action bar always visible there.
+     Scoped to .link-card-wrap so it overrides the hover-hidden default. */
   .link-card-wrap .icon-btn { width: 32px; height: 32px; }
-  .link-actions {
+  .link-card-wrap .link-actions {
     gap: 2px;
     opacity: 1;
     transform: none;
