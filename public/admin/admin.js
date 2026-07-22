@@ -191,6 +191,15 @@ async function setPublicPassword(pw)   { return jsonPost('/api/settings/public-p
 async function removePublicPassword()  { return sendAuthRequest('/api/settings/public-password', { method: 'DELETE' }); }
 async function rotateAdminToken()      { return apiJson('/api/auth/rotate-token', { method: 'POST' }); }
 
+async function setRequestsEnabled(enabled) { return jsonPost('/api/settings/requests-enabled', { enabled }); }
+async function setRequestPassword(pw)      { return jsonPost('/api/settings/request-password', { password: pw }); }
+async function removeRequestPassword()     { return sendAuthRequest('/api/settings/request-password', { method: 'DELETE' }); }
+
+async function fetchLinkRequests(status = 'pending') { return apiJson(`/api/link-requests?status=${status}`); }
+async function approveRequestApi(id, linkId) { return jsonPost(`/api/link-requests/${id}/approve`, { link_id: linkId }); }
+async function rejectRequestApi(id)          { return jsonPost(`/api/link-requests/${id}/reject`, {}); }
+async function deleteRequestApi(id)          { return sendAuthRequest(`/api/link-requests/${id}`, { method: 'DELETE' }); }
+
 
 // ─── 4. SETTINGS ──────────────────────────────────────────────────────────────
 
@@ -206,6 +215,8 @@ async function loadSettings() {
     document.getElementById('siteTitleInput').value = s.site_title;
   }
   updatePublicPasswordStatus(s.public_password_required);
+  updateRequestsFeatureUI(!!s.requests_enabled);
+  refreshRequestsBadge();
 }
 
 function applyFavicon(url) {
@@ -248,6 +259,12 @@ function updatePublicPasswordStatus(isSet) {
   document.getElementById('removePublicPasswordBtn').classList.toggle('hidden', !isSet);
 }
 
+function updateRequestPasswordStatus(isSet) {
+  document.getElementById('requestPasswordDesc').textContent =
+    isSet ? 'A password is required to submit a request' : 'Anyone can submit a request';
+  document.getElementById('removeRequestPasswordBtn').classList.toggle('hidden', !isSet);
+}
+
 function populatePinnedGroupSelect(currentId) {
   const sel = document.getElementById('pinnedGroupSelect');
   const opts = groups.map(g =>
@@ -265,6 +282,8 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   document.getElementById('siteTitleInput').value = s.site_title || '';
   document.getElementById('saveFaviconsToggle').checked = !!s.save_favicons_to_library;
   updatePublicPasswordStatus(s.public_password_required);
+  document.getElementById('requestsEnabledToggle').checked = !!s.requests_enabled;
+  updateRequestPasswordStatus(s.request_password_required);
   document.getElementById('newTokenDisplay').classList.add('hidden');
   document.getElementById('settingsOverlay').classList.remove('hidden');
 });
@@ -359,6 +378,33 @@ document.getElementById('setPublicPasswordBtn').addEventListener('click', async 
 });
 document.getElementById('removePublicPasswordBtn').addEventListener('click', async () => {
   await removePublicPassword(); updatePublicPasswordStatus(false); showToast('Public password removed');
+});
+
+document.getElementById('requestsEnabledToggle').addEventListener('change', async e => {
+  const enabled = e.target.checked;
+  const res = await sendAuthRequest('/api/settings/requests-enabled', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    e.target.checked = !enabled;
+    showToast('Could not save setting');
+    return;
+  }
+  updateRequestsFeatureUI(enabled);
+  showToast(enabled ? 'Link requests enabled' : 'Link requests disabled');
+});
+
+document.getElementById('setRequestPasswordBtn').addEventListener('click', async () => {
+  const pw = document.getElementById('requestPasswordInput').value;
+  if (!pw) return;
+  await setRequestPassword(pw);
+  document.getElementById('requestPasswordInput').value = '';
+  updateRequestPasswordStatus(true); showToast('Request password set');
+});
+document.getElementById('removeRequestPasswordBtn').addEventListener('click', async () => {
+  await removeRequestPassword(); updateRequestPasswordStatus(false); showToast('Request password removed');
 });
 
 document.getElementById('rotateTokenBtn').addEventListener('click', async () => {
@@ -1412,6 +1458,11 @@ document.getElementById('closeStatsBtn').addEventListener('click', () =>
 let shouldRemoveIcon = false;
 let pendingIconId    = null;    // id of an icon picked from the library, if any
 
+// When the link modal was opened to approve a pending request, this holds that
+// request's id so a successful save can mark it approved. null in every other
+// use of the modal (plain add/edit).
+let pendingApprovalRequestId = null;
+
 // Tracks Link/File mode state for the link modal.
 let linkModalMode      = 'link';        // 'link' or 'file'
 let pendingAttachedFile = null;          // File object picked but not yet uploaded
@@ -1640,6 +1691,7 @@ function resetLinkModalAttachmentState() {
 function openAddLinkModal() {
   shouldRemoveIcon = false;
   pendingIconId    = null;
+  pendingApprovalRequestId = null;
   document.getElementById('linkModalTitle').textContent = 'Add Link';
   document.getElementById('editingLinkId').value = '';
   document.getElementById('linkForm').reset();
@@ -1662,6 +1714,7 @@ function openAddLinkModal() {
 function openEditLinkModal(link) {
   shouldRemoveIcon = false;
   pendingIconId    = null;
+  pendingApprovalRequestId = null;
   // Edit doesn't call linkForm.reset() (we need to populate fields from the
   // link). Clear the icon file input by hand so a file picked while editing
   // a previous link doesn't bleed into this one's submit.
@@ -1838,6 +1891,15 @@ document.getElementById('linkForm').addEventListener('submit', async e => {
   try {
     const result = linkId ? await updateLink(linkId, fd) : await createLink(fd);
     if (result?.error) { showFormError('linkFormError', result.error); return; }
+
+    // If this save published a pending request, mark that request approved and
+    // point it at the freshly-created link.
+    if (pendingApprovalRequestId && !linkId && result?.id) {
+      try { await approveRequestApi(pendingApprovalRequestId, result.id); } catch {}
+      pendingApprovalRequestId = null;
+      refreshRequestsBadge();
+    }
+
     closeLinkModal();
     showToast(linkId ? 'Link saved' : 'Link added');
     await loadAllData();
@@ -4073,6 +4135,7 @@ const AUDIT_TYPE_META = {
   section:  { cls: 'section',  label: 'Section' },
   icon:     { cls: 'icon',     label: 'Icon' },
   settings: { cls: 'settings', label: 'Settings' },
+  request:  { cls: 'request',  label: 'Request' },
   auth:     { cls: 'auth',     label: 'Auth' },
   audit:    { cls: 'audit',    label: 'Audit' },
 };
@@ -4315,11 +4378,181 @@ document.getElementById('auditClearBtn').addEventListener('click', async () => {
 });
 
 
+// ─── 20.5. LINK REQUESTS ──────────────────────────────────────────────────────
+//
+// Visitor-submitted link requests. The admin reviews them here: approve opens
+// the Add-Link modal prefilled from the request (Save publishes it and marks the
+// request approved), or reject/delete the request outright.
+
+let requestsStatus = 'pending';
+let loadedRequests = [];
+
+/** Shows/hides the Requests button + mobile entry based on the feature flag. */
+function updateRequestsFeatureUI(enabled) {
+  document.getElementById('openRequestsBtn').classList.toggle('hidden', !enabled);
+  document.getElementById('mobileRequestsItem').classList.toggle('hidden', !enabled);
+}
+
+/** Refreshes the pending-count badge on the Requests button. */
+async function refreshRequestsBadge() {
+  try {
+    const data  = await fetchLinkRequests('pending');
+    const count = data.pending_count || 0;
+    const badge = document.getElementById('requestsBadge');
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.classList.toggle('hidden', count === 0);
+    const mob = document.getElementById('mobileRequestsCount');
+    if (mob) mob.textContent = count ? `(${count})` : '';
+  } catch { /* non-critical */ }
+}
+
+function formatRequestDate(raw) {
+  if (!raw) return '';
+  // SQLite stores UTC "YYYY-MM-DD HH:MM:SS"; normalise to an ISO instant.
+  const d = new Date(raw.replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return escapeHtml(raw);
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+const REQUEST_FALLBACK_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+
+function renderRequestsList(requests) {
+  loadedRequests = requests;
+  const list  = document.getElementById('requestsList');
+  const empty = document.getElementById('requestsEmpty');
+  document.getElementById('requestsLoading').classList.add('hidden');
+  document.getElementById('requestsCount').textContent = requests.length ? String(requests.length) : '';
+
+  if (!requests.length) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  list.innerHTML = requests.map(r => {
+    const sectionLabel = r.section_name
+      ? (r.parent_section_name ? `${r.parent_section_name} › ${r.section_name}` : r.section_name)
+      : null;
+    const icon = r.image_path
+      ? `<img src="${escapeHtml(r.image_path)}" alt="" />`
+      : REQUEST_FALLBACK_ICON;
+    const statusBadge = r.status !== 'pending'
+      ? `<span class="request-row-status request-status-${escapeHtml(r.status)}">${escapeHtml(r.status)}</span>`
+      : '';
+    const actions = r.status === 'pending'
+      ? `<button class="btn btn-primary btn-sm" data-req-approve="${r.id}">Approve</button>
+         <button class="btn btn-ghost btn-sm" data-req-reject="${r.id}">Reject</button>
+         <button class="btn btn-ghost-danger btn-sm" data-req-delete="${r.id}">Delete</button>`
+      : `<button class="btn btn-ghost-danger btn-sm" data-req-delete="${r.id}">Delete</button>`;
+    return `
+      <div class="request-row">
+        <div class="request-row-icon">${icon}</div>
+        <div class="request-row-main">
+          <div class="request-row-name">${escapeHtml(r.name)}</div>
+          <a class="request-row-url" href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.url)}</a>
+          <div class="request-row-meta">
+            <span class="request-row-group">
+              <span class="request-row-group-dot" style="background:${escapeHtml(r.group_color || '#888')}"></span>
+              ${escapeHtml(r.group_name || 'Unknown group')}${sectionLabel ? ' · ' + escapeHtml(sectionLabel) : ''}
+            </span>
+            <span>${formatRequestDate(r.created_at)}</span>
+            ${statusBadge}
+          </div>
+          ${r.description ? `<div class="request-row-desc">${escapeHtml(r.description)}</div>` : ''}
+        </div>
+        <div class="request-row-actions">${actions}</div>
+      </div>`;
+  }).join('');
+}
+
+async function loadRequests() {
+  document.getElementById('requestsLoading').classList.remove('hidden');
+  document.getElementById('requestsEmpty').classList.add('hidden');
+  document.getElementById('requestsList').innerHTML = '';
+  try {
+    const data = await fetchLinkRequests(requestsStatus);
+    renderRequestsList(data.requests || []);
+    const badge = document.getElementById('requestsBadge');
+    const count = data.pending_count || 0;
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.classList.toggle('hidden', count === 0);
+  } catch {
+    document.getElementById('requestsLoading').classList.add('hidden');
+    showToast('Could not load requests', { type: 'error' });
+  }
+}
+
+function openRequestsModal() {
+  requestsStatus = document.getElementById('requestsStatusFilter').value || 'pending';
+  document.getElementById('requestsOverlay').classList.remove('hidden');
+  loadRequests();
+}
+function closeRequestsModal() {
+  document.getElementById('requestsOverlay').classList.add('hidden');
+}
+
+/** Opens the Add-Link modal prefilled from a pending request. */
+function openAddLinkModalFromRequest(req) {
+  openAddLinkModal();      // resets the form + clears pendingApprovalRequestId
+  document.getElementById('inputName').value = req.name || '';
+  document.getElementById('inputUrl').value  = req.url  || '';
+  document.getElementById('inputDesc').value = req.description || '';
+  setLinkModalMode('link');
+  populateGroupDropdown(req.group_id
+    ? [{ id: req.group_id, section_id: req.section_id ?? null }]
+    : []);
+  if (req.icon_id) {
+    pendingIconId    = req.icon_id;
+    shouldRemoveIcon = false;
+    showCustomIconPreview(req.image_path, { fromLibrary: true });
+  }
+  // Bind AFTER openAddLinkModal (which cleared it) so Save finalises approval.
+  pendingApprovalRequestId = req.id;
+}
+
+document.getElementById('openRequestsBtn').addEventListener('click', openRequestsModal);
+document.getElementById('closeRequestsBtn').addEventListener('click', closeRequestsModal);
+document.getElementById('requestsRefreshBtn').addEventListener('click', loadRequests);
+document.getElementById('requestsStatusFilter').addEventListener('change', e => {
+  requestsStatus = e.target.value;
+  loadRequests();
+});
+
+document.getElementById('requestsList').addEventListener('click', async e => {
+  const approveBtn = e.target.closest('[data-req-approve]');
+  const rejectBtn  = e.target.closest('[data-req-reject]');
+  const deleteBtn  = e.target.closest('[data-req-delete]');
+
+  if (approveBtn) {
+    const id  = Number(approveBtn.dataset.reqApprove);
+    const req = loadedRequests.find(r => r.id === id);
+    if (!req) return;
+    closeRequestsModal();
+    openAddLinkModalFromRequest(req);
+    return;
+  }
+  if (rejectBtn) {
+    const id = Number(rejectBtn.dataset.reqReject);
+    await rejectRequestApi(id);
+    showToast('Request rejected');
+    await loadRequests();
+    refreshRequestsBadge();
+    return;
+  }
+  if (deleteBtn) {
+    const id = Number(deleteBtn.dataset.reqDelete);
+    await deleteRequestApi(id);
+    showToast('Request deleted');
+    await loadRequests();
+    refreshRequestsBadge();
+  }
+});
+
 const OVERLAY_IDS = [
   'statsOverlay', 'settingsOverlay', 'linkModalOverlay',
   'groupModalOverlay', 'deleteLinkOverlay', 'deleteGroupOverlay', 'confirmOverlay',
   'iconLibraryOverlay', 'versionOverlay', 'fileEditorOverlay', 'iconPresetsOverlay',
-  'auditOverlay',
+  'auditOverlay', 'requestsOverlay',
 ];
 
 OVERLAY_IDS.forEach(id => {
@@ -4443,6 +4676,7 @@ function showEasterEgg() {
     });
   };
   forward('mobileThemeItem',    'themeToggle');
+  forward('mobileRequestsItem', 'openRequestsBtn');
   forward('mobileSettingsItem', 'openSettingsBtn');
   forward('mobileLogoutItem',   'logoutBtn');
 })();

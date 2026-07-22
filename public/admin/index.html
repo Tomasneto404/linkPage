@@ -149,6 +149,17 @@
           </svg>
         </button>
 
+        <!-- Link requests (inbox icon + pending-count badge) -->
+        <button class="theme-toggle requests-toggle hidden" id="openRequestsBtn"
+                aria-label="Link requests" title="Link requests">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 12h-6l-2 3h-4l-2-3H2"/>
+            <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+          </svg>
+          <span class="requests-badge hidden" id="requestsBadge">0</span>
+        </button>
+
         <!-- Settings (gear icon) -->
         <button class="theme-toggle" id="openSettingsBtn"
                 aria-label="Settings" title="Settings">
@@ -198,6 +209,14 @@
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
           </svg>
           <span>Toggle theme</span>
+        </button>
+        <button class="mobile-menu-item hidden" id="mobileRequestsItem" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 12h-6l-2 3h-4l-2-3H2"/>
+            <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+          </svg>
+          <span>Link requests <span id="mobileRequestsCount"></span></span>
         </button>
         <button class="mobile-menu-item" id="mobileSettingsItem" role="menuitem">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -774,6 +793,37 @@
           </div>
         </div>
 
+        <!-- ── Link Requests ─────────────────────── -->
+        <div>
+          <div class="settings-section-title">Link Requests</div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Allow Link Requests</div>
+              <div class="settings-row-desc">
+                Show a “Request link” button on the public page so visitors can suggest links for review.
+              </div>
+            </div>
+            <label class="switch" for="requestsEnabledToggle">
+              <input type="checkbox" id="requestsEnabledToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Request Password</div>
+              <div class="settings-row-desc" id="requestPasswordDesc">Anyone can submit a request</div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center">
+              <input type="password" id="requestPasswordInput" placeholder="Set password…"
+                     style="width:140px; padding:6px 10px; font-size:0.875rem" autocomplete="new-password" />
+              <button class="btn btn-ghost btn-sm" id="setRequestPasswordBtn">Set</button>
+              <button class="btn btn-ghost-danger btn-sm hidden" id="removeRequestPasswordBtn">Remove</button>
+            </div>
+          </div>
+        </div>
+
         <!-- ── Security ──────────────────────────── -->
         <div>
           <div class="settings-section-title">Security</div>
@@ -854,6 +904,7 @@
           <option value="section">Sections</option>
           <option value="icon">Icons</option>
           <option value="settings">Settings</option>
+          <option value="request">Requests</option>
           <option value="auth">Auth</option>
         </select>
         <span class="audit-toolbar-spacer"></span>
@@ -894,6 +945,57 @@
         </div>
         <div class="audit-list" id="auditList"></div>
         <button type="button" class="btn btn-ghost btn-sm audit-more hidden" id="auditMoreBtn">Load older entries</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════════════════════
+       LINK REQUESTS MODAL
+       ════════════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="requestsOverlay">
+    <div class="modal modal-lg requests-modal">
+      <div class="modal-header">
+        <h2>
+          Link Requests
+          <span class="audit-count" id="requestsCount"></span>
+        </h2>
+        <button class="modal-close" id="closeRequestsBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6"  y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="audit-toolbar">
+        <select id="requestsStatusFilter" class="bulk-group-select">
+          <option value="pending">Pending</option>
+          <option value="all">All</option>
+        </select>
+        <span class="audit-toolbar-spacer"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="requestsRefreshBtn" title="Refresh now">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+
+      <div class="audit-body" id="requestsBody">
+        <div class="audit-loading" id="requestsLoading">
+          <div class="audit-spinner" aria-hidden="true"></div>
+          <span>Loading…</span>
+        </div>
+        <div class="audit-empty hidden" id="requestsEmpty">
+          <div class="audit-empty-title">No requests</div>
+          <div class="audit-empty-sub">Visitor link requests will appear here for review.</div>
+        </div>
+        <div class="requests-list" id="requestsList"></div>
       </div>
     </div>
   </div>

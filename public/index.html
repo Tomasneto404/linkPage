@@ -177,7 +177,6 @@
       padding: 11px 16px;
       background: var(--surface);
       border: 1px solid var(--border-strong);
-      border-left-width: 3px;
       border-radius: var(--radius);
       box-shadow: var(--shadow-md);
       font-size: 0.875rem;
@@ -188,13 +187,14 @@
       animation: toastIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
     .toast.removing       { animation: toastOut 0.18s ease both; }
-    .toast-success        { border-left-color: #34c759; }
-    .toast-error          { border-left-color: var(--danger, #e11d48); }
-    .toast-info           { border-left-color: var(--primary); }
-    .toast-icon           { flex-shrink: 0; display: flex; }
-    .toast-success .toast-icon { color: #34c759; }
-    .toast-error   .toast-icon { color: var(--danger, #e11d48); }
-    .toast-info    .toast-icon { color: var(--primary); }
+    .toast-icon           {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%;
+    }
+    .toast-success .toast-icon { color: #34c759; background: rgba(52,199,89,0.15); }
+    .toast-error   .toast-icon { color: var(--danger, #e11d48); background: rgba(225,29,72,0.14); }
+    .toast-info    .toast-icon { color: var(--primary); background: rgba(0,113,227,0.14); }
     .toast-url {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 0.78rem;
@@ -255,7 +255,62 @@
       /* Compact the right-edge buttons; show only the icon on the admin link */
       .admin-btn        { padding: 6px 9px; gap: 4px; }
       .admin-btn-label  { display: none; }
+      .request-btn      { padding: 6px 9px; gap: 4px; }
     }
+
+    /* ── "Request link" button (accent) ────────────────────────────────────── */
+    .request-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 980px;
+      border: 1px solid transparent;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all var(--transition);
+      flex-shrink: 0;
+    }
+    .request-btn:hover { background: var(--primary-hover); }
+
+    /* ── Request modal: scrollable body + icon picker ──────────────────────── */
+    #requestOverlay .modal { display: flex; flex-direction: column; max-height: min(90vh, 760px); }
+    #requestForm { overflow-y: auto; }
+
+    .req-icon-row { display: flex; gap: 10px; align-items: flex-start; }
+    .req-icon-preview {
+      width: 46px; height: 46px; flex-shrink: 0; border-radius: 12px;
+      border: 1px solid var(--border); background: var(--surface-2);
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+      color: var(--text-muted);
+    }
+    .req-icon-preview img, .req-icon-preview svg { width: 26px; height: 26px; object-fit: contain; }
+    .req-icon-controls { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+    .req-icon-actions { display: flex; gap: 12px; align-items: center; }
+    .req-upload-label { font-size: 0.78rem; color: var(--primary); cursor: pointer; font-weight: 600; }
+    .req-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+    .req-swatch {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid transparent; cursor: pointer; padding: 0;
+    }
+    .req-swatch.is-active { border-color: var(--text); }
+    .req-presets-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+      gap: 4px; max-height: 148px; overflow-y: auto;
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 6px; background: var(--surface-2);
+    }
+    .req-preset-tile {
+      display: flex; align-items: center; justify-content: center;
+      aspect-ratio: 1; border-radius: 8px; border: 1px solid transparent;
+      background: transparent; cursor: pointer; color: var(--text-muted);
+    }
+    .req-preset-tile:hover { background: var(--surface-3); }
+    .req-preset-tile.is-selected { border-color: var(--primary); background: rgba(0,113,227,0.10); color: var(--text); }
 </style>
 </head>
 <body>
@@ -305,6 +360,11 @@
     <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
       <svg id="iconMoon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       <svg id="iconSun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="hidden"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
+
+    <button type="button" class="request-btn hidden" id="requestLinkBtn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="admin-btn-label">Request link</span>
     </button>
 
     <a href="/admin" class="admin-btn">
@@ -364,9 +424,91 @@
   </div>
 </div>
 
+<!-- ════════════════════════════════════════════════
+     REQUEST LINK MODAL
+     Lets visitors propose a link for the admin to review.
+     Shown only when the feature is enabled in the admin settings.
+     ════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="requestOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>Request a link</h2>
+      <button type="button" class="modal-close" id="closeRequestBtn" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6"  y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <form id="requestForm" style="padding: 4px 22px 22px">
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin: 6px 0 12px">
+        Suggest a link for the admin to review. They’ll publish it if approved.
+      </p>
+
+      <div class="form-group">
+        <label for="reqName">Name <span class="req">*</span></label>
+        <input type="text" id="reqName" placeholder="My favourite site" required />
+      </div>
+
+      <div class="form-group">
+        <label for="reqUrl">URL <span class="req">*</span></label>
+        <input type="url" id="reqUrl" placeholder="https://example.com" required />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <label for="reqGroup">Group <span class="req">*</span></label>
+          <select id="reqGroup" required></select>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label for="reqSection">Section <span class="label-opt">optional</span></label>
+          <select id="reqSection"><option value="">None</option></select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="reqDesc">Description <span class="label-opt">optional</span></label>
+        <textarea id="reqDesc" rows="2" placeholder="What is this link?"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Icon <span class="label-opt">optional</span></label>
+        <div class="req-icon-row">
+          <div class="req-icon-preview" id="reqIconPreview"></div>
+          <div class="req-icon-controls">
+            <div class="req-icon-actions">
+              <label class="req-upload-label">
+                Upload image
+                <input type="file" id="reqImageUpload" accept="image/*" hidden />
+              </label>
+              <button type="button" class="req-upload-label" id="reqClearIcon"
+                      style="color: var(--text-muted)" hidden>Clear</button>
+            </div>
+            <div class="req-swatches" id="reqSwatches"></div>
+            <div class="req-presets-grid" id="reqPresetsGrid"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group hidden" id="reqPasswordGroup">
+        <label for="reqPassword">Password <span class="req">*</span></label>
+        <input type="password" id="reqPassword" placeholder="Enter the request password…" autocomplete="off" />
+      </div>
+
+      <div class="form-error hidden" id="reqError"></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" id="cancelRequestBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="reqSubmitBtn">Submit request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Toast notifications (e.g. "Link copied") -->
 <div class="toast-container" id="toastContainer"></div>
 
+<script src="/admin/icon-presets.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

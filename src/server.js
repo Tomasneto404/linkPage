@@ -468,6 +468,11 @@ function createFailureRateLimiter(maxFailures, windowMs) {
 const adminAuthLimiter    = createFailureRateLimiter(20, 5 * 60 * 1000);
 const publicAuthLimiter   = createFailureRateLimiter(20, 5 * 60 * 1000);
 const groupUnlockLimiter  = createFailureRateLimiter(15, 5 * 60 * 1000);
+const requestAuthLimiter  = createFailureRateLimiter(15, 5 * 60 * 1000);
+
+// Throttles public link-request submissions so the open endpoint can't be
+// spammed into filling the DB. 10 submissions per 10 minutes per IP.
+const requestSubmitLimiter = createRateLimiter(10, 10 * 60 * 1000);
 
 // ─── Auth middleware ──────────────────────────────────────────────────────────
 
@@ -728,6 +733,14 @@ function deriveAuditEntry(req) {
   if (p === '/api/settings/pinned-group')                return { action: 'settings.pinned_group', entityType: 'settings', entityId: null, summary: 'Changed the default group' };
   if (p === '/api/settings/save-favicons')               return { action: 'settings.save_favicons', entityType: 'settings', entityId: null, summary: 'Toggled saving fetched favicons' };
   if (p === '/api/settings/public-password')             return { action: 'settings.public_password', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the public password' : 'Set the public password' };
+  if (p === '/api/settings/requests-enabled')            return { action: 'settings.requests_enabled', entityType: 'settings', entityId: null, summary: 'Toggled the link-request feature' };
+  if (p === '/api/settings/request-password')            return { action: 'settings.request_password', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the request password' : 'Set the request password' };
+
+  // Link requests (public submit + admin review)
+  if (p === '/api/link-requests' && M === 'POST')             return { action: 'request.create',  entityType: 'request', entityId: null, summary: name ? `New link request "${truncate(name)}"` : 'New link request' };
+  if (/^\/api\/link-requests\/\d+\/approve$/.test(p))         return { action: 'request.approve', entityType: 'request', entityId: id, summary: `Approved link request #${id}` };
+  if (/^\/api\/link-requests\/\d+\/reject$/.test(p))          return { action: 'request.reject',  entityType: 'request', entityId: id, summary: `Rejected link request #${id}` };
+  if (/^\/api\/link-requests\/\d+$/.test(p) && M === 'DELETE') return { action: 'request.delete',  entityType: 'request', entityId: id, summary: `Deleted link request #${id}` };
 
   // Auth
   if (p === '/api/auth/rotate-token')                    return { action: 'auth.rotate_token', entityType: 'auth', entityId: null, summary: 'Rotated the admin token' };
@@ -845,6 +858,8 @@ app.get('/api/settings', (req, res) => {
     public_password_required: !!publicPassword,
     pinned_group_id:          pinnedId,
     save_favicons_to_library: db.readSetting('save_favicons_to_library') === '1',
+    requests_enabled:          db.readSetting('requests_enabled') === '1',
+    request_password_required: !!db.readSetting('request_password'),
   });
 });
 
@@ -1246,6 +1261,32 @@ app.post('/api/settings/public-password', requireAdminToken, (req, res) => {
 
 app.delete('/api/settings/public-password', requireAdminToken, (req, res) => {
   db.deleteSetting('public_password');
+  res.status(204).end();
+});
+
+// ─── Link-request feature settings ────────────────────────────────────────────
+
+// Enable/disable the public "Request link" feature.
+app.post('/api/settings/requests-enabled', requireAdminToken, (req, res) => {
+  const enabled = !!req.body.enabled;
+  if (enabled) db.writeSetting('requests_enabled', '1');
+  else         db.deleteSetting('requests_enabled');
+  res.json({ requests_enabled: enabled });
+});
+
+// Sets an optional password required to submit a link request. Stored scrypt-
+// hashed (like group passwords), never in cleartext.
+app.post('/api/settings/request-password', requireAdminToken, (req, res) => {
+  const password = typeof req.body.password === 'string' ? req.body.password : '';
+  if (!password) {
+    return res.status(400).json({ error: 'Password cannot be empty' });
+  }
+  db.writeSetting('request_password', db.hashGroupPassword(password));
+  res.json({ set: true });
+});
+
+app.delete('/api/settings/request-password', requireAdminToken, (req, res) => {
+  db.deleteSetting('request_password');
   res.status(204).end();
 });
 
@@ -2029,6 +2070,116 @@ app.get('/api/groups', requirePublicAuth, (req, res) => {
       unlocked_until: expMs ?? null,
     };
   }));
+});
+
+// ─── Link requests ────────────────────────────────────────────────────────────
+//
+// Visitors propose links; the admin reviews them in the Requests panel. The
+// submit endpoint is public (no admin token) but gated by the requests_enabled
+// flag and, optionally, a request password. Review actions are admin-only.
+
+/** True when the public "Request link" feature is switched on. */
+function requestsEnabled() {
+  return db.readSetting('requests_enabled') === '1';
+}
+
+app.post('/api/link-requests', requestSubmitLimiter, upload.single('image'), (req, res) => {
+  if (!requestsEnabled()) {
+    return res.status(403).json({ error: 'Link requests are not enabled' });
+  }
+
+  // Optional password gate (scrypt hash stored in settings).
+  const requestPasswordHash = db.readSetting('request_password');
+  if (requestPasswordHash) {
+    if (requestAuthLimiter.isLimited(req)) {
+      return res.status(429).json({ error: 'Too many attempts. Please wait and try again.' });
+    }
+    const provided = req.headers['x-request-password'] || '';
+    if (!db.verifyScryptHash(requestPasswordHash, provided)) {
+      requestAuthLimiter.recordFailure(req);
+      return res.status(401).json({ error: 'Password required' });
+    }
+  }
+
+  const { name, url, description, group_id, section_id } = req.body;
+  const trimmedUrl = typeof url === 'string' ? url.trim() : '';
+
+  if (!name?.trim()) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  if (!trimmedUrl || !isValidHttpUrl(trimmedUrl)) {
+    return res.status(400).json({ error: 'A valid http:// or https:// URL is required' });
+  }
+
+  // Group is required and must exist.
+  const groupId = Number(group_id);
+  if (!Number.isFinite(groupId) || groupId <= 0 || !db.getGroupById(groupId)) {
+    return res.status(400).json({ error: 'Please choose a valid group' });
+  }
+
+  // Subsection is optional; if given it must belong to the chosen group.
+  let sectionId = null;
+  if (section_id != null && section_id !== '') {
+    const sid     = Number(section_id);
+    const section = Number.isFinite(sid) ? db.getSectionById(sid) : null;
+    if (!section || section.group_id !== groupId) {
+      return res.status(400).json({ error: 'Selected section does not belong to the chosen group' });
+    }
+    sectionId = sid;
+  }
+
+  const imagePath = resolveIconReference({ imageFile: req.file || null });
+
+  const result = db.createLinkRequest({
+    name:        name.trim(),
+    url:         trimmedUrl,
+    description: description?.trim() || null,
+    imagePath,
+    groupId,
+    sectionId,
+  });
+
+  res.status(201).json({ id: result.lastInsertRowid, ok: true });
+});
+
+// ─── Link requests (admin review) ─────────────────────────────────────────────
+
+app.get('/api/link-requests', requireAdminToken, (req, res) => {
+  const status   = req.query.status === 'all' ? undefined : (req.query.status || 'pending');
+  const requests = db.getLinkRequests({ status });
+  // Attach the icon library id so the admin's prefill flow can preselect it.
+  const decorated = requests.map(r => ({
+    ...r,
+    icon_id: r.image_path ? (db.getIconByPath(r.image_path)?.id ?? null) : null,
+  }));
+  res.json({ pending_count: db.countPendingRequests(), requests: decorated });
+});
+
+app.post('/api/link-requests/:id/approve', requireAdminToken, (req, res) => {
+  const request = db.getLinkRequestById(req.params.id);
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  const linkId = Number(req.body.link_id);
+  db.setLinkRequestStatus(request.id, 'approved', {
+    linkId: Number.isFinite(linkId) ? linkId : undefined,
+  });
+  req._auditSummary = `Approved link request "${truncate(request.name)}"`;
+  res.json({ ok: true });
+});
+
+app.post('/api/link-requests/:id/reject', requireAdminToken, (req, res) => {
+  const request = db.getLinkRequestById(req.params.id);
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  db.setLinkRequestStatus(request.id, 'rejected');
+  req._auditSummary = `Rejected link request "${truncate(request.name)}"`;
+  res.json({ ok: true });
+});
+
+app.delete('/api/link-requests/:id', requireAdminToken, (req, res) => {
+  const request = db.getLinkRequestById(req.params.id);
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  db.deleteLinkRequest(request.id);
+  req._auditSummary = `Deleted link request "${truncate(request.name)}"`;
+  res.status(204).end();
 });
 
 // ─── Links (admin write) ──────────────────────────────────────────────────────

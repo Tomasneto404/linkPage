@@ -28,7 +28,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -195,6 +195,31 @@ const MIGRATIONS = [
           VALUES (?, 'Site favicon', CURRENT_TIMESTAMP)
         `).run(row.value);
       }
+    },
+  },
+  {
+    version: 8,
+    name:    'Public link requests',
+    apply: () => {
+      // Visitor-submitted link requests, reviewed by the admin. A request is a
+      // proposal for a link; on approval the admin publishes it as a real link
+      // (created_link_id points at the resulting links row).
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS link_requests (
+          id              INTEGER  PRIMARY KEY AUTOINCREMENT,
+          name            TEXT     NOT NULL,
+          url             TEXT     NOT NULL,
+          description     TEXT,
+          image_path      TEXT,                        -- icon /uploads/... path (preset SVG or upload)
+          group_id        INTEGER,                     -- requested group
+          section_id      INTEGER,                     -- requested section/subsection (nullable)
+          status          TEXT     NOT NULL DEFAULT 'pending',  -- pending | approved | rejected
+          created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+          reviewed_at     DATETIME,
+          created_link_id INTEGER                      -- set when approved
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_link_requests_status ON link_requests(status)');
     },
   },
 ];
@@ -555,14 +580,16 @@ function hashGroupPassword(password) {
   return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
 }
 
-/** Returns true if the password matches the stored hash for the given group. */
-function verifyGroupPassword(groupId, password) {
+/**
+ * Constant-time verify of a plaintext password against a stored
+ * `scrypt$<saltHex>$<hashHex>` string (produced by hashGroupPassword). Works for
+ * any such hash regardless of where it's stored (groups.password_hash, settings).
+ */
+function verifyScryptHash(storedHash, password) {
   if (typeof password !== 'string' || password.length === 0) return false;
+  if (typeof storedHash !== 'string' || !storedHash) return false;
 
-  const row = db.prepare('SELECT password_hash FROM groups WHERE id = ?').get(groupId);
-  if (!row || !row.password_hash) return false;
-
-  const [scheme, saltHex, hashHex] = row.password_hash.split('$');
+  const [scheme, saltHex, hashHex] = storedHash.split('$');
   if (scheme !== 'scrypt' || !saltHex || !hashHex) return false;
 
   const salt     = Buffer.from(saltHex, 'hex');
@@ -570,6 +597,12 @@ function verifyGroupPassword(groupId, password) {
   const actual   = crypto.scryptSync(password, salt, expected.length);
   if (actual.length !== expected.length) return false;
   return crypto.timingSafeEqual(actual, expected);
+}
+
+/** Returns true if the password matches the stored hash for the given group. */
+function verifyGroupPassword(groupId, password) {
+  const row = db.prepare('SELECT password_hash FROM groups WHERE id = ?').get(groupId);
+  return verifyScryptHash(row?.password_hash, password);
 }
 
 /**
@@ -986,12 +1019,82 @@ function pruneAuditLog(days) {
   ).run(`-${d} days`).changes;
 }
 
+// ─── Link requests (public submissions) ──────────────────────────────────────
+
+/** Inserts a new pending link request. Returns the run result. */
+function createLinkRequest({ name, url, description, imagePath, groupId, sectionId }) {
+  return db.prepare(`
+    INSERT INTO link_requests (name, url, description, image_path, group_id, section_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    name,
+    url,
+    description ?? null,
+    imagePath ?? null,
+    Number.isFinite(groupId) ? groupId : null,
+    Number.isFinite(sectionId) ? sectionId : null,
+  );
+}
+
+/**
+ * Returns link requests newest-first, decorated with the target group's name +
+ * color and the (sub)section name + its parent name. `opts.status` filters by
+ * status ('pending' | 'approved' | 'rejected'); omit for all.
+ */
+function getLinkRequests({ status } = {}) {
+  const where = [];
+  const params = [];
+  if (status) { where.push('r.status = ?'); params.push(status); }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  return db.prepare(`
+    SELECT r.*,
+           g.name  AS group_name,
+           g.color AS group_color,
+           s.name  AS section_name,
+           s.parent_section_id AS parent_section_id,
+           p.name  AS parent_section_name
+    FROM link_requests r
+    LEFT JOIN groups   g ON g.id = r.group_id
+    LEFT JOIN sections s ON s.id = r.section_id
+    LEFT JOIN sections p ON p.id = s.parent_section_id
+    ${clause}
+    ORDER BY r.id DESC
+  `).all(...params);
+}
+
+function getLinkRequestById(id) {
+  return db.prepare('SELECT * FROM link_requests WHERE id = ?').get(id);
+}
+
+/**
+ * Updates a request's status and stamps reviewed_at. When approving, pass
+ * { linkId } to record the published link's id.
+ */
+function setLinkRequestStatus(id, status, { linkId } = {}) {
+  return db.prepare(`
+    UPDATE link_requests
+    SET status = ?, reviewed_at = CURRENT_TIMESTAMP, created_link_id = ?
+    WHERE id = ?
+  `).run(status, Number.isFinite(linkId) ? linkId : null, id);
+}
+
+function deleteLinkRequest(id) {
+  return db.prepare('DELETE FROM link_requests WHERE id = ?').run(id);
+}
+
+/** Count of pending requests — powers the admin badge. */
+function countPendingRequests() {
+  return db.prepare("SELECT COUNT(*) AS n FROM link_requests WHERE status = 'pending'").get().n;
+}
+
 module.exports = {
   readSetting, writeSetting, deleteSetting,
   getAllLinks, getLinkById, checkDuplicateUrl, createLink, updateLink, deleteLink,
   updateLinkFavicon, updateLinkBrokenStatus, updateLinkVisibility, getAllLinksForHealthCheck, reorderLinks,
   getAllGroups, getGroupById, createGroup, updateGroup, deleteGroup, reorderGroups,
-  verifyGroupPassword,
+  verifyGroupPassword, hashGroupPassword, verifyScryptHash,
+  createLinkRequest, getLinkRequests, getLinkRequestById, setLinkRequestStatus,
+  deleteLinkRequest, countPendingRequests,
   getSectionsForGroup, getSectionById, createSection, updateSection, deleteSection, reorderSections,
   recordClick, getAllStats, getRecentClicks, getTopIps,
   getAllIcons, getIconById, getIconByPath, createIcon, touchIcon, deleteIcon,

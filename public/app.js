@@ -327,6 +327,212 @@ document.getElementById('unlockForm').addEventListener('submit', async e => {
   }
 });
 
+// ─── Request-link feature ───────────────────────────────────────────────────────
+//
+// Visitors can propose a link for the admin to review. The feature (and an
+// optional password gate) is toggled by the admin; the button only appears when
+// enabled. The icon picker mirrors the admin's stock-icon presets + upload.
+
+let requestFeatureEnabled = false;
+let requestPasswordRequired = false;
+
+const REQ_PRESET_COLORS = [
+  '#0071e3', '#34c759', '#ff3b30', '#ff9500', '#ffcc00',
+  '#af52de', '#5ac8fa', '#1d1d1f', '#86868b',
+];
+
+let reqIconFile      = null;   // File to upload as the icon (preset SVG or upload)
+let reqPresetName    = null;   // selected preset glyph name
+let reqPresetColor   = REQ_PRESET_COLORS[0];
+
+function applyRequestFeature(settings) {
+  requestFeatureEnabled   = !!settings.requests_enabled;
+  requestPasswordRequired = !!settings.request_password_required;
+  const btn = document.getElementById('requestLinkBtn');
+  if (btn) btn.classList.toggle('hidden', !requestFeatureEnabled);
+}
+
+function presetSvgString(body, color, size = 64) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
+/** Populates the group <select>, then triggers a section repopulate. */
+function populateRequestGroups() {
+  const sel = document.getElementById('reqGroup');
+  const opts = groups.map(g =>
+    `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
+  sel.innerHTML = `<option value="" disabled selected>Choose a group…</option>${opts}`;
+  populateRequestSections();
+}
+
+/** Rebuilds the section <select> from the currently-chosen group. */
+function populateRequestSections() {
+  const groupId = Number(document.getElementById('reqGroup').value);
+  const sel     = document.getElementById('reqSection');
+  const group   = groups.find(g => g.id === groupId);
+  let html = '<option value="">None</option>';
+  if (group && Array.isArray(group.sections)) {
+    for (const s of group.sections) {
+      html += `<option value="${s.id}">${escapeHtml(s.name)}</option>`;
+      for (const sub of (s.subsections || [])) {
+        html += `<option value="${sub.id}">&nbsp;&nbsp;↳ ${escapeHtml(sub.name)}</option>`;
+      }
+    }
+  }
+  sel.innerHTML = html;
+}
+
+function renderRequestSwatches() {
+  const wrap = document.getElementById('reqSwatches');
+  wrap.innerHTML = REQ_PRESET_COLORS.map(c =>
+    `<button type="button" class="req-swatch ${c === reqPresetColor ? 'is-active' : ''}"
+             data-color="${c}" style="background:${c}" aria-label="Use ${c}"></button>`).join('');
+}
+
+function renderRequestPresets() {
+  const grid = document.getElementById('reqPresetsGrid');
+  const all  = window.ICON_PRESETS || [];
+  grid.innerHTML = all.map(i =>
+    `<button type="button" class="req-preset-tile ${i.name === reqPresetName ? 'is-selected' : ''}"
+             data-name="${escapeHtml(i.name)}" title="${escapeHtml(i.name)}">
+       ${presetSvgString(i.body, reqPresetColor, 22)}
+     </button>`).join('');
+}
+
+function setRequestIconPreview(html) {
+  document.getElementById('reqIconPreview').innerHTML = html;
+  document.getElementById('reqClearIcon').hidden = !html;
+}
+
+/** Turns the chosen preset (name + colour) into an SVG File for upload. */
+function buildRequestPresetFile() {
+  const icon = (window.ICON_PRESETS || []).find(i => i.name === reqPresetName);
+  if (!icon) return;
+  const svg  = presetSvgString(icon.body, reqPresetColor, 128);
+  const file = new File([new Blob([svg], { type: 'image/svg+xml' })],
+                        `icon-${reqPresetName}.svg`, { type: 'image/svg+xml' });
+  reqIconFile = file;
+  setRequestIconPreview(presetSvgString(icon.body, reqPresetColor, 24));
+}
+
+function resetRequestIcon() {
+  reqIconFile   = null;
+  reqPresetName = null;
+  setRequestIconPreview('');
+  renderRequestPresets();
+  document.getElementById('reqImageUpload').value = '';
+}
+
+function openRequestModal() {
+  document.getElementById('requestForm').reset();
+  resetRequestIcon();
+  reqPresetColor = REQ_PRESET_COLORS[0];
+  populateRequestGroups();
+  renderRequestSwatches();
+  renderRequestPresets();
+  document.getElementById('reqPasswordGroup').classList.toggle('hidden', !requestPasswordRequired);
+  document.getElementById('reqError').classList.add('hidden');
+  document.getElementById('requestOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('reqName').focus(), 60);
+}
+
+function closeRequestModal() {
+  document.getElementById('requestOverlay').classList.add('hidden');
+}
+
+function showRequestError(msg) {
+  const err = document.getElementById('reqError');
+  err.textContent = msg;
+  err.classList.remove('hidden');
+}
+
+document.getElementById('requestLinkBtn')?.addEventListener('click', openRequestModal);
+document.getElementById('closeRequestBtn')?.addEventListener('click', closeRequestModal);
+document.getElementById('cancelRequestBtn')?.addEventListener('click', closeRequestModal);
+document.getElementById('requestOverlay')?.addEventListener('click', e => {
+  if (e.target.id === 'requestOverlay') closeRequestModal();
+});
+document.getElementById('reqGroup')?.addEventListener('change', populateRequestSections);
+document.getElementById('reqClearIcon')?.addEventListener('click', resetRequestIcon);
+
+document.getElementById('reqSwatches')?.addEventListener('click', e => {
+  const btn = e.target.closest('.req-swatch');
+  if (!btn) return;
+  reqPresetColor = btn.dataset.color;
+  renderRequestSwatches();
+  renderRequestPresets();
+  if (reqPresetName) buildRequestPresetFile();   // recolour the current pick
+});
+
+document.getElementById('reqPresetsGrid')?.addEventListener('click', e => {
+  const btn = e.target.closest('.req-preset-tile');
+  if (!btn) return;
+  reqPresetName = btn.dataset.name;
+  document.getElementById('reqImageUpload').value = '';
+  buildRequestPresetFile();
+  renderRequestPresets();
+});
+
+document.getElementById('reqImageUpload')?.addEventListener('change', e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  reqIconFile   = file;
+  reqPresetName = null;                 // an upload overrides a preset pick
+  renderRequestPresets();
+  const url = URL.createObjectURL(file);
+  setRequestIconPreview(`<img src="${url}" alt="icon preview" />`);
+});
+
+document.getElementById('requestForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('reqSubmitBtn');
+  const err = document.getElementById('reqError');
+  err.classList.add('hidden');
+
+  const name      = document.getElementById('reqName').value.trim();
+  const url       = document.getElementById('reqUrl').value.trim();
+  const groupId   = document.getElementById('reqGroup').value;
+  const sectionId = document.getElementById('reqSection').value;
+  const desc      = document.getElementById('reqDesc').value.trim();
+
+  if (!name || !url) { showRequestError('Please provide a name and URL.'); return; }
+  if (!groupId)      { showRequestError('Please choose a group.'); return; }
+  if (requestPasswordRequired && !document.getElementById('reqPassword').value) {
+    showRequestError('Please enter the request password.'); return;
+  }
+
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('url', url);
+  fd.append('description', desc);
+  fd.append('group_id', groupId);
+  if (sectionId)  fd.append('section_id', sectionId);
+  if (reqIconFile) fd.append('image', reqIconFile);
+
+  const headers = {};
+  if (requestPasswordRequired) {
+    headers['X-Request-Password'] = document.getElementById('reqPassword').value;
+  }
+
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    const r = await fetch('/api/link-requests', { method: 'POST', headers, body: fd });
+    if (r.status === 429) { showRequestError('Too many requests. Please wait a moment.'); return; }
+    if (r.status === 401) { showRequestError('Incorrect password.'); return; }
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      showRequestError(d.error || 'Could not submit your request.');
+      return;
+    }
+    closeRequestModal();
+    showToast('Request submitted', { type: 'success' });
+  } catch {
+    showRequestError('Could not reach the server.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Submit request';
+  }
+});
+
 // ─── Link cards ───────────────────────────────────────────────────────────────
 
 /**
@@ -936,6 +1142,7 @@ async function init() {
   pinnedGroupId  = settings.pinned_group_id ?? null;
   applyFavicon(settings.favicon || null);
   updateHeaderLogo();
+  applyRequestFeature(settings);
 
   if (settings.public_password_required) {
     const stored = localStorage.getItem('linkpage_public_password');
