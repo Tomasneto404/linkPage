@@ -31,9 +31,64 @@ let faviconUrl   = null;
 
 // ─── 1. THEME ─────────────────────────────────────────────────────────────────
 
+// Admin-configured appearance (accent + palette variants + default theme).
+let themeSettings = { accent: null, accentDarkAdjust: false, glow: false, light: 'default', dark: 'default', default: 'system' };
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function shadeColor(hex, pct) {
+  const [r, g, b] = hexToRgb(hex);
+  const t = pct < 0 ? 0 : 255;
+  const p = Math.abs(pct) / 100;
+  const mix = c => Math.round((t - c) * p + c);
+  return '#' + [mix(r), mix(g), mix(b)].map(c => c.toString(16).padStart(2, '0')).join('');
+}
+
+function applyAccent(theme) {
+  const root = document.documentElement.style;
+  if (!themeSettings.accent) {
+    root.removeProperty('--primary');
+    root.removeProperty('--primary-rgb');
+    root.removeProperty('--primary-hover');
+    return;
+  }
+  const dark = theme === 'dark';
+  const base = (dark && themeSettings.accentDarkAdjust) ? shadeColor(themeSettings.accent, 18) : themeSettings.accent;
+  root.setProperty('--primary', base);
+  root.setProperty('--primary-rgb', hexToRgb(base).join(','));
+  root.setProperty('--primary-hover', shadeColor(base, dark ? 12 : -8));
+}
+
+function applyThemeVariants() {
+  const el = document.documentElement;
+  el.setAttribute('data-light-variant', themeSettings.light || 'default');
+  el.setAttribute('data-dark-variant',  themeSettings.dark  || 'default');
+  el.setAttribute('data-accent-glow',   themeSettings.glow ? 'on' : 'off');
+}
+
+function applyThemeSettings(settings) {
+  themeSettings = {
+    accent:           settings.accent_color || null,
+    accentDarkAdjust: !!settings.accent_dark_adjust,
+    glow:             !!settings.accent_glow,
+    light:            settings.theme_light_variant || 'default',
+    dark:             settings.theme_dark_variant  || 'default',
+    default:          settings.default_theme || 'system',
+  };
+  applyThemeVariants();
+  if (!localStorage.getItem('linkpage_theme')) {
+    applyTheme(getInitialTheme(), false);
+  } else {
+    applyAccent(document.documentElement.getAttribute('data-theme') || 'light');
+  }
+}
+
 function getInitialTheme() {
   const saved = localStorage.getItem('linkpage_theme');
   if (saved) return saved;
+  if (themeSettings.default === 'light' || themeSettings.default === 'dark') return themeSettings.default;
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
@@ -41,6 +96,7 @@ function applyTheme(theme, save = true) {
   document.documentElement.setAttribute('data-theme', theme);
   document.getElementById('iconMoon').classList.toggle('hidden', theme === 'dark');
   document.getElementById('iconSun').classList.toggle('hidden', theme === 'light');
+  applyAccent(theme);
   updateHeaderLogo();
   if (save) localStorage.setItem('linkpage_theme', theme);
 }
@@ -194,6 +250,7 @@ async function rotateAdminToken()      { return apiJson('/api/auth/rotate-token'
 async function setRequestsEnabled(enabled) { return jsonPost('/api/settings/requests-enabled', { enabled }); }
 async function setRequestPassword(pw)      { return jsonPost('/api/settings/request-password', { password: pw }); }
 async function removeRequestPassword()     { return sendAuthRequest('/api/settings/request-password', { method: 'DELETE' }); }
+async function saveTheme(patch)            { return jsonPost('/api/settings/theme', patch); }
 
 async function fetchLinkRequests(status = 'pending') { return apiJson(`/api/link-requests?status=${status}`); }
 async function approveRequestApi(id, linkId) { return jsonPost(`/api/link-requests/${id}/approve`, { link_id: linkId }); }
@@ -217,6 +274,7 @@ async function loadSettings() {
   updatePublicPasswordStatus(s.public_password_required);
   updateRequestsFeatureUI(!!s.requests_enabled);
   refreshRequestsBadge();
+  applyThemeSettings(s);
 }
 
 function applyFavicon(url) {
@@ -284,6 +342,8 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   updatePublicPasswordStatus(s.public_password_required);
   document.getElementById('requestsEnabledToggle').checked = !!s.requests_enabled;
   updateRequestPasswordStatus(s.request_password_required);
+  hydrateThemeControls(s);
+  resetSettingsTabs();
   document.getElementById('newTokenDisplay').classList.add('hidden');
   document.getElementById('settingsOverlay').classList.remove('hidden');
 });
@@ -405,6 +465,123 @@ document.getElementById('setRequestPasswordBtn').addEventListener('click', async
 });
 document.getElementById('removeRequestPasswordBtn').addEventListener('click', async () => {
   await removeRequestPassword(); updateRequestPasswordStatus(false); showToast('Request password removed');
+});
+
+// ─── Themes / Design ──────────────────────────────────────────────────────────
+
+const ACCENT_COLORS = [
+  '#0071e3','#5856d6','#af52de','#ff2d55','#ff3b30',
+  '#ff9500','#34c759','#00c7be','#007aff','#1d1d1f',
+];
+
+// Builds the accent swatch row (presets + native custom picker), mirroring the
+// group-colour picker. `selected` is the current accent hex, or null for default.
+function buildAccentPalette(selected) {
+  const palette  = document.getElementById('accentPalette');
+  if (!palette) return;
+  const isCustom = !!selected && !ACCENT_COLORS.includes(selected);
+
+  const presets = ACCENT_COLORS.map(c => `
+    <div class="color-swatch${c === selected ? ' selected' : ''}"
+         data-color="${c}" style="background:${c}" title="${c}"></div>`).join('');
+  palette.innerHTML = `${presets}
+    <label class="color-swatch color-swatch-custom${isCustom ? ' selected' : ''}"
+           title="Custom colour"
+           style="background:${escapeHtml(isCustom ? selected : '#888888')}">
+      <span class="color-swatch-plus">+</span>
+      <input type="color" id="accentColorPicker" value="${escapeHtml(isCustom ? selected : ACCENT_COLORS[0])}" />
+    </label>`;
+
+  function pick(el, color) {
+    palette.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('selected'));
+    el.classList.add('selected');
+    commitAccent(color);
+  }
+  palette.querySelectorAll('.color-swatch[data-color]').forEach(s =>
+    s.addEventListener('click', () => pick(s, s.dataset.color)));
+  const customSwatch = palette.querySelector('.color-swatch-custom');
+  palette.querySelector('#accentColorPicker').addEventListener('input', e => {
+    customSwatch.style.background = e.target.value;
+    pick(customSwatch, e.target.value);
+  });
+}
+
+// Applies + persists a chosen accent, live across the admin UI.
+function commitAccent(hex) {
+  document.getElementById('accentColorInput').value = hex;
+  themeSettings.accent = hex;
+  applyAccent(document.documentElement.getAttribute('data-theme') || 'light');
+  saveTheme({ accent_color: hex }).catch(() => showToast('Could not save accent', 'error'));
+}
+
+// Populates all Themes/Design controls from a settings object.
+function hydrateThemeControls(s) {
+  buildAccentPalette(s.accent_color || null);
+  document.getElementById('accentColorInput').value = s.accent_color || '';
+  document.getElementById('accentDarkAdjustToggle').checked = !!s.accent_dark_adjust;
+  document.getElementById('accentGlowToggle').checked = !!s.accent_glow;
+  document.getElementById('lightVariantSelect').value = s.theme_light_variant || 'default';
+  document.getElementById('darkVariantSelect').value  = s.theme_dark_variant  || 'default';
+  document.getElementById('defaultThemeSelect').value = s.default_theme || 'system';
+}
+
+document.getElementById('resetAccentBtn').addEventListener('click', () => {
+  document.getElementById('accentColorInput').value = '';
+  themeSettings.accent = null;
+  applyAccent(document.documentElement.getAttribute('data-theme') || 'light');
+  buildAccentPalette(null);
+  saveTheme({ accent_color: '' }).then(() => showToast('Accent reset'))
+    .catch(() => showToast('Could not reset accent', 'error'));
+});
+
+document.getElementById('accentDarkAdjustToggle').addEventListener('change', e => {
+  themeSettings.accentDarkAdjust = e.target.checked;
+  applyAccent(document.documentElement.getAttribute('data-theme') || 'light');
+  saveTheme({ accent_dark_adjust: e.target.checked })
+    .catch(() => { e.target.checked = !e.target.checked; showToast('Could not save setting', 'error'); });
+});
+
+document.getElementById('accentGlowToggle').addEventListener('change', e => {
+  themeSettings.glow = e.target.checked;
+  applyThemeVariants();
+  saveTheme({ accent_glow: e.target.checked })
+    .catch(() => { e.target.checked = !e.target.checked; showToast('Could not save setting', 'error'); });
+});
+
+// Settings sidebar tabs: swap the visible panel.
+document.getElementById('settingsNav').addEventListener('click', e => {
+  const tab = e.target.closest('.settings-tab');
+  if (!tab) return;
+  const id = tab.dataset.tab;
+  document.querySelectorAll('#settingsNav .settings-tab').forEach(t => t.classList.toggle('active', t === tab));
+  document.querySelectorAll('#settingsPanels .settings-panel')
+    .forEach(p => p.classList.toggle('active', p.dataset.panel === id));
+  document.getElementById('settingsPanels').scrollTop = 0;
+});
+
+// Always open the settings modal on the first tab.
+function resetSettingsTabs() {
+  const tabs = document.querySelectorAll('#settingsNav .settings-tab');
+  tabs.forEach((t, i) => t.classList.toggle('active', i === 0));
+  document.querySelectorAll('#settingsPanels .settings-panel')
+    .forEach((p, i) => p.classList.toggle('active', i === 0));
+}
+
+document.getElementById('lightVariantSelect').addEventListener('change', e => {
+  themeSettings.light = e.target.value;
+  applyThemeVariants();
+  saveTheme({ light_variant: e.target.value }).then(() => showToast('Light palette updated'));
+});
+
+document.getElementById('darkVariantSelect').addEventListener('change', e => {
+  themeSettings.dark = e.target.value;
+  applyThemeVariants();
+  saveTheme({ dark_variant: e.target.value }).then(() => showToast('Dark palette updated'));
+});
+
+document.getElementById('defaultThemeSelect').addEventListener('change', e => {
+  themeSettings.default = e.target.value;
+  saveTheme({ default_theme: e.target.value }).then(() => showToast('Default theme updated'));
 });
 
 document.getElementById('rotateTokenBtn').addEventListener('click', async () => {
@@ -611,6 +788,16 @@ let addingSectionToGroupId   = null; // group ID currently in "add section" mode
 let addingSubsectionToParent = null; // top-level section ID in "add subsection" mode
 let editingSectionId         = null; // section ID currently being renamed inline
 
+// Groups whose section/subsection tree is collapsed in the sidebar. Persisted
+// per-browser so the admin's layout survives refreshes.
+const COLLAPSED_GROUPS_KEY = 'linkpage_collapsed_groups';
+let collapsedGroups = new Set(
+  (() => { try { return JSON.parse(localStorage.getItem(COLLAPSED_GROUPS_KEY)) || []; } catch { return []; } })()
+);
+function saveCollapsedGroups() {
+  try { localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify([...collapsedGroups])); } catch {}
+}
+
 
 // ─── 7. DATA LOADING ──────────────────────────────────────────────────────────
 
@@ -655,6 +842,7 @@ const SIDEBAR_ICONS = {
   drag:   `<svg class="group-drag-handle" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="5" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="19" r="1"/></svg>`,
   lock:   `<svg class="group-lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-label="Protected"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
   plus:   `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  chevron:`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
   edit:   `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
   trash:  `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`,
 };
@@ -760,8 +948,18 @@ function renderSidebar() {
                placeholder="Section name…" autocomplete="off" />
       </div>` : '';
 
+    const hasSections = (g.sections || []).length > 0;
+    const isCollapsed = collapsedGroups.has(g.id);
+    // Chevron only when there's a tree to collapse; keeps a consistent left
+    // gutter otherwise via the placeholder.
+    const chevronHtml = hasSections
+      ? `<button class="group-collapse-btn${isCollapsed ? ' collapsed' : ''}" data-group-id="${g.id}"
+                 title="${isCollapsed ? 'Expand' : 'Collapse'}" aria-expanded="${!isCollapsed}">${SIDEBAR_ICONS.chevron}</button>`
+      : `<span class="group-collapse-spacer"></span>`;
+
     return `
       <div class="group-nav-item${isGroupActive ? ' active' : ''}" data-group-id="${g.id}" draggable="true">
+        ${chevronHtml}
         ${SIDEBAR_ICONS.drag}
         <span class="group-dot" style="background:${escapeHtml(g.color)}"></span>
         <span>${escapeHtml(g.name)}${g.is_protected ? SIDEBAR_ICONS.lock : ''}</span>
@@ -772,19 +970,40 @@ function renderSidebar() {
           <button class="group-action-btn danger delete-group-btn" data-group-id="${g.id}" title="Delete">${SIDEBAR_ICONS.trash}</button>
         </div>
       </div>
-      ${sectionRowsHtml}
-      ${addRowHtml}`;
+      <div class="group-sections${isCollapsed ? ' collapsed' : ''}" data-group-id="${g.id}">
+        <div class="group-sections-inner">
+          ${sectionRowsHtml}
+          ${addRowHtml}
+        </div>
+      </div>`;
   }).join('');
 
   // ─── Click handlers ───────────────────────────────────────────────────────
   nav.querySelectorAll('.group-nav-item').forEach(item => {
     item.addEventListener('click', e => {
       if (e.target.closest('.group-item-actions')) return;
+      if (e.target.closest('.group-collapse-btn')) return;
       activeGroup   = Number(item.dataset.groupId);
       activeSection = null;
       renderSidebar(); renderLinks(true);
     });
   });
+  // Collapse/expand a group's section tree. Toggle classes on the live nodes
+  // (rather than re-rendering) so the height/chevron transitions animate.
+  nav.querySelectorAll('.group-collapse-btn').forEach(btn =>
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = Number(btn.dataset.groupId);
+      const collapsed = !collapsedGroups.has(id);
+      if (collapsed) collapsedGroups.add(id);
+      else           collapsedGroups.delete(id);
+      saveCollapsedGroups();
+      btn.classList.toggle('collapsed', collapsed);
+      btn.setAttribute('aria-expanded', String(!collapsed));
+      btn.title = collapsed ? 'Expand' : 'Collapse';
+      const sec = nav.querySelector(`.group-sections[data-group-id="${id}"]`);
+      if (sec) sec.classList.toggle('collapsed', collapsed);
+    }));
   nav.querySelectorAll('.edit-group-btn').forEach(btn =>
     btn.addEventListener('click', e => { e.stopPropagation(); openEditGroupModal(Number(btn.dataset.groupId)); }));
   nav.querySelectorAll('.delete-group-btn').forEach(btn =>
@@ -795,6 +1014,8 @@ function renderSidebar() {
       addingSectionToGroupId   = Number(btn.dataset.groupId);
       addingSubsectionToParent = null;
       editingSectionId         = null;
+      collapsedGroups.delete(addingSectionToGroupId);  // reveal the tree to add into
+      saveCollapsedGroups();
       renderSidebar();
       const input = nav.querySelector(
         '.section-inline-input[data-mode="create"]:not([data-parent-section-id])'

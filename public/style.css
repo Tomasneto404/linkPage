@@ -7,6 +7,7 @@
   --border:       rgba(0,0,0,0.08);
   --border-strong:rgba(0,0,0,0.14);
   --primary:      #0071e3;
+  --primary-rgb:  0,113,227;
   --primary-hover:#006edb;
   --danger:       #ff3b30;
   --danger-hover: #e0352b;
@@ -34,6 +35,7 @@
   --border:       rgba(255,255,255,0.09);
   --border-strong:rgba(255,255,255,0.16);
   --primary:      #0a84ff;
+  --primary-rgb:  10,132,255;
   --primary-hover:#3395ff;
   --danger:       #ff453a;
   --danger-hover: #ff6b63;
@@ -45,6 +47,39 @@
   --shadow-sm:    0 2px 12px rgba(0,0,0,0.5);
   --shadow-md:    0 8px 28px rgba(0,0,0,0.6);
   --shadow-lg:    0 20px 60px rgba(0,0,0,0.8);
+}
+
+/* ── Curated theme variants ──────────────────────────────
+ * Admin-selectable palettes. Each only retunes surface/background/border tones;
+ * accent (--primary) is applied on top separately. "default" = no attribute
+ * (uses the base :root / [data-theme="dark"] values above). */
+:root[data-light-variant="snow"] {
+  --bg:        #ffffff;
+  --surface:   #ffffff;
+  --surface-2: #f7f7f8;
+  --surface-3: #eef0f2;
+}
+:root[data-light-variant="warm"] {
+  --bg:        #f6f4ef;
+  --surface:   #fffdfa;
+  --surface-2: #f3f0ea;
+  --surface-3: #ebe7df;
+  --border:        rgba(60,40,10,0.09);
+  --border-strong: rgba(60,40,10,0.15);
+}
+[data-theme="dark"][data-dark-variant="midnight"] {
+  --bg:        #000000;
+  --surface:   #0c0c0e;
+  --surface-2: #161618;
+  --surface-3: #242426;
+}
+[data-theme="dark"][data-dark-variant="slate"] {
+  --bg:        #0f1219;
+  --surface:   #171b24;
+  --surface-2: #1e232e;
+  --surface-3: #2a303c;
+  --border:        rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.15);
 }
 
 /* ── Reset & base ────────────────────────────────────── */
@@ -137,7 +172,7 @@ header {
 .search-wrap:focus-within {
   border-color: var(--primary);
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.12);
 }
 [data-theme="dark"] .search-wrap:focus-within {
   box-shadow: 0 0 0 3px rgba(10,132,255,0.2);
@@ -161,7 +196,7 @@ header {
   align-items: center;
   gap: 2px;
   padding: 2px 4px 2px 8px;
-  background: rgba(0, 113, 227, 0.12);
+  background: rgba(var(--primary-rgb), 0.12);
   color: var(--primary);
   border-radius: 7px;
   font-size: 0.78rem;
@@ -198,7 +233,7 @@ header {
   transition: opacity var(--transition), background var(--transition);
 }
 .search-chip-remove:hover {
-  background: rgba(0,113,227,0.18);
+  background: rgba(var(--primary-rgb),0.18);
   opacity: 1;
 }
 .search-chip-remove:focus-visible {
@@ -269,6 +304,19 @@ header {
 }
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-primary:active { transform: scale(0.98); }
+
+/* Accent glow — opt-in via the admin Themes setting (data-accent-glow="on").
+   Applies to accent-filled buttons on both the public and admin surfaces. */
+[data-accent-glow="on"] .btn-primary,
+[data-accent-glow="on"] .request-btn,
+[data-accent-glow="on"] .tab.active {
+  box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.25), 0 4px 18px rgba(var(--primary-rgb), 0.5);
+}
+[data-accent-glow="on"] .btn-primary:hover,
+[data-accent-glow="on"] .request-btn:hover,
+[data-accent-glow="on"] .tab.active:hover {
+  box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.35), 0 4px 24px rgba(var(--primary-rgb), 0.7);
+}
 
 .btn-ghost {
   background: var(--surface-3);
@@ -527,7 +575,7 @@ header {
 /* ── Search highlight ─────────────────────── */
 mark { background: none; color: inherit; font-style: normal; }
 mark.hl {
-  background: rgba(0,113,227,0.12);
+  background: rgba(var(--primary-rgb),0.12);
   color: var(--primary);
   border-radius: 3px;
   padding: 0 2px;
@@ -732,7 +780,7 @@ textarea {
 input:focus, select:focus, textarea:focus {
   border-color: var(--primary);
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.12);
 }
 [data-theme="dark"] input:focus,
 [data-theme="dark"] select:focus,
@@ -879,8 +927,8 @@ select option { background: var(--surface); }
   width: 62px;
   height: 62px;
   border-radius: 16px;
-  background: rgba(0,113,227,0.1);
-  border: 1px solid rgba(0,113,227,0.15);
+  background: rgba(var(--primary-rgb),0.1);
+  border: 1px solid rgba(var(--primary-rgb),0.15);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -976,7 +1024,7 @@ select option { background: var(--surface); }
 .link-card.dragging          { opacity: 0.4; }
 .link-card.drag-over {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(0,113,227,0.25);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb),0.25);
 }
 [data-theme="dark"] .link-card.drag-over { box-shadow: 0 0 0 2px rgba(10,132,255,0.3); }
 

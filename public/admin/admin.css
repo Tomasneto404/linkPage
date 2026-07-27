@@ -43,7 +43,7 @@
 }
 .toast-success .toast-icon { color: #34c759; background: rgba(52,199,89,0.15); }
 .toast-error .toast-icon   { color: var(--danger); background: rgba(225,29,72,0.14); }
-.toast-info .toast-icon    { color: var(--primary); background: rgba(0,113,227,0.14); }
+.toast-info .toast-icon    { color: var(--primary); background: rgba(var(--primary-rgb),0.14); }
 
 /* ─── Multi-select dropdown (group picker in link modal) ───────────────────── */
 
@@ -70,7 +70,7 @@
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 .multi-select-toggle:hover  { border-color: var(--border-strong); }
-.multi-select-toggle:focus  { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.12); }
+.multi-select-toggle:focus  { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12); }
 .multi-select-toggle svg    { margin-left: auto; opacity: 0.55; flex-shrink: 0; transition: transform var(--transition); }
 .multi-select.open .multi-select-toggle svg { transform: rotate(180deg); }
 
@@ -318,9 +318,9 @@
 .link-card-wrap.long-pressing .link-card {
   transform: scale(0.97);
   box-shadow:
-    0 0 0 3px rgba(0, 113, 227, 0.22),
+    0 0 0 3px rgba(var(--primary-rgb), 0.22),
     var(--shadow-sm);
-  border-color: rgba(0, 113, 227, 0.45);
+  border-color: rgba(var(--primary-rgb), 0.45);
   transition:
     transform   0.45s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow  0.45s cubic-bezier(0.4, 0, 0.2, 1),
@@ -421,7 +421,7 @@ header {
   font-weight: 700;
   padding: 3px 8px;
   border-radius: 980px;
-  background: rgba(0, 113, 227, 0.12);
+  background: rgba(var(--primary-rgb), 0.12);
   color: var(--primary);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -484,7 +484,7 @@ header {
 
 .nav-item:hover  { background: var(--surface-3); color: var(--text); }
 .nav-item.active {
-  background: rgba(0, 113, 227, 0.1);
+  background: rgba(var(--primary-rgb), 0.1);
   color: var(--primary);
   font-weight: 600;
 }
@@ -506,7 +506,7 @@ header {
   flex-shrink: 0;
 }
 .nav-item.active .nav-count {
-  background: rgba(0, 113, 227, 0.16);
+  background: rgba(var(--primary-rgb), 0.16);
   color: var(--primary);
 }
 [data-theme="dark"] .nav-item.active .nav-count { background: rgba(10, 132, 255, 0.18); }
@@ -540,7 +540,7 @@ header {
   justify-content: center;
   transition: all var(--transition);
 }
-.add-group-btn:hover { color: var(--primary); background: rgba(0, 113, 227, 0.08); }
+.add-group-btn:hover { color: var(--primary); background: rgba(var(--primary-rgb), 0.08); }
 
 /* ─── Group rows ─────────────────────────────────────────────────────────── */
 
@@ -580,8 +580,9 @@ header {
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
 }
 
-/* Group name + lock icon container takes remaining space */
-.group-nav-item > span:nth-child(3) {
+/* Group name + lock icon container takes remaining space.
+   (Child order: chevron, drag, dot, name — so the name is the 4th child.) */
+.group-nav-item > span:nth-child(4) {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -590,6 +591,43 @@ header {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Collapse chevron + its placeholder (keeps the left gutter aligned when a
+   group has no sections to collapse). */
+.group-collapse-btn,
+.group-collapse-spacer {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.group-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: transform var(--transition), color var(--transition), background var(--transition);
+}
+.group-collapse-btn:hover { color: var(--text); background: var(--border); }
+.group-collapse-btn.collapsed { transform: rotate(-90deg); }
+.group-nav-item { gap: 7px; }
+
+/* Smooth collapse: animate the row track from 1fr → 0fr (no fixed height
+   needed). The inner wrapper clips its content as the track shrinks. */
+.group-sections {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.group-sections.collapsed { grid-template-rows: 0fr; }
+.group-sections-inner {
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ─── Section rows inside the sidebar ─────────────────────────────────────── */
@@ -668,8 +706,8 @@ header {
 }
 .radio-pill:has(input:checked) {
   border-color: var(--primary);
-  background: rgba(0, 113, 227, 0.06);
-  box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.12);
+  background: rgba(var(--primary-rgb), 0.06);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.12);
 }
 [data-theme="dark"] .radio-pill:has(input:checked) {
   background: rgba(10, 132, 255, 0.10);
@@ -682,7 +720,7 @@ header {
   border-left-color: var(--text-muted);
 }
 .section-nav-item.active {
-  background: rgba(0, 113, 227, 0.08);
+  background: rgba(var(--primary-rgb), 0.08);
   color: var(--primary);
   border-left-color: var(--primary);
   font-weight: 600;
@@ -706,7 +744,7 @@ header {
   min-width: 18px;
 }
 .section-nav-item.active .nav-count {
-  background: rgba(0, 113, 227, 0.16);
+  background: rgba(var(--primary-rgb), 0.16);
   color: var(--primary);
 }
 [data-theme="dark"] .section-nav-item.active .nav-count { background: rgba(10, 132, 255, 0.18); }
@@ -727,7 +765,7 @@ header {
   color: var(--text);
   outline: none;
   font-family: inherit;
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
 }
 
 /* ─── Hover actions: overlay the count badge ──────────────────────────────── */
@@ -971,22 +1009,60 @@ header {
 #settingsOverlay .modal {
   display: flex;
   flex-direction: column;
-  max-height: min(88vh, 720px);
+  /* Fixed size so the card doesn't resize as you switch tabs — a tab with more
+     rows scrolls inside the panel instead. */
+  width: 100%;
+  max-width: 840px;
+  height: min(90vh, 660px);
 }
 #settingsOverlay .modal-header { flex-shrink: 0; }
 
-.settings-body {
-  padding: 16px 22px 22px;
+/* Sidebar-tab layout: category nav on the left, active panel on the right. */
+.settings-layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.settings-nav {
+  flex-shrink: 0;
+  width: 172px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 2px;
+  padding: 14px 10px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.settings-tab {
+  text-align: left;
+  padding: 9px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.settings-tab:hover { background: var(--surface-3); color: var(--text); }
+.settings-tab.active { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+
+.settings-panel { display: none; }
+.settings-panel.active { display: block; }
+/* The section title is redundant with the active tab label — hide it. */
+.settings-panel .settings-section-title { display: none; }
+
+.settings-body {
+  padding: 16px 22px 22px;
   overflow-y: auto;
   /* iOS momentum scroll */
   -webkit-overflow-scrolling: touch;
   /* Keep the rounded modal corners visible against the scroll edge */
   scrollbar-gutter: stable;
   flex: 1 1 auto;
-  min-height: 0;
+  min-width: 0;
 }
 
 .settings-section-title {
@@ -1040,7 +1116,7 @@ header {
   text-transform: none;
   padding: 1px 7px;
   border-radius: 980px;
-  background: rgba(0, 113, 227, 0.12);
+  background: rgba(var(--primary-rgb), 0.12);
   color: var(--primary);
 }
 
@@ -1069,7 +1145,7 @@ header {
   border-radius: var(--radius-sm);
   background: linear-gradient(135deg,
     rgba(48, 209, 88, 0.10),
-    rgba(0, 113, 227, 0.08));
+    rgba(var(--primary-rgb), 0.08));
   border: 1px solid rgba(48, 209, 88, 0.28);
   display: flex;
   flex-direction: column;
@@ -1534,7 +1610,7 @@ header {
   transform: translate(16px, -50%);
 }
 .switch input:focus-visible + .switch-slider {
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.22);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.22);
 }
 [data-theme="dark"] .switch input:focus-visible + .switch-slider {
   box-shadow: 0 0 0 3px rgba(10,132,255,0.28);
@@ -1586,7 +1662,7 @@ header {
   letter-spacing: 0.06em;
   padding: 2px 7px;
   border-radius: 980px;
-  background: rgba(0, 113, 227, 0.14);
+  background: rgba(var(--primary-rgb), 0.14);
   color: var(--primary);
   flex-shrink: 0;
 }
@@ -1765,12 +1841,12 @@ header {
    selected glyphs in the system's white selection-foreground colour, which
    covers the highlighted <pre> underneath and the whole code reads blank. */
 .file-editor-textarea::selection {
-  background: rgba(0, 113, 227, 0.22);
+  background: rgba(var(--primary-rgb), 0.22);
   color: transparent;
   -webkit-text-fill-color: transparent;
 }
 .file-editor-textarea::-moz-selection {
-  background: rgba(0, 113, 227, 0.22);
+  background: rgba(var(--primary-rgb), 0.22);
   color: transparent;
 }
 [data-theme="dark"] .file-editor-textarea::selection,
@@ -1967,7 +2043,7 @@ header {
 .icon-presets-search input:focus {
   border-color: var(--primary);
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.12);
 }
 [data-theme="dark"] .icon-presets-search input:focus {
   box-shadow: 0 0 0 3px rgba(10,132,255,0.2);
@@ -2002,7 +2078,7 @@ header {
 }
 .icon-presets-swatch:hover { transform: scale(1.12); }
 .icon-presets-swatch.is-active {
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.18), 0 0 0 1px var(--surface);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.18), 0 0 0 1px var(--surface);
 }
 [data-theme="dark"] .icon-presets-swatch.is-active {
   box-shadow: 0 0 0 3px rgba(10,132,255,0.28), 0 0 0 1px var(--surface);
@@ -2086,7 +2162,7 @@ header {
 .icon-presets-tile.is-selected {
   border-color: var(--primary);
   background: var(--surface);
-  box-shadow: 0 0 0 2px rgba(0,113,227,0.16), var(--shadow-xs);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb),0.16), var(--shadow-xs);
 }
 [data-theme="dark"] .icon-presets-tile.is-selected {
   box-shadow: 0 0 0 2px rgba(10,132,255,0.28), var(--shadow-xs);
@@ -2190,7 +2266,7 @@ header {
 .icon-library-search input:focus {
   border-color: var(--primary);
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.12);
 }
 [data-theme="dark"] .icon-library-search input:focus {
   box-shadow: 0 0 0 3px rgba(10,132,255,0.2);
@@ -2233,7 +2309,7 @@ header {
 }
 .icon-library-card.is-selected {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(0,113,227,0.18), var(--shadow-sm);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb),0.18), var(--shadow-sm);
 }
 [data-theme="dark"] .icon-library-card.is-selected {
   box-shadow: 0 0 0 2px rgba(10,132,255,0.28), var(--shadow-sm);
@@ -2632,7 +2708,7 @@ header {
 
 .link-card-wrap.selected .link-card {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(0,113,227,0.2);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb),0.2);
 }
 [data-theme="dark"] .link-card-wrap.selected .link-card {
   box-shadow: 0 0 0 2px rgba(10,132,255,0.25);
@@ -2855,9 +2931,22 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   .settings-row > div:last-child { display: flex; flex-wrap: wrap; gap: 6px; }
   .settings-body     { padding: 14px 16px 18px; }
 
-  /* Bottom-sheet on phones: the modal can take the full viewport height,
+  /* Bottom-sheet on phones: the modal takes the full viewport height,
      internal scroll handles long content. */
-  #settingsOverlay .modal { max-height: calc(100vh - 18px); }
+  #settingsOverlay .modal { height: calc(100vh - 18px); max-width: 100%; }
+
+  /* Settings tabs move to a horizontal scroller above the panel. */
+  .settings-layout { flex-direction: column; }
+  .settings-nav {
+    flex-direction: row;
+    width: auto;
+    gap: 4px;
+    padding: 10px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .settings-tab { white-space: nowrap; flex-shrink: 0; }
 
   /* Bulk bar: full-width pill at the bottom */
   .bulk-bar { bottom: 14px; left: 10px; right: 10px; padding: 12px 14px; gap: 10px; }
@@ -2923,7 +3012,7 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 .audit-search input:focus {
   border-color: var(--primary);
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.12);
 }
 .audit-toolbar-spacer { flex: 1 1 0; }
 
@@ -2968,7 +3057,7 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   background: var(--text-muted);
 }
 .audit-dot-create { background: #30b558; }
-.audit-dot-update { background: #0a84ff; }
+.audit-dot-update { background: var(--primary); }
 .audit-dot-delete { background: #e0392b; }
 
 /* ─── Link requests ──────────────────────────────────────────────────────────── */
@@ -3076,7 +3165,7 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   background: var(--surface-3);
   color: var(--text-dim);
 }
-.audit-badge-link     { background: rgba(0,113,227,0.14);  color: #0a6ed1; }
+.audit-badge-link     { background: rgba(var(--primary-rgb),0.14);  color: #0a6ed1; }
 .audit-badge-group    { background: rgba(175,82,222,0.14); color: #a14fd0; }
 .audit-badge-section  { background: rgba(0,199,190,0.16);  color: #069b94; }
 .audit-badge-icon     { background: rgba(255,149,0,0.16);  color: #c9760a; }
@@ -3166,7 +3255,7 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 
 .icon-library-card.is-checked {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(0,113,227,0.18), var(--shadow-sm);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb),0.18), var(--shadow-sm);
 }
 [data-theme="dark"] .icon-library-card.is-checked {
   box-shadow: 0 0 0 2px rgba(10,132,255,0.28), var(--shadow-sm);

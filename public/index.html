@@ -120,7 +120,7 @@
     .link-copy-btn:active { transform: scale(0.94); }
     .link-copy-btn:focus-visible {
       outline: none;
-      box-shadow: 0 0 0 3px rgba(0,113,227,0.18);
+      box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.18);
     }
 
     /* Stack the two icons in the same slot; toggle with a class so the swap
@@ -194,7 +194,7 @@
     }
     .toast-success .toast-icon { color: #34c759; background: rgba(52,199,89,0.15); }
     .toast-error   .toast-icon { color: var(--danger, #e11d48); background: rgba(225,29,72,0.14); }
-    .toast-info    .toast-icon { color: var(--primary); background: rgba(0,113,227,0.14); }
+    .toast-info    .toast-icon { color: var(--primary); background: rgba(var(--primary-rgb),0.14); }
     .toast-url {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 0.78rem;
@@ -310,7 +310,7 @@
       background: transparent; cursor: pointer; color: var(--text-muted);
     }
     .req-preset-tile:hover { background: var(--surface-3); }
-    .req-preset-tile.is-selected { border-color: var(--primary); background: rgba(0,113,227,0.10); color: var(--text); }
+    .req-preset-tile.is-selected { border-color: var(--primary); background: rgba(var(--primary-rgb),0.10); color: var(--text); }
 </style>
 </head>
 <body>

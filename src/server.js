@@ -735,6 +735,7 @@ function deriveAuditEntry(req) {
   if (p === '/api/settings/public-password')             return { action: 'settings.public_password', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the public password' : 'Set the public password' };
   if (p === '/api/settings/requests-enabled')            return { action: 'settings.requests_enabled', entityType: 'settings', entityId: null, summary: 'Toggled the link-request feature' };
   if (p === '/api/settings/request-password')            return { action: 'settings.request_password', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the request password' : 'Set the request password' };
+  if (p === '/api/settings/theme')                       return { action: 'settings.theme', entityType: 'settings', entityId: null, summary: 'Updated theme & appearance' };
 
   // Link requests (public submit + admin review)
   if (p === '/api/link-requests' && M === 'POST')             return { action: 'request.create',  entityType: 'request', entityId: null, summary: name ? `New link request "${truncate(name)}"` : 'New link request' };
@@ -860,6 +861,12 @@ app.get('/api/settings', (req, res) => {
     save_favicons_to_library: db.readSetting('save_favicons_to_library') === '1',
     requests_enabled:          db.readSetting('requests_enabled') === '1',
     request_password_required: !!db.readSetting('request_password'),
+    accent_color:              db.readSetting('accent_color') ?? null,
+    accent_dark_adjust:        db.readSetting('accent_dark_adjust') === '1',
+    accent_glow:               db.readSetting('accent_glow') === '1',
+    theme_light_variant:       db.readSetting('theme_light_variant') ?? 'default',
+    theme_dark_variant:        db.readSetting('theme_dark_variant')  ?? 'default',
+    default_theme:             db.readSetting('default_theme') ?? 'system',
   });
 });
 
@@ -1288,6 +1295,73 @@ app.post('/api/settings/request-password', requireAdminToken, (req, res) => {
 app.delete('/api/settings/request-password', requireAdminToken, (req, res) => {
   db.deleteSetting('request_password');
   res.status(204).end();
+});
+
+// ─── Theme / appearance settings ──────────────────────────────────────────────
+
+const THEME_LIGHT_VARIANTS = ['default', 'snow', 'warm'];
+const THEME_DARK_VARIANTS  = ['default', 'midnight', 'slate'];
+const DEFAULT_THEMES       = ['light', 'dark', 'system'];
+const HEX_COLOR_RE         = /^#[0-9a-f]{6}$/i;
+
+// Accepts any subset of theme fields and updates only the ones provided. Each is
+// validated; an empty accent_color string resets to the built-in default.
+app.post('/api/settings/theme', requireAdminToken, (req, res) => {
+  const b = req.body || {};
+
+  if (b.accent_color !== undefined) {
+    const c = typeof b.accent_color === 'string' ? b.accent_color.trim() : '';
+    if (c === '') {
+      db.deleteSetting('accent_color');
+    } else if (HEX_COLOR_RE.test(c)) {
+      db.writeSetting('accent_color', c.toLowerCase());
+    } else {
+      return res.status(400).json({ error: 'accent_color must be a #rrggbb hex value' });
+    }
+  }
+
+  if (b.accent_dark_adjust !== undefined) {
+    if (b.accent_dark_adjust) db.writeSetting('accent_dark_adjust', '1');
+    else                      db.deleteSetting('accent_dark_adjust');
+  }
+
+  if (b.accent_glow !== undefined) {
+    if (b.accent_glow) db.writeSetting('accent_glow', '1');
+    else               db.deleteSetting('accent_glow');
+  }
+
+  if (b.light_variant !== undefined) {
+    if (!THEME_LIGHT_VARIANTS.includes(b.light_variant)) {
+      return res.status(400).json({ error: 'Invalid light_variant' });
+    }
+    if (b.light_variant === 'default') db.deleteSetting('theme_light_variant');
+    else                               db.writeSetting('theme_light_variant', b.light_variant);
+  }
+
+  if (b.dark_variant !== undefined) {
+    if (!THEME_DARK_VARIANTS.includes(b.dark_variant)) {
+      return res.status(400).json({ error: 'Invalid dark_variant' });
+    }
+    if (b.dark_variant === 'default') db.deleteSetting('theme_dark_variant');
+    else                              db.writeSetting('theme_dark_variant', b.dark_variant);
+  }
+
+  if (b.default_theme !== undefined) {
+    if (!DEFAULT_THEMES.includes(b.default_theme)) {
+      return res.status(400).json({ error: 'Invalid default_theme' });
+    }
+    if (b.default_theme === 'system') db.deleteSetting('default_theme');
+    else                              db.writeSetting('default_theme', b.default_theme);
+  }
+
+  res.json({
+    accent_color:        db.readSetting('accent_color') ?? null,
+    accent_dark_adjust:  db.readSetting('accent_dark_adjust') === '1',
+    accent_glow:         db.readSetting('accent_glow') === '1',
+    theme_light_variant: db.readSetting('theme_light_variant') ?? 'default',
+    theme_dark_variant:  db.readSetting('theme_dark_variant')  ?? 'default',
+    default_theme:       db.readSetting('default_theme') ?? 'system',
+  });
 });
 
 // ─── Favicon download (server-side cache) ────────────────────────────────────

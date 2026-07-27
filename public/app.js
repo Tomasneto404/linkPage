@@ -19,9 +19,70 @@ let logoDarkUrl  = null;
 // link icon whenever a link has no custom/cached/fetchable icon of its own.
 let siteFaviconUrl = null;
 
+// Admin-configured appearance (accent + palette variants + default theme).
+// Populated from /api/settings after load; defaults are the built-in look.
+let themeSettings = { accent: null, accentDarkAdjust: false, glow: false, light: 'default', dark: 'default', default: 'system' };
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+// Lighten (pct > 0, toward white) or darken (pct < 0, toward black) a #rrggbb.
+function shadeColor(hex, pct) {
+  const [r, g, b] = hexToRgb(hex);
+  const t = pct < 0 ? 0 : 255;
+  const p = Math.abs(pct) / 100;
+  const mix = c => Math.round((t - c) * p + c);
+  return '#' + [mix(r), mix(g), mix(b)].map(c => c.toString(16).padStart(2, '0')).join('');
+}
+
+// Overrides --primary/--primary-rgb/--primary-hover for the given theme. Clears
+// the overrides (reverting to the CSS defaults) when no accent is configured.
+function applyAccent(theme) {
+  const root = document.documentElement.style;
+  if (!themeSettings.accent) {
+    root.removeProperty('--primary');
+    root.removeProperty('--primary-rgb');
+    root.removeProperty('--primary-hover');
+    return;
+  }
+  const dark = theme === 'dark';
+  const base = (dark && themeSettings.accentDarkAdjust) ? shadeColor(themeSettings.accent, 18) : themeSettings.accent;
+  root.setProperty('--primary', base);
+  root.setProperty('--primary-rgb', hexToRgb(base).join(','));
+  root.setProperty('--primary-hover', shadeColor(base, dark ? 12 : -8));
+}
+
+function applyThemeVariants() {
+  const el = document.documentElement;
+  el.setAttribute('data-light-variant', themeSettings.light || 'default');
+  el.setAttribute('data-dark-variant',  themeSettings.dark  || 'default');
+  el.setAttribute('data-accent-glow',   themeSettings.glow ? 'on' : 'off');
+}
+
+// Applies the fetched theme settings. If the visitor hasn't picked a theme yet,
+// honours the admin's default now that we know it.
+function applyThemeSettings(settings) {
+  themeSettings = {
+    accent:           settings.accent_color || null,
+    accentDarkAdjust: !!settings.accent_dark_adjust,
+    glow:             !!settings.accent_glow,
+    light:            settings.theme_light_variant || 'default',
+    dark:             settings.theme_dark_variant  || 'default',
+    default:          settings.default_theme || 'system',
+  };
+  applyThemeVariants();
+  if (!localStorage.getItem('linkpage_theme')) {
+    applyTheme(getInitialTheme(), false);   // switches theme + applies accent
+  } else {
+    applyAccent(document.documentElement.getAttribute('data-theme') || 'light');
+  }
+}
+
 function getInitialTheme() {
   const saved = localStorage.getItem('linkpage_theme');
   if (saved) return saved;
+  if (themeSettings.default === 'light' || themeSettings.default === 'dark') return themeSettings.default;
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
@@ -29,6 +90,7 @@ function applyTheme(theme, save = true) {
   document.documentElement.setAttribute('data-theme', theme);
   document.getElementById('iconMoon').classList.toggle('hidden', theme === 'dark');
   document.getElementById('iconSun').classList.toggle('hidden', theme === 'light');
+  applyAccent(theme);
   updateHeaderLogo();
   if (save) localStorage.setItem('linkpage_theme', theme);
 }
@@ -1142,6 +1204,7 @@ async function init() {
   pinnedGroupId  = settings.pinned_group_id ?? null;
   applyFavicon(settings.favicon || null);
   updateHeaderLogo();
+  applyThemeSettings(settings);
   applyRequestFeature(settings);
 
   if (settings.public_password_required) {

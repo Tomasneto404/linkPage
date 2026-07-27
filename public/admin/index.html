@@ -676,10 +676,21 @@
         </button>
       </div>
 
-      <div class="settings-body">
+      <div class="settings-layout">
+        <nav class="settings-nav" id="settingsNav">
+          <button type="button" class="settings-tab active" data-tab="branding">Branding</button>
+          <button type="button" class="settings-tab" data-tab="themes">Themes / Design</button>
+          <button type="button" class="settings-tab" data-tab="icons">Icons</button>
+          <button type="button" class="settings-tab" data-tab="public">Public Access</button>
+          <button type="button" class="settings-tab" data-tab="requests">Link Requests</button>
+          <button type="button" class="settings-tab" data-tab="security">Security</button>
+          <button type="button" class="settings-tab" data-tab="about">About</button>
+        </nav>
+
+      <div class="settings-body" id="settingsPanels">
 
         <!-- ── Branding ─────────────────────────── -->
-        <div>
+        <div class="settings-panel active" data-panel="branding">
           <div class="settings-section-title">Branding</div>
 
           <div class="settings-row">
@@ -737,9 +748,84 @@
           </div>
         </div>
 
-        <!-- ── Icon Library ──────────────────────── -->
-        <div>
-          <div class="settings-section-title">Icon Library</div>
+        <!-- ── Themes / Design ───────────────────── -->
+        <div class="settings-panel" data-panel="themes">
+          <div class="settings-section-title">Themes / Design</div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Accent Color</div>
+              <div class="settings-row-desc">Buttons, links, and highlights across the whole app</div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end">
+              <div class="color-palette" id="accentPalette"></div>
+              <button class="btn btn-ghost btn-sm" id="resetAccentBtn">Reset</button>
+              <input type="hidden" id="accentColorInput" />
+            </div>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Brighten Accent in Dark Mode</div>
+              <div class="settings-row-desc">Auto-lighten the accent when the dark theme is active</div>
+            </div>
+            <label class="switch" for="accentDarkAdjustToggle">
+              <input type="checkbox" id="accentDarkAdjustToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Glow Effect</div>
+              <div class="settings-row-desc">Add a soft accent-coloured glow around primary buttons</div>
+            </div>
+            <label class="switch" for="accentGlowToggle">
+              <input type="checkbox" id="accentGlowToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Light Palette</div>
+              <div class="settings-row-desc">Background tones used in light mode</div>
+            </div>
+            <select id="lightVariantSelect" class="bulk-group-select" style="width:150px">
+              <option value="default">Default</option>
+              <option value="snow">Snow</option>
+              <option value="warm">Warm</option>
+            </select>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Dark Palette</div>
+              <div class="settings-row-desc">Background tones used in dark mode</div>
+            </div>
+            <select id="darkVariantSelect" class="bulk-group-select" style="width:150px">
+              <option value="default">Default</option>
+              <option value="midnight">Midnight</option>
+              <option value="slate">Slate</option>
+            </select>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Default Theme</div>
+              <div class="settings-row-desc">What first-time visitors see — they can still toggle</div>
+            </div>
+            <select id="defaultThemeSelect" class="bulk-group-select" style="width:150px">
+              <option value="system">Follow system</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- ── Icons ─────────────────────────────── -->
+        <div class="settings-panel" data-panel="icons">
+          <div class="settings-section-title">Icons</div>
 
           <div class="settings-row">
             <div>
@@ -764,7 +850,7 @@
         </div>
 
         <!-- ── Public Access ─────────────────────── -->
-        <div>
+        <div class="settings-panel" data-panel="public">
           <div class="settings-section-title">Public Access</div>
 
           <div class="settings-row">
@@ -794,7 +880,7 @@
         </div>
 
         <!-- ── Link Requests ─────────────────────── -->
-        <div>
+        <div class="settings-panel" data-panel="requests">
           <div class="settings-section-title">Link Requests</div>
 
           <div class="settings-row">
@@ -825,7 +911,7 @@
         </div>
 
         <!-- ── Security ──────────────────────────── -->
-        <div>
+        <div class="settings-panel" data-panel="security">
           <div class="settings-section-title">Security</div>
 
           <div class="settings-row">
@@ -848,7 +934,7 @@
         </div>
 
         <!-- ── About / Version ────────────────────── -->
-        <div>
+        <div class="settings-panel" data-panel="about">
           <div class="settings-section-title">About</div>
 
           <div class="settings-row">
@@ -864,7 +950,8 @@
           </div>
         </div>
 
-      </div>
+      </div><!-- /.settings-body (panels) -->
+      </div><!-- /.settings-layout -->
     </div>
   </div>
 
