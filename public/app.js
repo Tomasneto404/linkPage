@@ -21,7 +21,7 @@ let siteFaviconUrl = null;
 
 // Admin-configured appearance (accent + palette variants + default theme).
 // Populated from /api/settings after load; defaults are the built-in look.
-let themeSettings = { accent: null, accentDarkAdjust: false, glow: false, light: 'default', dark: 'default', default: 'system' };
+let themeSettings = { accent: null, accentDarkAdjust: false, glow: false, mobileNav: 'top', light: 'default', dark: 'default', default: 'system' };
 
 function hexToRgb(hex) {
   const n = parseInt(hex.slice(1), 16);
@@ -58,6 +58,7 @@ function applyThemeVariants() {
   el.setAttribute('data-light-variant', themeSettings.light || 'default');
   el.setAttribute('data-dark-variant',  themeSettings.dark  || 'default');
   el.setAttribute('data-accent-glow',   themeSettings.glow ? 'on' : 'off');
+  el.setAttribute('data-mobile-nav',    themeSettings.mobileNav || 'top');
 }
 
 // Applies the fetched theme settings. If the visitor hasn't picked a theme yet,
@@ -67,6 +68,7 @@ function applyThemeSettings(settings) {
     accent:           settings.accent_color || null,
     accentDarkAdjust: !!settings.accent_dark_adjust,
     glow:             !!settings.accent_glow,
+    mobileNav:        settings.mobile_nav_position || 'top',
     light:            settings.theme_light_variant || 'default',
     dark:             settings.theme_dark_variant  || 'default',
     default:          settings.default_theme || 'system',
@@ -403,9 +405,17 @@ const REQ_PRESET_COLORS = [
   '#af52de', '#5ac8fa', '#1d1d1f', '#86868b',
 ];
 
-let reqIconFile      = null;   // File to upload as the icon (preset SVG or upload)
-let reqPresetName    = null;   // selected preset glyph name
+let reqIconFile      = null;   // File to upload as the icon (preset SVG or upload); null → use favicon
+let reqCustomPreview = null;   // preview HTML for a chosen icon; null → show favicon
+let reqFaviconUrl    = null;   // live favicon guessed from the URL field
+let reqPresetName    = null;   // preset selected inside the popup
 let reqPresetColor   = REQ_PRESET_COLORS[0];
+let reqPresetQuery   = '';
+
+const REQ_FALLBACK_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
 
 function applyRequestFeature(settings) {
   requestFeatureEnabled   = !!settings.requests_enabled;
@@ -427,11 +437,22 @@ function populateRequestGroups() {
   populateRequestSections();
 }
 
-/** Rebuilds the section <select> from the currently-chosen group. */
+/** Rebuilds the section <select> from the chosen group. Protected groups keep
+ *  their section structure private, so the field is hidden for them. */
 function populateRequestSections() {
   const groupId = Number(document.getElementById('reqGroup').value);
-  const sel     = document.getElementById('reqSection');
   const group   = groups.find(g => g.id === groupId);
+  const wrap    = document.getElementById('reqSectionGroup');
+  const sel     = document.getElementById('reqSection');
+
+  if (group && group.is_protected) {
+    wrap.classList.add('hidden');
+    sel.innerHTML = '<option value="">None</option>';
+    sel.value = '';
+    return;
+  }
+  wrap.classList.remove('hidden');
+
   let html = '<option value="">None</option>';
   if (group && Array.isArray(group.sections)) {
     for (const s of group.sections) {
@@ -444,16 +465,42 @@ function populateRequestSections() {
   sel.innerHTML = html;
 }
 
+// ─── Icon preview (form) ────────────────────────────────────────────────────
+// Shows the chosen icon, else the live site favicon, else a globe fallback.
+function refreshReqIconPreview() {
+  const box  = document.getElementById('reqIconPreview');
+  const clr  = document.getElementById('reqClearIcon');
+  const hint = document.getElementById('reqIconHint');
+  if (reqCustomPreview) {
+    box.innerHTML = reqCustomPreview; clr.hidden = false;
+    hint.textContent = 'Custom icon.';
+  } else if (reqFaviconUrl) {
+    box.innerHTML = `<img src="${escapeHtml(reqFaviconUrl)}" alt="site icon" />`; clr.hidden = true;
+    hint.textContent = 'Auto-fetched from the site.';
+  } else {
+    box.innerHTML = REQ_FALLBACK_ICON; clr.hidden = true;
+    hint.textContent = 'Auto-fetched from the site.';
+  }
+}
+
+function resetRequestIcon() {
+  reqIconFile = null; reqCustomPreview = null; reqPresetName = null;
+  document.getElementById('reqImageUpload').value = '';
+  refreshReqIconPreview();
+}
+
+// ─── Icon presets popup ─────────────────────────────────────────────────────
 function renderRequestSwatches() {
-  const wrap = document.getElementById('reqSwatches');
-  wrap.innerHTML = REQ_PRESET_COLORS.map(c =>
+  document.getElementById('reqSwatches').innerHTML = REQ_PRESET_COLORS.map(c =>
     `<button type="button" class="req-swatch ${c === reqPresetColor ? 'is-active' : ''}"
              data-color="${c}" style="background:${c}" aria-label="Use ${c}"></button>`).join('');
 }
 
 function renderRequestPresets() {
   const grid = document.getElementById('reqPresetsGrid');
-  const all  = window.ICON_PRESETS || [];
+  const q    = reqPresetQuery.toLowerCase();
+  const all  = (window.ICON_PRESETS || []).filter(i =>
+    !q || i.name.toLowerCase().includes(q) || (i.cat || '').toLowerCase().includes(q));
   grid.innerHTML = all.map(i =>
     `<button type="button" class="req-preset-tile ${i.name === reqPresetName ? 'is-selected' : ''}"
              data-name="${escapeHtml(i.name)}" title="${escapeHtml(i.name)}">
@@ -461,37 +508,38 @@ function renderRequestPresets() {
      </button>`).join('');
 }
 
-function setRequestIconPreview(html) {
-  document.getElementById('reqIconPreview').innerHTML = html;
-  document.getElementById('reqClearIcon').hidden = !html;
+function openReqPresets() {
+  reqPresetQuery = '';
+  document.getElementById('reqPresetSearch').value = '';
+  renderRequestSwatches();
+  renderRequestPresets();
+  document.getElementById('reqPresetsApply').disabled = !reqPresetName;
+  document.getElementById('reqPresetsOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('reqPresetSearch').focus(), 60);
+}
+function closeReqPresets() {
+  document.getElementById('reqPresetsOverlay').classList.add('hidden');
 }
 
-/** Turns the chosen preset (name + colour) into an SVG File for upload. */
-function buildRequestPresetFile() {
+/** Commits the popup's selected preset as the form icon. */
+function applyReqPreset() {
   const icon = (window.ICON_PRESETS || []).find(i => i.name === reqPresetName);
   if (!icon) return;
-  const svg  = presetSvgString(icon.body, reqPresetColor, 128);
-  const file = new File([new Blob([svg], { type: 'image/svg+xml' })],
-                        `icon-${reqPresetName}.svg`, { type: 'image/svg+xml' });
-  reqIconFile = file;
-  setRequestIconPreview(presetSvgString(icon.body, reqPresetColor, 24));
-}
-
-function resetRequestIcon() {
-  reqIconFile   = null;
-  reqPresetName = null;
-  setRequestIconPreview('');
-  renderRequestPresets();
+  const svg = presetSvgString(icon.body, reqPresetColor, 128);
+  reqIconFile      = new File([new Blob([svg], { type: 'image/svg+xml' })],
+                              `icon-${reqPresetName}.svg`, { type: 'image/svg+xml' });
+  reqCustomPreview = presetSvgString(icon.body, reqPresetColor, 26);
   document.getElementById('reqImageUpload').value = '';
+  closeReqPresets();
+  refreshReqIconPreview();
 }
 
 function openRequestModal() {
   document.getElementById('requestForm').reset();
-  resetRequestIcon();
   reqPresetColor = REQ_PRESET_COLORS[0];
+  reqFaviconUrl  = null;
+  resetRequestIcon();
   populateRequestGroups();
-  renderRequestSwatches();
-  renderRequestPresets();
   document.getElementById('reqPasswordGroup').classList.toggle('hidden', !requestPasswordRequired);
   document.getElementById('reqError').classList.add('hidden');
   document.getElementById('requestOverlay').classList.remove('hidden');
@@ -517,32 +565,46 @@ document.getElementById('requestOverlay')?.addEventListener('click', e => {
 document.getElementById('reqGroup')?.addEventListener('change', populateRequestSections);
 document.getElementById('reqClearIcon')?.addEventListener('click', resetRequestIcon);
 
+// Live favicon preview as the URL is typed (mirrors the admin add-link form).
+document.getElementById('reqUrl')?.addEventListener('input', e => {
+  reqFaviconUrl = getFaviconUrl(e.target.value.trim());
+  if (!reqIconFile) refreshReqIconPreview();
+});
+
+// Presets popup wiring.
+document.getElementById('reqOpenPresets')?.addEventListener('click', openReqPresets);
+document.getElementById('reqPresetsClose')?.addEventListener('click', closeReqPresets);
+document.getElementById('reqPresetsCancel')?.addEventListener('click', closeReqPresets);
+document.getElementById('reqPresetsApply')?.addEventListener('click', applyReqPreset);
+document.getElementById('reqPresetsOverlay')?.addEventListener('click', e => {
+  if (e.target.id === 'reqPresetsOverlay') closeReqPresets();
+});
+document.getElementById('reqPresetSearch')?.addEventListener('input', e => {
+  reqPresetQuery = e.target.value;
+  renderRequestPresets();
+});
 document.getElementById('reqSwatches')?.addEventListener('click', e => {
   const btn = e.target.closest('.req-swatch');
   if (!btn) return;
   reqPresetColor = btn.dataset.color;
   renderRequestSwatches();
   renderRequestPresets();
-  if (reqPresetName) buildRequestPresetFile();   // recolour the current pick
 });
-
 document.getElementById('reqPresetsGrid')?.addEventListener('click', e => {
   const btn = e.target.closest('.req-preset-tile');
   if (!btn) return;
   reqPresetName = btn.dataset.name;
-  document.getElementById('reqImageUpload').value = '';
-  buildRequestPresetFile();
   renderRequestPresets();
+  document.getElementById('reqPresetsApply').disabled = false;
 });
 
 document.getElementById('reqImageUpload')?.addEventListener('change', e => {
   const file = e.target.files?.[0];
   if (!file) return;
-  reqIconFile   = file;
-  reqPresetName = null;                 // an upload overrides a preset pick
-  renderRequestPresets();
-  const url = URL.createObjectURL(file);
-  setRequestIconPreview(`<img src="${url}" alt="icon preview" />`);
+  reqIconFile      = file;
+  reqPresetName    = null;               // an upload overrides a preset pick
+  reqCustomPreview = `<img src="${URL.createObjectURL(file)}" alt="icon preview" />`;
+  refreshReqIconPreview();
 });
 
 document.getElementById('requestForm')?.addEventListener('submit', async e => {
@@ -593,6 +655,14 @@ document.getElementById('requestForm')?.addEventListener('submit', async e => {
   } finally {
     btn.disabled = false; btn.textContent = 'Submit request';
   }
+});
+
+// Global Escape: close the top-most open modal overlay (request, icon picker,
+// group unlock — whichever is frontmost). One press closes one layer.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const open = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
+  if (open.length) open[open.length - 1].classList.add('hidden');
 });
 
 // ─── Link cards ───────────────────────────────────────────────────────────────

@@ -116,6 +116,44 @@ header {
   background: rgba(28,28,30,0.85);
 }
 
+/* Mobile bars: on phones both the search header and the group-tabs bar are
+   truly fixed (not sticky) so they never drift on scroll / rubber-band. The
+   tabs bar is admin-configurable to sit at the top (under the header) or pinned
+   to the bottom edge for thumb reach. Content is padded to clear both bars. */
+@media (max-width: 720px) {
+  /* Scoped under [data-mobile-nav] so these beat the base .tabs-wrap rule that
+     lives inline in index.html (which otherwise wins the cascade by source
+     order at equal specificity). */
+  [data-mobile-nav] header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+  [data-mobile-nav] .tabs-wrap {
+    position: fixed;
+    top: var(--header-h);
+    left: 0;
+    right: 0;
+  }
+  /* Default (top) nav: clear the header + tabs stacked at the top. */
+  [data-mobile-nav] main { padding-top: calc(var(--header-h) + 50px); }
+
+  /* Bottom nav: tabs pinned to the bottom edge, header still on top. */
+  [data-mobile-nav="bottom"] .tabs-wrap {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    border-bottom: none;
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  [data-mobile-nav="bottom"] main {
+    padding-top: calc(var(--header-h) + 12px);
+    padding-bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 .header-inner {
   max-width: 1120px;
   margin: 0 auto;

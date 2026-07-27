@@ -289,18 +289,25 @@
       color: var(--text-muted);
     }
     .req-icon-preview img, .req-icon-preview svg { width: 26px; height: 26px; object-fit: contain; }
-    .req-icon-controls { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
-    .req-icon-actions { display: flex; gap: 12px; align-items: center; }
-    .req-upload-label { font-size: 0.78rem; color: var(--primary); cursor: pointer; font-weight: 600; }
-    .req-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+    .req-icon-controls { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+    .req-icon-actions { display: flex; gap: 14px; align-items: center; }
+    .req-icon-hint { font-size: 0.75rem; color: var(--text-muted); }
+    .req-upload-label { font-size: 0.78rem; color: var(--primary); cursor: pointer; font-weight: 600; background: none; border: none; padding: 0; font-family: inherit; }
+    .req-preset-search {
+      width: 100%; padding: 8px 12px; margin-bottom: 12px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface-2); color: var(--text); font-size: 0.85rem; outline: none;
+    }
+    .req-preset-search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.12); }
+    .req-swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
     .req-swatch {
-      width: 18px; height: 18px; border-radius: 50%;
+      width: 20px; height: 20px; border-radius: 50%;
       border: 2px solid transparent; cursor: pointer; padding: 0;
     }
     .req-swatch.is-active { border-color: var(--text); }
     .req-presets-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
-      gap: 4px; max-height: 148px; overflow-y: auto;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+      gap: 4px; max-height: 320px; overflow-y: auto;
       border: 1px solid var(--border); border-radius: 10px;
       padding: 6px; background: var(--surface-2);
     }
@@ -461,7 +468,7 @@
           <label for="reqGroup">Group <span class="req">*</span></label>
           <select id="reqGroup" required></select>
         </div>
-        <div class="form-group" style="flex:1">
+        <div class="form-group" style="flex:1" id="reqSectionGroup">
           <label for="reqSection">Section <span class="label-opt">optional</span></label>
           <select id="reqSection"><option value="">None</option></select>
         </div>
@@ -478,15 +485,15 @@
           <div class="req-icon-preview" id="reqIconPreview"></div>
           <div class="req-icon-controls">
             <div class="req-icon-actions">
+              <button type="button" class="req-upload-label" id="reqOpenPresets">Choose icon</button>
               <label class="req-upload-label">
-                Upload image
+                Upload
                 <input type="file" id="reqImageUpload" accept="image/*" hidden />
               </label>
               <button type="button" class="req-upload-label" id="reqClearIcon"
                       style="color: var(--text-muted)" hidden>Clear</button>
             </div>
-            <div class="req-swatches" id="reqSwatches"></div>
-            <div class="req-presets-grid" id="reqPresetsGrid"></div>
+            <div class="req-icon-hint" id="reqIconHint">Auto-fetched from the site.</div>
           </div>
         </div>
       </div>
@@ -502,6 +509,34 @@
         <button type="submit" class="btn btn-primary" id="reqSubmitBtn">Submit request</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     REQUEST ICON PICKER — dedicated presets popup
+     ════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="reqPresetsOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>Choose an icon</h2>
+      <button type="button" class="modal-close" id="reqPresetsClose" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6"  y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div style="padding: 4px 22px 20px">
+      <input type="search" id="reqPresetSearch" class="req-preset-search"
+             placeholder="Search icons…" autocomplete="off" />
+      <div class="req-swatches" id="reqSwatches"></div>
+      <div class="req-presets-grid" id="reqPresetsGrid"></div>
+      <div class="form-actions" style="margin-top:14px">
+        <button type="button" class="btn btn-ghost" id="reqPresetsCancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="reqPresetsApply" disabled>Use icon</button>
+      </div>
+    </div>
   </div>
 </div>
 

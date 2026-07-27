@@ -523,6 +523,7 @@ function hydrateThemeControls(s) {
   document.getElementById('lightVariantSelect').value = s.theme_light_variant || 'default';
   document.getElementById('darkVariantSelect').value  = s.theme_dark_variant  || 'default';
   document.getElementById('defaultThemeSelect').value = s.default_theme || 'system';
+  document.getElementById('mobileNavSelect').value    = s.mobile_nav_position || 'top';
 }
 
 document.getElementById('resetAccentBtn').addEventListener('click', () => {
@@ -582,6 +583,12 @@ document.getElementById('darkVariantSelect').addEventListener('change', e => {
 document.getElementById('defaultThemeSelect').addEventListener('change', e => {
   themeSettings.default = e.target.value;
   saveTheme({ default_theme: e.target.value }).then(() => showToast('Default theme updated'));
+});
+
+document.getElementById('mobileNavSelect').addEventListener('change', e => {
+  saveTheme({ mobile_nav_position: e.target.value })
+    .then(() => showToast(`Mobile navbar: ${e.target.value}`))
+    .catch(() => showToast('Could not save setting', 'error'));
 });
 
 document.getElementById('rotateTokenBtn').addEventListener('click', async () => {

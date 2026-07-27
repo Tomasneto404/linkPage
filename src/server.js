@@ -864,6 +864,7 @@ app.get('/api/settings', (req, res) => {
     accent_color:              db.readSetting('accent_color') ?? null,
     accent_dark_adjust:        db.readSetting('accent_dark_adjust') === '1',
     accent_glow:               db.readSetting('accent_glow') === '1',
+    mobile_nav_position:       db.readSetting('mobile_nav_position') ?? 'top',
     theme_light_variant:       db.readSetting('theme_light_variant') ?? 'default',
     theme_dark_variant:        db.readSetting('theme_dark_variant')  ?? 'default',
     default_theme:             db.readSetting('default_theme') ?? 'system',
@@ -1302,6 +1303,7 @@ app.delete('/api/settings/request-password', requireAdminToken, (req, res) => {
 const THEME_LIGHT_VARIANTS = ['default', 'snow', 'warm'];
 const THEME_DARK_VARIANTS  = ['default', 'midnight', 'slate'];
 const DEFAULT_THEMES       = ['light', 'dark', 'system'];
+const MOBILE_NAV_POSITIONS = ['top', 'bottom'];
 const HEX_COLOR_RE         = /^#[0-9a-f]{6}$/i;
 
 // Accepts any subset of theme fields and updates only the ones provided. Each is
@@ -1354,10 +1356,19 @@ app.post('/api/settings/theme', requireAdminToken, (req, res) => {
     else                              db.writeSetting('default_theme', b.default_theme);
   }
 
+  if (b.mobile_nav_position !== undefined) {
+    if (!MOBILE_NAV_POSITIONS.includes(b.mobile_nav_position)) {
+      return res.status(400).json({ error: 'Invalid mobile_nav_position' });
+    }
+    if (b.mobile_nav_position === 'top') db.deleteSetting('mobile_nav_position');
+    else                                 db.writeSetting('mobile_nav_position', b.mobile_nav_position);
+  }
+
   res.json({
     accent_color:        db.readSetting('accent_color') ?? null,
     accent_dark_adjust:  db.readSetting('accent_dark_adjust') === '1',
     accent_glow:         db.readSetting('accent_glow') === '1',
+    mobile_nav_position: db.readSetting('mobile_nav_position') ?? 'top',
     theme_light_variant: db.readSetting('theme_light_variant') ?? 'default',
     theme_dark_variant:  db.readSetting('theme_dark_variant')  ?? 'default',
     default_theme:       db.readSetting('default_theme') ?? 'system',
