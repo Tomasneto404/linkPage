@@ -32,7 +32,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 9;
+const CURRENT_SCHEMA_VERSION = 10;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -237,6 +237,22 @@ const MIGRATIONS = [
       if (!hasColumn) {
         db.exec('ALTER TABLE link_requests ADD COLUMN ip_address TEXT');
       }
+    },
+  },
+  {
+    version: 10,
+    name:    'IP attribution tags',
+    apply: () => {
+      // Maps a known IP address to a human-readable tag (a person's name) so
+      // clicks and requests can be attributed to who made them.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS ip_tags (
+          ip_address TEXT     PRIMARY KEY,
+          tag        TEXT     NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
     },
   },
 ];

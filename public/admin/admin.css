@@ -2858,6 +2858,7 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   .sidebar         { transform: translateX(-100%); }
   .sidebar.open    { transform: none; box-shadow: var(--shadow-md); }
   .main-content    { margin-left: 0 !important; padding: 16px 14px 80px; }
+  .dev-footer      { left: 0; }
   .search-input    { width: 130px; }
   .links-grid      { grid-template-columns: 1fr; }
   .bulk-bar        { left: 16px; right: 16px; transform: none; border-radius: var(--radius-lg); flex-wrap: wrap; }
@@ -3125,6 +3126,38 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   font-size: 0.7rem; padding: 1px 6px; border-radius: 5px;
   background: var(--surface-2, rgba(120,120,128,0.12)); color: var(--text-muted);
 }
+/* Attribution tag chip shown next to an IP wherever one appears. */
+.ip-tag-chip {
+  display: inline-block;
+  font-size: 0.68rem; font-weight: 600;
+  padding: 1px 7px; border-radius: 980px; vertical-align: middle;
+  background: rgba(var(--primary-rgb), 0.14); color: var(--primary);
+}
+
+/* IP Atribution settings panel list. */
+.ip-tags-list { display: flex; flex-direction: column; gap: 8px; }
+.ip-tag-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: 10px;
+  background: var(--surface-2, rgba(120,120,128,0.08));
+}
+.ip-tag-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.ip-tag-addr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem; color: var(--text);
+}
+.ip-tag-meta { font-size: 0.72rem; color: var(--text-muted); }
+.ip-tag-actions { display: flex; gap: 6px; align-items: center; }
+.ip-tag-input {
+  width: 180px; padding: 6px 10px; font-size: 0.85rem;
+  border: 1px solid var(--border, rgba(120,120,128,0.3)); border-radius: 8px;
+  background: var(--surface, transparent); color: var(--text);
+}
+@media (max-width: 620px) {
+  .ip-tag-actions { width: 100%; }
+  .ip-tag-input   { flex: 1; width: auto; }
+}
+
 .request-row-status {
   font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   padding: 1px 7px; border-radius: 980px; align-self: flex-start;
@@ -3285,3 +3318,30 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   background: var(--primary);
   border-color: var(--primary);
 }
+
+/* ── Developer credit footer (optional, toggled in settings) ─────────────── */
+.dev-footer {
+  position: fixed;
+  /* Start after the sidebar so it never covers the sidebar changelog. */
+  left: var(--sidebar-w); right: 0; bottom: 0;
+  z-index: 30;
+  padding: 12px 20px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  backdrop-filter: saturate(180%) blur(10px);
+  transition: left var(--transition);
+}
+/* When the sidebar is collapsed, span the full width like the content does. */
+.sidebar.collapsed ~ .main-content .dev-footer { left: 0; }
+/* Reserve space so admin content never hides behind the fixed footer. */
+.main-content { padding-bottom: 60px; }
+.dev-footer a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+.dev-footer a:hover { text-decoration: underline; }
+.dev-footer.hidden { display: none; }

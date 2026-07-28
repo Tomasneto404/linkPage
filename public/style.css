@@ -1075,3 +1075,26 @@ select option { background: var(--surface); }
   transition: opacity var(--transition);
 }
 .link-card:hover .drag-handle { opacity: 0.5; }
+
+/* ── Developer credit footer (optional, toggled in settings) ─────────────── */
+.dev-footer {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 900;
+  padding: 12px 20px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--surface, var(--bg));
+  border-top: 1px solid var(--border);
+  backdrop-filter: saturate(180%) blur(10px);
+}
+/* Reserve space so page content never hides behind the fixed footer. */
+body { padding-bottom: 52px; }
+.dev-footer a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+.dev-footer a:hover { text-decoration: underline; }
+.dev-footer.hidden { display: none; }

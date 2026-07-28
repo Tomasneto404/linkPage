@@ -96,6 +96,7 @@ function deriveAuditEntry(req) {
   if (p === '/api/settings/site-title')                  return { action: 'settings.site_title', entityType: 'settings', entityId: null, summary: 'Updated the site title' };
   if (p === '/api/settings/pinned-group')                return { action: 'settings.pinned_group', entityType: 'settings', entityId: null, summary: 'Changed the default group' };
   if (p === '/api/settings/save-favicons')               return { action: 'settings.save_favicons', entityType: 'settings', entityId: null, summary: 'Toggled saving fetched favicons' };
+  if (p === '/api/settings/footer-enabled')              return { action: 'settings.footer', entityType: 'settings', entityId: null, summary: 'Toggled the developer footer' };
   if (p === '/api/settings/public-password')             return { action: 'settings.public_password', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the public password' : 'Set the public password' };
   if (p === '/api/settings/requests-enabled')            return { action: 'settings.requests_enabled', entityType: 'settings', entityId: null, summary: 'Toggled the link-request feature' };
   if (p === '/api/settings/request-password')            return { action: 'settings.request_password', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the request password' : 'Set the request password' };
@@ -106,6 +107,10 @@ function deriveAuditEntry(req) {
   if (/^\/api\/link-requests\/\d+\/approve$/.test(p))         return { action: 'request.approve', entityType: 'request', entityId: id, summary: `Approved link request #${id}` };
   if (/^\/api\/link-requests\/\d+\/reject$/.test(p))          return { action: 'request.reject',  entityType: 'request', entityId: id, summary: `Rejected link request #${id}` };
   if (/^\/api\/link-requests\/\d+$/.test(p) && M === 'DELETE') return { action: 'request.delete',  entityType: 'request', entityId: id, summary: `Deleted link request #${id}` };
+
+  // IP attribution tags
+  if (p === '/api/ip-tags' && M === 'POST')              return { action: 'ip_tag.set',    entityType: 'ip_tag', entityId: null, summary: 'Tagged an IP address' };
+  if (/^\/api\/ip-tags\//.test(p) && M === 'DELETE')     return { action: 'ip_tag.delete', entityType: 'ip_tag', entityId: null, summary: 'Removed an IP tag' };
 
   // Auth
   if (p === '/api/auth/rotate-token')                    return { action: 'auth.rotate_token', entityType: 'auth', entityId: null, summary: 'Rotated the admin token' };

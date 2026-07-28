@@ -424,6 +424,11 @@ function applyRequestFeature(settings) {
   if (btn) btn.classList.toggle('hidden', !requestFeatureEnabled);
 }
 
+function applyFooter(settings) {
+  const footer = document.getElementById('devFooter');
+  if (footer) footer.classList.toggle('hidden', !settings.footer_enabled);
+}
+
 function presetSvgString(body, color, size = 64) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 }
@@ -1276,6 +1281,7 @@ async function init() {
   updateHeaderLogo();
   applyThemeSettings(settings);
   applyRequestFeature(settings);
+  applyFooter(settings);
 
   if (settings.public_password_required) {
     const stored = localStorage.getItem('linkpage_public_password');

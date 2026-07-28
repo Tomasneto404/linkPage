@@ -16,6 +16,7 @@ router.use(require('./version'));
 router.use(require('./icons'));
 router.use(require('./audit'));
 router.use(require('./stats'));
+router.use(require('./ipTags'));
 router.use(require('./linkRequests'));
 router.use(require('./links'));
 router.use(require('./groups'));

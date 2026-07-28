@@ -14,6 +14,7 @@ const clicks       = require('./clicks');
 const icons        = require('./icons');
 const audit        = require('./audit');
 const linkRequests = require('./linkRequests');
+const ipTags       = require('./ipTags');
 
 module.exports = {
   ...settings,
@@ -24,4 +25,5 @@ module.exports = {
   ...icons,
   ...audit,
   ...linkRequests,
+  ...ipTags,
 };

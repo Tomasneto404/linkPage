@@ -30,6 +30,8 @@ function getSettings(req, res) {
     theme_light_variant:       db.readSetting('theme_light_variant') ?? 'default',
     theme_dark_variant:        db.readSetting('theme_dark_variant')  ?? 'default',
     default_theme:             db.readSetting('default_theme') ?? 'system',
+    // Developer credit footer. On by default; '0' means the admin turned it off.
+    footer_enabled:            db.readSetting('footer_enabled') !== '0',
   });
 }
 
@@ -109,6 +111,15 @@ function saveFavicons(req, res) {
   if (enabled) db.writeSetting('save_favicons_to_library', '1');
   else         db.deleteSetting('save_favicons_to_library');
   res.json({ save_favicons_to_library: enabled });
+}
+
+// Show/hide the developer credit footer. On by default, so we only persist the
+// "off" state ('0') and clear the key to re-enable.
+function setFooterEnabled(req, res) {
+  const enabled = !!req.body.enabled;
+  if (enabled) db.deleteSetting('footer_enabled');
+  else         db.writeSetting('footer_enabled', '0');
+  res.json({ footer_enabled: enabled });
 }
 
 function setSiteTitle(req, res) {
@@ -253,7 +264,7 @@ module.exports = {
   getSettings,
   uploadLogo, deleteLogo,
   uploadFavicon, deleteFavicon,
-  saveFavicons, setSiteTitle, setPinnedGroup,
+  saveFavicons, setFooterEnabled, setSiteTitle, setPinnedGroup,
   setPublicPassword, deletePublicPassword,
   setRequestsEnabled, setRequestPassword, deleteRequestPassword,
   setTheme,

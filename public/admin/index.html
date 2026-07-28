@@ -596,6 +596,10 @@
         <button class="btn btn-primary empty-cta hidden" id="emptyCta"></button>
       </div>
       <div class="links-grid" id="linksGrid"></div>
+      <footer class="dev-footer hidden" id="devFooter">
+        Developed with care by
+        <a href="https://github.com/Tomasneto404/linkPage" target="_blank" rel="noopener noreferrer">Tomás Neto</a>
+      </footer>
     </main>
   </div>
 
@@ -683,6 +687,7 @@
           <button type="button" class="settings-tab" data-tab="icons">Icons</button>
           <button type="button" class="settings-tab" data-tab="public">Public Access</button>
           <button type="button" class="settings-tab" data-tab="requests">Link Requests</button>
+          <button type="button" class="settings-tab" data-tab="ipattribution">IP Atribution</button>
           <button type="button" class="settings-tab" data-tab="security">Security</button>
           <button type="button" class="settings-tab" data-tab="about">About</button>
         </nav>
@@ -745,6 +750,17 @@
               <button class="btn btn-ghost btn-sm" id="uploadFaviconBtn">Upload</button>
               <button class="btn btn-ghost-danger btn-sm hidden" id="removeFaviconBtn">Remove</button>
             </div>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Developer Footer</div>
+              <div class="settings-row-desc">Show a credit message from the author in every page</div>
+            </div>
+            <label class="switch" for="footerEnabledToggle">
+              <input type="checkbox" id="footerEnabledToggle" />
+              <span class="switch-slider"></span>
+            </label>
           </div>
         </div>
 
@@ -918,6 +934,29 @@
               <button class="btn btn-ghost btn-sm" id="setRequestPasswordBtn">Set</button>
               <button class="btn btn-ghost-danger btn-sm hidden" id="removeRequestPasswordBtn">Remove</button>
             </div>
+          </div>
+        </div>
+
+        <!-- ── IP Atribution ─────────────────────── -->
+        <div class="settings-panel" data-panel="ipattribution">
+          <div class="settings-section-title">IP Atribution</div>
+          <div class="settings-row-desc" style="margin-bottom:12px">
+            Assign a tag to a known IP address to identify who is behind it. Every IP seen clicking a
+            link or submitting a request is listed here; the tag then appears next to that IP in click
+            stats and requests.
+          </div>
+
+          <div class="audit-toolbar">
+            <input type="search" id="ipTagSearch" placeholder="Search IP or tag…" class="bulk-group-select"
+                   style="flex:1; min-width:0" />
+            <span class="audit-toolbar-spacer"></span>
+            <button class="btn btn-ghost btn-sm" id="ipTagsRefreshBtn">Refresh</button>
+          </div>
+
+          <div class="audit-body">
+            <div class="audit-loading" id="ipTagsLoading">Loading…</div>
+            <div class="audit-empty hidden" id="ipTagsEmpty">No IP addresses seen yet.</div>
+            <div class="ip-tags-list" id="ipTagsList"></div>
           </div>
         </div>
 

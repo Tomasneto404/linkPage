@@ -257,6 +257,23 @@ async function approveRequestApi(id, linkId) { return jsonPost(`/api/link-reques
 async function rejectRequestApi(id)          { return jsonPost(`/api/link-requests/${id}/reject`, {}); }
 async function deleteRequestApi(id)          { return sendAuthRequest(`/api/link-requests/${id}`, { method: 'DELETE' }); }
 
+async function fetchIpTags()         { return apiJson('/api/ip-tags'); }
+async function saveIpTagApi(ip, tag) { return jsonPost('/api/ip-tags', { ip_address: ip, tag }); }
+async function deleteIpTagApi(ip)    { return sendAuthRequest(`/api/ip-tags/${encodeURIComponent(ip)}`, { method: 'DELETE' }); }
+
+// Cache of ip -> tag, so an attribution tag can be shown wherever an IP appears
+// (stats modal, requests list). Refreshed whenever those surfaces open.
+let ipTagMap = {};
+function refreshIpTagMap() {
+  return fetchIpTags()
+    .then(data => { ipTagMap = {}; (data.ips || []).forEach(r => { if (r.tag) ipTagMap[r.ip_address] = r.tag; }); })
+    .catch(() => { /* non-critical */ });
+}
+function ipTagChip(ip) {
+  const t = ipTagMap[ip];
+  return t ? ` <span class="ip-tag-chip" title="Attributed to">${escapeHtml(t)}</span>` : '';
+}
+
 
 // ─── 4. SETTINGS ──────────────────────────────────────────────────────────────
 
@@ -275,6 +292,13 @@ async function loadSettings() {
   updateRequestsFeatureUI(!!s.requests_enabled);
   refreshRequestsBadge();
   applyThemeSettings(s);
+  updateFooterUI(s.footer_enabled);
+}
+
+/** Shows or hides the developer credit footer on the admin page. */
+function updateFooterUI(enabled) {
+  const footer = document.getElementById('devFooter');
+  if (footer) footer.classList.toggle('hidden', !enabled);
 }
 
 function applyFavicon(url) {
@@ -341,6 +365,7 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   document.getElementById('saveFaviconsToggle').checked = !!s.save_favicons_to_library;
   updatePublicPasswordStatus(s.public_password_required);
   document.getElementById('requestsEnabledToggle').checked = !!s.requests_enabled;
+  document.getElementById('footerEnabledToggle').checked = !!s.footer_enabled;
   updateRequestPasswordStatus(s.request_password_required);
   hydrateThemeControls(s);
   resetSettingsTabs();
@@ -456,6 +481,22 @@ document.getElementById('requestsEnabledToggle').addEventListener('change', asyn
   showToast(enabled ? 'Link requests enabled' : 'Link requests disabled');
 });
 
+document.getElementById('footerEnabledToggle').addEventListener('change', async e => {
+  const enabled = e.target.checked;
+  const res = await sendAuthRequest('/api/settings/footer-enabled', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    e.target.checked = !enabled;
+    showToast('Could not save setting');
+    return;
+  }
+  updateFooterUI(enabled);
+  showToast(enabled ? 'Footer shown' : 'Footer hidden');
+});
+
 document.getElementById('setRequestPasswordBtn').addEventListener('click', async () => {
   const pw = document.getElementById('requestPasswordInput').value;
   if (!pw) return;
@@ -558,6 +599,7 @@ document.getElementById('settingsNav').addEventListener('click', e => {
   document.querySelectorAll('#settingsPanels .settings-panel')
     .forEach(p => p.classList.toggle('active', p.dataset.panel === id));
   document.getElementById('settingsPanels').scrollTop = 0;
+  if (id === 'ipattribution') loadIpTags();
 });
 
 // Always open the settings modal on the first tab.
@@ -1650,7 +1692,7 @@ async function openStatsModal(link) {
   document.getElementById('recentClicksContainer').innerHTML = '<div class="stats-loading">Loading…</div>';
   document.getElementById('topIpsContainer').innerHTML       = '<div class="stats-loading">Loading…</div>';
   document.getElementById('statsOverlay').classList.remove('hidden');
-  const d = await fetchLinkClicks(link.id);
+  const [d] = await Promise.all([fetchLinkClicks(link.id), refreshIpTagMap()]);
   renderRecentClicks(d.recentClicks); renderTopIps(d.topIps);
 }
 
@@ -1659,7 +1701,7 @@ function renderRecentClicks(clicks) {
   if (!clicks.length) { c.innerHTML = '<div class="stats-empty">No clicks recorded yet</div>'; return; }
   c.innerHTML = `<div class="click-log">${clicks.map(cl => `
     <div class="click-row">
-      <span class="click-ip">${escapeHtml(cl.ip_address)}</span>
+      <span class="click-ip">${escapeHtml(cl.ip_address)}${ipTagChip(cl.ip_address)}</span>
       <span class="click-device">${escapeHtml(getDeviceType(cl.user_agent))}</span>
       <span class="click-time">${timeAgo(cl.clicked_at)}</span>
     </div>`).join('')}</div>`;
@@ -1671,7 +1713,7 @@ function renderTopIps(topIps) {
   const hi = topIps[0].click_count;
   c.innerHTML = `<div class="click-log">${topIps.map(ip => `
     <div class="click-row">
-      <span class="click-ip">${escapeHtml(ip.ip_address)}</span>
+      <span class="click-ip">${escapeHtml(ip.ip_address)}${ipTagChip(ip.ip_address)}</span>
       <div class="click-bar-wrap"><div class="click-bar" style="width:${Math.round(ip.click_count/hi*100)}%"></div></div>
       <span class="click-count">${ip.click_count} click${ip.click_count !== 1 ? 's' : ''}</span>
     </div>`).join('')}</div>`;
@@ -4395,6 +4437,7 @@ async function openAuditLog() {
   document.getElementById('auditOverlay').classList.remove('hidden');
   document.getElementById('auditSearchInput').value = '';
   document.getElementById('auditTypeFilter').value = '';
+  await refreshIpTagMap();   // so attribution tags render next to IPs
   await reloadAuditLog();
   startAuditPolling();
 }
@@ -4506,7 +4549,12 @@ function renderAuditList(newIds = null) {
     const meta = AUDIT_TYPE_META[e.entity_type] || { cls: 'other', label: e.entity_type || '—' };
     const verb = auditActionVerb(e.action);
     const ua   = e.user_agent ? deviceFromUA(e.user_agent) : '';
-    const metaBits = [e.ip_address, ua].filter(Boolean).join(' · ');
+    // Build origin as HTML (not a pre-escaped string) so the IP can carry its
+    // attribution chip. Each text part is still escaped individually.
+    const originParts = [];
+    if (e.ip_address) originParts.push(`${escapeHtml(e.ip_address)}${ipTagChip(e.ip_address)}`);
+    if (ua)           originParts.push(escapeHtml(ua));
+    const originHtml = originParts.join(' · ');
     const isNew = newIds && newIds.has(e.id);
     return `
       <div class="audit-row${isNew ? ' audit-row-new' : ''}">
@@ -4516,7 +4564,7 @@ function renderAuditList(newIds = null) {
           <div class="audit-meta">
             <span class="audit-badge audit-badge-${meta.cls}">${escapeHtml(meta.label)}</span>
             <span class="audit-action-code">${escapeHtml(e.action)}</span>
-            ${metaBits ? `<span class="audit-origin">${escapeHtml(metaBits)}</span>` : ''}
+            ${originHtml ? `<span class="audit-origin">${originHtml}</span>` : ''}
           </div>
         </div>
         <time class="audit-time" title="${escapeHtml(e.created_at)} UTC">${escapeHtml(formatAuditTime(e.created_at))}</time>
@@ -4684,7 +4732,7 @@ function renderRequestsList(requests) {
               ${escapeHtml(r.group_name || 'Unknown group')}${sectionLabel ? ' · ' + escapeHtml(sectionLabel) : ''}
             </span>
             <span>${formatRequestDate(r.created_at)}</span>
-            ${r.ip_address ? `<span class="request-row-ip" title="Submitter IP">${escapeHtml(r.ip_address)}</span>` : ''}
+            ${r.ip_address ? `<span class="request-row-ip" title="Submitter IP">${escapeHtml(r.ip_address)}</span>${ipTagChip(r.ip_address)}` : ''}
             ${statusBadge}
           </div>
           ${r.description ? `<div class="request-row-desc">${escapeHtml(r.description)}</div>` : ''}
@@ -4699,7 +4747,7 @@ async function loadRequests() {
   document.getElementById('requestsEmpty').classList.add('hidden');
   document.getElementById('requestsList').innerHTML = '';
   try {
-    const data = await fetchLinkRequests(requestsStatus);
+    const [data] = await Promise.all([fetchLinkRequests(requestsStatus), refreshIpTagMap()]);
     renderRequestsList(data.requests || []);
     const badge = document.getElementById('requestsBadge');
     const count = data.pending_count || 0;
@@ -4774,6 +4822,85 @@ document.getElementById('requestsList').addEventListener('click', async e => {
     showToast('Request deleted');
     await loadRequests();
     refreshRequestsBadge();
+  }
+});
+
+// ─── IP ATTRIBUTION ────────────────────────────────────────────────────────
+//
+// Lists every IP the app has seen (from clicks + requests) so the admin can
+// attach a human-readable tag naming who is behind it.
+
+let loadedIpTags = [];
+
+function renderIpTagsList(ips) {
+  loadedIpTags = ips;
+  const list  = document.getElementById('ipTagsList');
+  const empty = document.getElementById('ipTagsEmpty');
+  document.getElementById('ipTagsLoading').classList.add('hidden');
+
+  const q = (document.getElementById('ipTagSearch').value || '').toLowerCase().trim();
+  const rows = q
+    ? ips.filter(r => r.ip_address.toLowerCase().includes(q) || (r.tag || '').toLowerCase().includes(q))
+    : ips;
+
+  if (!rows.length) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  list.innerHTML = rows.map(r => {
+    const events = r.event_count === 0
+      ? 'no activity'
+      : `${r.event_count} event${r.event_count !== 1 ? 's' : ''}`;
+    const seen = r.last_seen ? `last seen ${formatRequestDate(r.last_seen)}` : 'never seen';
+    return `
+      <div class="ip-tag-row" data-ip="${escapeHtml(r.ip_address)}">
+        <div class="ip-tag-main">
+          <span class="ip-tag-addr">${escapeHtml(r.ip_address)}</span>
+          <span class="ip-tag-meta">${events} · ${seen}</span>
+        </div>
+        <div class="ip-tag-actions">
+          <input type="text" class="ip-tag-input" placeholder="Name / tag…"
+                 value="${escapeHtml(r.tag || '')}" maxlength="120" />
+          <button class="btn btn-primary btn-sm" data-ip-save>Save</button>
+          <button class="btn btn-ghost-danger btn-sm ${r.tag ? '' : 'hidden'}" data-ip-clear>Clear</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadIpTags() {
+  document.getElementById('ipTagsLoading').classList.remove('hidden');
+  document.getElementById('ipTagsEmpty').classList.add('hidden');
+  document.getElementById('ipTagsList').innerHTML = '';
+  try {
+    const data = await fetchIpTags();
+    const ips  = data.ips || [];
+    // Keep the shared map in sync so other surfaces show fresh tags too.
+    ipTagMap = {};
+    ips.forEach(r => { if (r.tag) ipTagMap[r.ip_address] = r.tag; });
+    renderIpTagsList(ips);
+  } catch {
+    document.getElementById('ipTagsLoading').classList.add('hidden');
+    showToast('Could not load IP attribution', { type: 'error' });
+  }
+}
+
+document.getElementById('ipTagsRefreshBtn').addEventListener('click', loadIpTags);
+document.getElementById('ipTagSearch').addEventListener('input', () => renderIpTagsList(loadedIpTags));
+document.getElementById('ipTagsList').addEventListener('click', async e => {
+  const row = e.target.closest('.ip-tag-row');
+  if (!row) return;
+  const ip = row.dataset.ip;
+
+  if (e.target.closest('[data-ip-save]')) {
+    const tag = row.querySelector('.ip-tag-input').value.trim();
+    if (!tag) { showToast('Enter a tag first', { type: 'error' }); return; }
+    try { await saveIpTagApi(ip, tag); showToast('Tag saved'); await loadIpTags(); }
+    catch { showToast('Could not save tag', { type: 'error' }); }
+    return;
+  }
+  if (e.target.closest('[data-ip-clear]')) {
+    try { await deleteIpTagApi(ip); showToast('Tag removed'); await loadIpTags(); }
+    catch { showToast('Could not remove tag', { type: 'error' }); }
   }
 });
 
