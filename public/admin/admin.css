@@ -3120,6 +3120,11 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 }
 .request-row-group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .request-row-desc { margin-top: 5px; font-size: 0.8rem; color: var(--text-dim); }
+.request-row-ip {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem; padding: 1px 6px; border-radius: 5px;
+  background: var(--surface-2, rgba(120,120,128,0.12)); color: var(--text-muted);
+}
 .request-row-status {
   font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   padding: 1px 7px; border-radius: 980px; align-self: flex-start;

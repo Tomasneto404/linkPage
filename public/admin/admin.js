@@ -4684,6 +4684,7 @@ function renderRequestsList(requests) {
               ${escapeHtml(r.group_name || 'Unknown group')}${sectionLabel ? ' · ' + escapeHtml(sectionLabel) : ''}
             </span>
             <span>${formatRequestDate(r.created_at)}</span>
+            ${r.ip_address ? `<span class="request-row-ip" title="Submitter IP">${escapeHtml(r.ip_address)}</span>` : ''}
             ${statusBadge}
           </div>
           ${r.description ? `<div class="request-row-desc">${escapeHtml(r.description)}</div>` : ''}
