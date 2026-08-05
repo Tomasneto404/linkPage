@@ -13,6 +13,10 @@ router.get('/api/settings', c.getSettings);
 // Admin writes.
 router.post  ('/api/settings/logo/:variant',   requireAdminToken, upload.single('logo'),    c.uploadLogo);
 router.delete('/api/settings/logo/:variant',   requireAdminToken,                           c.deleteLogo);
+// Accepts a multipart upload (`icon`) or a JSON body with `icon_id`; multer
+// passes non-multipart requests straight through to the controller.
+router.post  ('/api/settings/brand-icon',      requireAdminToken, upload.single('icon'),    c.setBrandIcon);
+router.delete('/api/settings/brand-icon',      requireAdminToken,                           c.deleteBrandIcon);
 router.post  ('/api/settings/favicon',         requireAdminToken, upload.single('favicon'), c.uploadFavicon);
 router.delete('/api/settings/favicon',         requireAdminToken,                           c.deleteFavicon);
 router.post  ('/api/settings/save-favicons',   requireAdminToken,                           c.saveFavicons);

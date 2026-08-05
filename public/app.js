@@ -108,6 +108,35 @@ applyTheme(getInitialTheme(), false);
 
 // ─── Branding ─────────────────────────────────────────────────────────────────
 
+// Fallback glyph used when no custom header icon is configured.
+const DEFAULT_BRAND_ICON_SVG = `
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+  </svg>`;
+
+/** Header title text. Falls back to "LinkPage" when no site title is set. */
+function applyBrandText(title) {
+  const label = document.querySelector('#brandText .brand-label');
+  if (label) label.textContent = title || 'LinkPage';
+}
+
+/** Header glyph: a configured image, or the built-in chain-link SVG. */
+function applyBrandIcon(url) {
+  const slot = document.getElementById('brandIcon');
+  if (!slot) return;
+  if (url) {
+    slot.innerHTML = '';
+    const img = document.createElement('img');
+    img.className = 'brand-icon-img';
+    img.src       = url;
+    img.alt       = '';
+    slot.appendChild(img);
+  } else {
+    slot.innerHTML = DEFAULT_BRAND_ICON_SVG;
+  }
+}
+
 function getLogoForCurrentTheme() {
   return (document.documentElement.getAttribute('data-theme') || 'light') === 'dark'
     ? logoDarkUrl : logoLightUrl;
@@ -1283,6 +1312,8 @@ async function init() {
   const settings = await fetch('/api/settings').then(r => r.json());
 
   if (settings.site_title) document.title = settings.site_title;
+  applyBrandText(settings.site_title);
+  applyBrandIcon(settings.brand_icon || null);
   logoLightUrl   = settings.logo_light || null;
   logoDarkUrl    = settings.logo_dark  || null;
   siteFaviconUrl = settings.favicon || null;

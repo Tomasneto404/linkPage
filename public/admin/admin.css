@@ -1555,6 +1555,26 @@ header {
   padding: 3px;
 }
 
+/* Header brand glyph slot (built-in SVG or a custom image) */
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-icon-img {
+  height: 20px;
+  width: 20px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Settings row switched off by another setting (e.g. Header Icon while a
+   light/dark logo is set). Buttons also get `disabled` in JS. */
+.settings-row.is-inactive {
+  opacity: 0.5;
+}
+
 /* Hint text shown below the logo rows */
 .settings-hint {
   font-size: 0.8rem;

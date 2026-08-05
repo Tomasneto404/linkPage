@@ -81,11 +81,13 @@
       <a class="logo" id="headerLogo" href="/" aria-label="Open public page">
         <img id="brandImg" class="logo-img hidden" alt="Company logo" />
         <span id="brandText" style="display:flex; align-items:center; gap:8px">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-          </svg>
+          <span id="brandIcon" class="brand-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+          </span>
           <span class="brand-label">LinkPage</span>
         </span>
         <span class="admin-badge">Admin</span>
@@ -714,13 +716,37 @@
           <div class="settings-row">
             <div>
               <div class="settings-row-label">Site Title</div>
-              <div class="settings-row-desc">Shown in the browser tab and header fallback</div>
+              <div class="settings-row-desc">Shown in the browser tab and as the header title</div>
             </div>
             <div style="display:flex; gap:6px; align-items:center">
               <input type="text" id="siteTitleInput" placeholder="LinkPage"
                      style="width:140px; padding:6px 10px; font-size:0.875rem" />
               <button class="btn btn-ghost btn-sm" id="saveSiteTitleBtn">Save</button>
             </div>
+          </div>
+
+          <!-- Header glyph shown next to the title. Ignored (and disabled below)
+               whenever a light/dark logo is set, since the logo replaces the
+               whole title block. -->
+          <div class="settings-row brand-icon-row" id="brandIconRow" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Header Icon</div>
+              <div class="settings-row-desc">Glyph shown next to the header title</div>
+            </div>
+            <div class="logo-control">
+              <img id="brandIconPreview" class="logo-thumb hidden" alt="Header icon" />
+              <input type="file" id="brandIconFileInput"
+                     accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" hidden />
+              <button class="btn btn-ghost btn-sm" id="pickBrandIconLibraryBtn">Library</button>
+              <button class="btn btn-ghost btn-sm" id="pickBrandIconPresetBtn">Icons</button>
+              <button class="btn btn-ghost btn-sm" id="uploadBrandIconBtn">Upload</button>
+              <button class="btn btn-ghost-danger btn-sm hidden" id="removeBrandIconBtn">Remove</button>
+            </div>
+          </div>
+
+          <div class="settings-hint hidden" id="brandOverriddenHint">
+            A Light/Dark mode logo is set, so the header title and icon are hidden on
+            the public and admin pages. Remove both logos to use them again.
           </div>
 
           <div class="settings-row" style="margin-top:8px">

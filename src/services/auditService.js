@@ -94,6 +94,7 @@ function deriveAuditEntry(req) {
 
   // Settings
   if (/^\/api\/settings\/logo\//.test(p))                return { action: 'settings.logo', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed a logo' : 'Updated a logo' };
+  if (p === '/api/settings/brand-icon')                  return { action: 'settings.brand_icon', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the header icon' : 'Updated the header icon' };
   if (p === '/api/settings/favicon')                     return { action: 'settings.favicon', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the favicon' : 'Updated the favicon' };
   if (p === '/api/settings/site-title')                  return { action: 'settings.site_title', entityType: 'settings', entityId: null, summary: 'Updated the site title' };
   if (p === '/api/settings/pinned-group')                return { action: 'settings.pinned_group', entityType: 'settings', entityId: null, summary: 'Changed the default group' };

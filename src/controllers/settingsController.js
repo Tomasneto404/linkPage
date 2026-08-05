@@ -7,7 +7,9 @@ const {
   LOGO_VARIANTS, THEME_LIGHT_VARIANTS, THEME_DARK_VARIANTS,
   DEFAULT_THEMES, MOBILE_NAV_POSITIONS, HEX_COLOR_RE,
 } = require('../config/constants');
-const { safeDeleteFile, safeDeleteFileUnlessLibrary } = require('../services/uploadService');
+const {
+  safeDeleteFile, safeDeleteFileUnlessLibrary, resolveIconReference,
+} = require('../services/uploadService');
 
 // ─── Public read ──────────────────────────────────────────────────────────────
 
@@ -20,6 +22,9 @@ function getSettings(req, res) {
     logo_dark:                db.readSetting('logo_dark')  ?? null,
     favicon:                  db.readSetting('favicon')    ?? null,
     site_title:               db.readSetting('site_title') ?? null,
+    // Header brand glyph shown next to the site title. Ignored while a
+    // light/dark logo is set — the logo replaces the whole title block.
+    brand_icon:               db.readSetting('brand_icon') ?? null,
     public_password_required: !!publicPassword,
     pinned_group_id:          pinnedId,
     save_favicons_to_library: db.readSetting('save_favicons_to_library') === '1',
@@ -73,6 +78,36 @@ function deleteLogo(req, res) {
     db.deleteSetting(settingKey);
   }
 
+  res.status(204).end();
+}
+
+// ─── Header brand icon ──────────────────────────────────────────────────────
+
+/**
+ * Sets the glyph shown next to the header title. Accepts either a freshly
+ * uploaded image (multipart field `icon`) or a library `icon_id`; uploads are
+ * auto-registered in the icon library so they can be reused elsewhere.
+ */
+function setBrandIcon(req, res) {
+  const newPath = resolveIconReference({ imageFile: req.file, iconIdField: req.body?.icon_id });
+  if (!newPath) {
+    return res.status(400).json({ error: 'Provide an image file or a valid icon_id' });
+  }
+
+  const existing = db.readSetting('brand_icon');
+  // The library owns library-backed files; only stray uploads get removed.
+  if (existing && existing !== newPath) safeDeleteFileUnlessLibrary(existing);
+
+  db.writeSetting('brand_icon', newPath);
+  res.json({ brand_icon: newPath });
+}
+
+function deleteBrandIcon(req, res) {
+  const existing = db.readSetting('brand_icon');
+  if (existing) {
+    safeDeleteFileUnlessLibrary(existing);
+    db.deleteSetting('brand_icon');
+  }
   res.status(204).end();
 }
 
@@ -277,6 +312,7 @@ function setTheme(req, res) {
 module.exports = {
   getSettings,
   uploadLogo, deleteLogo,
+  setBrandIcon, deleteBrandIcon,
   uploadFavicon, deleteFavicon,
   saveFavicons, setFooterEnabled, setGroupTabColor, setSiteTitle, setPinnedGroup,
   setPublicPassword, deletePublicPassword,

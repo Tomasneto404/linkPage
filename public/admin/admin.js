@@ -29,6 +29,7 @@
 let logoLightUrl = null;
 let logoDarkUrl  = null;
 let faviconUrl   = null;
+let brandIconUrl = null;   // header glyph next to the site title
 
 
 // ─── 1. THEME ─────────────────────────────────────────────────────────────────
@@ -234,6 +235,17 @@ async function uploadLogo(variant, file) {
 }
 async function removeLogo(variant)     { return sendAuthRequest(`/api/settings/logo/${variant}`, { method: 'DELETE' }); }
 
+async function uploadBrandIcon(file) {
+  const fd = new FormData(); fd.append('icon', file);
+  return apiJson('/api/settings/brand-icon', { method: 'POST', body: fd });
+}
+async function setBrandIconFromLibrary(iconId) {
+  return jsonPost('/api/settings/brand-icon', { icon_id: iconId });
+}
+async function removeBrandIconApi() {
+  return sendAuthRequest('/api/settings/brand-icon', { method: 'DELETE' });
+}
+
 async function uploadFavicon(file) {
   const fd = new FormData(); fd.append('favicon', file);
   return apiJson('/api/settings/favicon', { method: 'POST', body: fd });
@@ -286,6 +298,9 @@ async function loadSettings() {
   logoLightUrl = s.logo_light || null;
   logoDarkUrl  = s.logo_dark  || null;
   faviconUrl   = s.favicon    || null;
+  brandIconUrl = s.brand_icon || null;
+  applyBrandText(s.site_title);
+  applyBrandIcon(brandIconUrl);
   updateHeaderLogo();
   applyFavicon(faviconUrl);
   if (s.site_title) {
@@ -317,6 +332,68 @@ function updateFaviconPreview(url) {
   const btn = document.getElementById('removeFaviconBtn');
   if (url) { img.src = url; img.classList.remove('hidden'); btn.classList.remove('hidden'); }
   else      { img.classList.add('hidden');    btn.classList.add('hidden'); }
+}
+
+// ─── Header brand (title text + glyph) ──────────────────────────────────────
+
+// Fallback glyph used when no custom header icon is configured.
+const DEFAULT_BRAND_ICON_SVG = `
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+  </svg>`;
+
+/** Header title text. Falls back to "LinkPage" when no site title is set. */
+function applyBrandText(title) {
+  const label = document.querySelector('#brandText .brand-label');
+  if (label) label.textContent = title || 'LinkPage';
+}
+
+/** Header glyph: a configured image, or the built-in chain-link SVG. */
+function applyBrandIcon(url) {
+  const slot = document.getElementById('brandIcon');
+  if (!slot) return;
+  if (url) {
+    slot.innerHTML = '';
+    const img = document.createElement('img');
+    img.className = 'brand-icon-img';
+    img.src       = url;
+    img.alt       = '';
+    slot.appendChild(img);
+  } else {
+    slot.innerHTML = DEFAULT_BRAND_ICON_SVG;
+  }
+}
+
+// Thumbnail only; updateBrandRowState() owns the Remove button's visibility.
+function updateBrandIconPreview(url) {
+  const img = document.getElementById('brandIconPreview');
+  if (url) { img.src = url; img.classList.remove('hidden'); }
+  else     { img.classList.add('hidden'); }
+}
+
+/** A light/dark logo replaces the whole title block, title + glyph included. */
+function brandIsOverriddenByLogo() {
+  return !!(logoLightUrl || logoDarkUrl);
+}
+
+/**
+ * Greys out and disables the Header Icon controls while a logo is set, and
+ * shows the hint that explains why the title/icon aren't visible.
+ */
+function updateBrandRowState() {
+  const overridden = brandIsOverriddenByLogo();
+  const row  = document.getElementById('brandIconRow');
+  const hint = document.getElementById('brandOverriddenHint');
+  if (!row) return;
+
+  row.classList.toggle('is-inactive', overridden);
+  hint.classList.toggle('hidden', !overridden);
+  ['pickBrandIconLibraryBtn', 'pickBrandIconPresetBtn', 'uploadBrandIconBtn', 'removeBrandIconBtn']
+    .forEach(id => { document.getElementById(id).disabled = overridden; });
+  document.getElementById('removeBrandIconBtn')
+    .classList.toggle('hidden', !brandIconUrl || overridden);
 }
 
 function getLogoForCurrentTheme() {
@@ -364,6 +441,9 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   updateSettingsPreview('light', logoLightUrl);
   updateSettingsPreview('dark',  logoDarkUrl);
   updateFaviconPreview(faviconUrl);
+  brandIconUrl = s.brand_icon || null;
+  updateBrandIconPreview(brandIconUrl);
+  updateBrandRowState();
   populatePinnedGroupSelect(s.pinned_group_id ?? null);
   document.getElementById('siteTitleInput').value = s.site_title || '';
   document.getElementById('saveFaviconsToggle').checked = !!s.save_favicons_to_library;
@@ -392,12 +472,13 @@ document.getElementById('lightLogoFileInput').addEventListener('change', async e
   const file = e.target.files[0]; if (!file) return;
   const r    = await uploadLogo('light', file);
   logoLightUrl = r.logo_url;
-  updateHeaderLogo(); updateSettingsPreview('light', logoLightUrl);
+  updateHeaderLogo(); updateSettingsPreview('light', logoLightUrl); updateBrandRowState();
   e.target.value = ''; showToast('Light logo updated');
 });
 document.getElementById('removeLightLogoBtn').addEventListener('click', async () => {
   await removeLogo('light'); logoLightUrl = null;
-  updateHeaderLogo(); updateSettingsPreview('light', null); showToast('Light logo removed');
+  updateHeaderLogo(); updateSettingsPreview('light', null); updateBrandRowState();
+  showToast('Light logo removed');
 });
 
 document.getElementById('uploadDarkLogoBtn').addEventListener('click', () =>
@@ -406,13 +487,73 @@ document.getElementById('darkLogoFileInput').addEventListener('change', async e 
   const file = e.target.files[0]; if (!file) return;
   const r    = await uploadLogo('dark', file);
   logoDarkUrl  = r.logo_url;
-  updateHeaderLogo(); updateSettingsPreview('dark', logoDarkUrl);
+  updateHeaderLogo(); updateSettingsPreview('dark', logoDarkUrl); updateBrandRowState();
   e.target.value = ''; showToast('Dark logo updated');
 });
 document.getElementById('removeDarkLogoBtn').addEventListener('click', async () => {
   await removeLogo('dark'); logoDarkUrl = null;
-  updateHeaderLogo(); updateSettingsPreview('dark', null); showToast('Dark logo removed');
+  updateHeaderLogo(); updateSettingsPreview('dark', null); updateBrandRowState();
+  showToast('Dark logo removed');
 });
+
+// ─── Header icon: library pick / stock icon / upload / remove ───────────────
+
+/** Applies a saved brand-icon path to state, header, and the settings row. */
+function adoptBrandIcon(url) {
+  brandIconUrl = url || null;
+  applyBrandIcon(brandIconUrl);
+  updateBrandIconPreview(brandIconUrl);
+  updateBrandRowState();
+}
+
+/**
+ * Adopts the response of a brand-icon write. apiJson resolves with the error
+ * body on failure, so a missing path means the write didn't happen — leave the
+ * current icon alone in that case.
+ */
+function adoptBrandIconResponse(res) {
+  if (!res?.brand_icon) {
+    showToast(res?.error || 'Could not update the header icon', 'error');
+    return;
+  }
+  adoptBrandIcon(res.brand_icon);
+  showToast('Header icon updated');
+}
+
+document.getElementById('uploadBrandIconBtn').addEventListener('click', () =>
+  document.getElementById('brandIconFileInput').click());
+document.getElementById('brandIconFileInput').addEventListener('change', async e => {
+  const file = e.target.files[0]; if (!file) return;
+  e.target.value = '';
+  try {
+    adoptBrandIconResponse(await uploadBrandIcon(file));
+  } catch {
+    showToast('Could not update the header icon', 'error');
+  }
+});
+
+document.getElementById('removeBrandIconBtn').addEventListener('click', async () => {
+  await removeBrandIconApi();
+  adoptBrandIcon(null);
+  showToast('Header icon removed');
+});
+
+// Both pickers reuse the link-form modals; they hide Settings while open and
+// restore it once a choice is applied or cancelled.
+document.getElementById('pickBrandIconLibraryBtn').addEventListener('click', () => {
+  document.getElementById('settingsOverlay').classList.add('hidden');
+  openIconLibrary({ pickerMode: true, target: 'brand' });
+});
+
+document.getElementById('pickBrandIconPresetBtn').addEventListener('click', () => {
+  document.getElementById('settingsOverlay').classList.add('hidden');
+  openIconPresets({ target: 'brand' });
+});
+
+/** Re-opens Settings after a brand-icon picker closes. */
+function reopenSettingsAfterBrandPick() {
+  document.getElementById('settingsOverlay').classList.remove('hidden');
+}
 
 document.getElementById('uploadFaviconBtn').addEventListener('click', () =>
   document.getElementById('faviconFileInput').click());
@@ -456,6 +597,7 @@ document.getElementById('saveSiteTitleBtn').addEventListener('click', async () =
   const title  = document.getElementById('siteTitleInput').value.trim();
   const result = await saveSiteTitle(title);
   document.title = result.site_title ? `${result.site_title} — Admin` : 'LinkPage — Admin';
+  applyBrandText(result.site_title);
   showToast(title ? 'Site title saved' : 'Site title cleared');
 });
 
@@ -3881,12 +4023,14 @@ const ICON_PRESET_DEFAULT_COLOR = '#0071e3';
 let iconPresetsQuery        = '';
 let iconPresetsColor        = ICON_PRESET_DEFAULT_COLOR;
 let iconPresetsSelectedName = null;
+let iconPresetsTarget       = 'link';   // 'link' form field, or the header icon
 
 function buildPresetSvgString(body, color, { size = 64, strokeWidth = 2 } = {}) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 }
 
-function openIconPresets() {
+function openIconPresets({ target = 'link' } = {}) {
+  iconPresetsTarget       = target;
   iconPresetsQuery        = '';
   iconPresetsSelectedName = null;
   document.getElementById('iconPresetsSearchInput').value = '';
@@ -3901,6 +4045,11 @@ function openIconPresets() {
 
 function closeIconPresets() {
   document.getElementById('iconPresetsOverlay').classList.add('hidden');
+  // The header-icon flow starts in Settings; return the user there.
+  if (iconPresetsTarget === 'brand') {
+    iconPresetsTarget = 'link';
+    reopenSettingsAfterBrandPick();
+  }
 }
 
 function renderIconPresetsPalette() {
@@ -3981,21 +4130,40 @@ function updateIconPresetsSelectedState() {
   apply.disabled    = false;
 }
 
-function applyIconPresetsSelection() {
+/**
+ * Renders a preset at icon size in the current colour and wraps it in a File,
+ * so both consumers (link form, header icon) go through a normal image upload.
+ */
+function buildPresetSvgFile(icon) {
+  const svgString = buildPresetSvgString(icon.body, iconPresetsColor, { size: 128, strokeWidth: 1.8 });
+  const blob      = new Blob([svgString], { type: 'image/svg+xml' });
+  return new File([blob], `icon-${icon.name}-${iconPresetsColor.replace('#', '')}.svg`,
+                  { type: 'image/svg+xml' });
+}
+
+async function applyIconPresetsSelection() {
   if (!iconPresetsSelectedName) return;
   const icon = (window.ICON_PRESETS || []).find(i => i.name === iconPresetsSelectedName);
   if (!icon) return;
 
-  // Render the chosen icon at a larger size for crisp display on link cards,
-  // wrap it in a Blob, stuff it into the link form's #inputImage as if the
-  // admin had uploaded an SVG themselves — the rest of the submit flow then
-  // handles uploading + library auto-registration with no extra plumbing.
+  // Header icon: upload the generated SVG straight to the brand-icon setting
+  // (which registers it in the library too, same as the link flow).
+  if (iconPresetsTarget === 'brand') {
+    try {
+      adoptBrandIconResponse(await uploadBrandIcon(buildPresetSvgFile(icon)));
+    } catch {
+      showToast('Could not update the header icon', 'error');
+    }
+    closeIconPresets();
+    return;
+  }
+
+  // Stuff the generated SVG into the link form's #inputImage as if the admin
+  // had uploaded it themselves — the rest of the submit flow then handles
+  // uploading + library auto-registration with no extra plumbing.
   const svgString = buildPresetSvgString(icon.body, iconPresetsColor, { size: 128, strokeWidth: 1.8 });
-  const blob      = new Blob([svgString], { type: 'image/svg+xml' });
-  const file      = new File([blob], `icon-${icon.name}-${iconPresetsColor.replace('#', '')}.svg`,
-                             { type: 'image/svg+xml' });
   const dt = new DataTransfer();
-  dt.items.add(file);
+  dt.items.add(buildPresetSvgFile(icon));
   document.getElementById('inputImage').files = dt.files;
 
   // Wire the preview the same way the upload flow does.
@@ -4006,7 +4174,7 @@ function applyIconPresetsSelection() {
 }
 
 // Event wiring
-document.getElementById('openIconPresetsBtn').addEventListener('click', openIconPresets);
+document.getElementById('openIconPresetsBtn').addEventListener('click', () => openIconPresets());
 document.getElementById('closeIconPresetsBtn').addEventListener('click', closeIconPresets);
 document.getElementById('cancelIconPresetsBtn').addEventListener('click', closeIconPresets);
 document.getElementById('applyIconPresetsBtn').addEventListener('click', applyIconPresetsSelection);
@@ -4047,6 +4215,7 @@ document.getElementById('iconPresetsGrid').addEventListener('click', e => {
 let iconLibraryItems    = [];
 let iconLibraryQuery    = '';
 let iconLibraryPicker   = false;  // true when opened from the link modal
+let iconLibraryTarget   = 'link'; // where a picked icon goes: 'link' | 'brand'
 let iconSelectMode      = false;  // bulk-select mode (manage view)
 let iconSelectedIds     = new Set();
 let iconLastClickedId   = null;   // anchor for shift-click range selection
@@ -4064,8 +4233,9 @@ async function deleteIconById(id) {
   return sendAuthRequest(`/api/icons/${id}`, { method: 'DELETE' });
 }
 
-async function openIconLibrary({ pickerMode = false } = {}) {
+async function openIconLibrary({ pickerMode = false, target = 'link' } = {}) {
   iconLibraryPicker = pickerMode;
+  iconLibraryTarget = pickerMode ? target : 'link';
   iconLibraryQuery  = '';
   exitIconSelectMode();
   // Hide the Select button in picker mode (picking, not managing).
@@ -4082,6 +4252,11 @@ async function openIconLibrary({ pickerMode = false } = {}) {
 function closeIconLibrary() {
   exitIconSelectMode();
   document.getElementById('iconLibraryOverlay').classList.add('hidden');
+  // Picking a header icon came from Settings — hand the user back to it.
+  if (iconLibraryTarget === 'brand') {
+    iconLibraryTarget = 'link';
+    reopenSettingsAfterBrandPick();
+  }
 }
 
 function enterIconSelectMode() {
@@ -4152,7 +4327,9 @@ function renderIconLibrary() {
   grid.innerHTML = visible.map(icon => {
     const label      = icon.original_name || 'icon';
     const used        = icon.usage_count || 0;
-    const pickedHere  = iconLibraryPicker && pendingIconId === icon.id;
+    const pickedHere  = iconLibraryPicker && (iconLibraryTarget === 'brand'
+                          ? icon.file_path === brandIconUrl
+                          : pendingIconId === icon.id);
     const bulkPicked  = iconSelectMode && iconSelectedIds.has(icon.id);
     const selected    = pickedHere || bulkPicked;
     // In select mode the whole card toggles selection; the per-card delete
@@ -4395,9 +4572,20 @@ document.getElementById('iconLibraryGrid').addEventListener('click', async e => 
   }
 });
 
-function pickIconFromLibrary(id) {
+async function pickIconFromLibrary(id) {
   const icon = iconLibraryItems.find(i => i.id === id);
   if (!icon) return;
+
+  if (iconLibraryTarget === 'brand') {
+    try {
+      adoptBrandIconResponse(await setBrandIconFromLibrary(icon.id));
+    } catch {
+      showToast('Could not update the header icon', 'error');
+    }
+    closeIconLibrary();
+    return;
+  }
+
   pendingIconId    = icon.id;
   shouldRemoveIcon = false;
   document.getElementById('inputImage').value = '';
@@ -5050,9 +5238,19 @@ const OVERLAY_IDS = [
   'auditOverlay', 'requestsOverlay', 'analyticsOverlay',
 ];
 
+// Overlays whose own close function restores state (e.g. handing the user back
+// to Settings after picking a header icon) instead of just hiding the element.
+const OVERLAY_CLOSERS = {
+  iconLibraryOverlay: closeIconLibrary,
+  iconPresetsOverlay: closeIconPresets,
+};
+
 OVERLAY_IDS.forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
-    if (e.target.id === id) e.target.classList.add('hidden');
+    if (e.target.id !== id) return;
+    const closer = OVERLAY_CLOSERS[id];
+    if (closer) closer();
+    else        e.target.classList.add('hidden');
   });
 });
 
@@ -5064,6 +5262,10 @@ document.addEventListener('keydown', e => {
     .map(id => document.getElementById(id))
     .find(el => el && !el.classList.contains('hidden'));
   if (openOverlay) {
+    // Escape dismisses everything, so drop any pending picker target instead of
+    // bouncing the user back into Settings.
+    iconLibraryTarget = 'link';
+    iconPresetsTarget = 'link';
     OVERLAY_IDS.forEach(id => document.getElementById(id).classList.add('hidden'));
     return;
   }

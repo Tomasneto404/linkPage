@@ -31,6 +31,16 @@ function create(req, res) {
   res.status(201).json({ ...icon, usage_count: 0 });
 }
 
+/**
+ * True when a settings key still points at this file (Settings favicon or the
+ * header icon). Those files stay on disk even after leaving the library, so the
+ * setting keeps working — it's just no longer a reusable library asset.
+ */
+function isPinnedBySettings(filePath) {
+  return db.readSetting('favicon')    === filePath
+      || db.readSetting('brand_icon') === filePath;
+}
+
 function remove(req, res) {
   const id = Number.parseInt(req.params.id, 10);
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid icon ID' });
@@ -44,9 +54,9 @@ function remove(req, res) {
     ? `Deleted icon "${iconName}" from the library`
     : `Deleted icon #${id} from the library`;
 
-  // Don't remove the file from disk if it's still the active Settings favicon
-  // (the icon is just unlinked from the library; the favicon keeps working).
-  if (fileToDelete && db.readSetting('favicon') !== fileToDelete) {
+  // Don't remove the file from disk while a setting still points at it (the icon
+  // is just unlinked from the library; the favicon / header icon keep working).
+  if (fileToDelete && !isPinnedBySettings(fileToDelete)) {
     safeDeleteFile(fileToDelete);
   }
   res.status(204).end();
@@ -57,14 +67,13 @@ function bulkDelete(req, res) {
   if (!ids) return res.status(400).json({ error: '"ids" must be an array' });
 
   let deleted = 0;
-  const faviconSetting = db.readSetting('favicon');
   for (const raw of ids) {
     const id = Number.parseInt(raw, 10);
     if (!Number.isFinite(id)) continue;
     const { changes, fileToDelete } = db.deleteIcon(id);
     if (!changes) continue;
-    // Same guard as the single delete: keep the active Settings favicon file.
-    if (fileToDelete && faviconSetting !== fileToDelete) safeDeleteFile(fileToDelete);
+    // Same guard as the single delete: keep files a setting still points at.
+    if (fileToDelete && !isPinnedBySettings(fileToDelete)) safeDeleteFile(fileToDelete);
     deleted++;
   }
   res.json({ deleted });

@@ -189,6 +189,20 @@ header {
   display: block;
 }
 
+/* Header glyph slot: holds either the built-in SVG or a custom brand image. */
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-icon-img {
+  height: 20px;
+  width: 20px;
+  object-fit: contain;
+  display: block;
+}
+
 /* ── Search ──────────────────────────────── */
 /*
  * The wrapper is now the styled pill (chips live inside it alongside the
