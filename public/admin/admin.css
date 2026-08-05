@@ -3188,6 +3188,19 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 .request-status-rejected { background: rgba(224,57,43,0.14); color: #c4342a; }
 [data-theme="dark"] .request-status-approved { color: #30d158; }
 [data-theme="dark"] .request-status-rejected { color: #ff6961; }
+/* "Already added" chip: the requested URL matches a link that already exists.
+   Clickable — opens that link's edit modal. */
+.request-row-dupe {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.01em;
+  padding: 2px 8px; border-radius: 980px; cursor: pointer;
+  border: 1px solid rgba(255,159,10,0.35);
+  background: rgba(255,159,10,0.16); color: #a05a00;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.request-row-dupe:hover { background: rgba(255,159,10,0.26); }
+[data-theme="dark"] .request-row-dupe { color: #ffb340; }
+
 .request-row-actions {
   display: flex; flex-direction: column; gap: 6px;
   flex-shrink: 0; align-items: stretch;

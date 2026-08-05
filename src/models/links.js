@@ -162,6 +162,30 @@ function checkDuplicateUrl(url, excludeId = null) {
 }
 
 /**
+ * Adds one group membership (optionally inside a section) to a link, leaving
+ * every other membership untouched. A membership that already exists is left
+ * exactly as it is — this never moves a link between sections.
+ * Returns { added } so callers can tell "linked now" from "was already there".
+ */
+function addLinkGroup(linkId, groupId, sectionId = null) {
+  const res = db.prepare(`
+    INSERT OR IGNORE INTO link_groups (link_id, group_id, section_id) VALUES (?, ?, ?)
+  `).run(linkId, groupId, Number.isFinite(sectionId) ? sectionId : null);
+  return { added: res.changes > 0 };
+}
+
+/**
+ * Minimal id/name/url rows for every URL-backed link. Used for duplicate
+ * detection that needs to normalise URLs in JS (SQL can't do it cheaply).
+ */
+function getLinkUrlIndex() {
+  return db.prepare(`
+    SELECT id, name, url FROM links
+    WHERE url IS NOT NULL AND url != '' AND file_path IS NULL
+  `).all();
+}
+
+/**
  * Inserts a new link placed at the end of the position list.
  * For URL-backed links pass `url`; for file-backed links pass `filePath` (and
  * optionally `fileName` for display) — in that case `url` may be an empty string.
@@ -226,6 +250,11 @@ function updateLinkFavicon(id, faviconPath) {
   db.prepare('UPDATE links SET favicon_path = ? WHERE id = ?').run(faviconPath, id);
 }
 
+/** Sets a link's custom icon (image_path) without touching any other field. */
+function updateLinkImage(id, imagePath) {
+  db.prepare('UPDATE links SET image_path = ? WHERE id = ?').run(imagePath, id);
+}
+
 /** Soft-hides or un-hides a link without touching anything else. */
 function updateLinkVisibility(id, isHidden) {
   db.prepare('UPDATE links SET is_hidden = ? WHERE id = ?')
@@ -252,7 +281,8 @@ function reorderLinks(orderedIds) {
 }
 
 module.exports = {
-  getAllLinks, getLinkById, checkDuplicateUrl, createLink, updateLink, deleteLink,
-  updateLinkFavicon, updateLinkBrokenStatus, updateLinkVisibility,
+  getAllLinks, getLinkById, checkDuplicateUrl, getLinkUrlIndex, addLinkGroup,
+  createLink, updateLink, deleteLink,
+  updateLinkFavicon, updateLinkImage, updateLinkBrokenStatus, updateLinkVisibility,
   getAllLinksForHealthCheck, reorderLinks,
 };

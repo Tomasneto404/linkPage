@@ -268,6 +268,8 @@ async function saveTheme(patch)            { return jsonPost('/api/settings/them
 
 async function fetchLinkRequests(status = 'pending') { return apiJson(`/api/link-requests?status=${status}`); }
 async function approveRequestApi(id, linkId) { return jsonPost(`/api/link-requests/${id}/approve`, { link_id: linkId }); }
+// Approves without duplicating: the existing link joins the requested group.
+async function attachRequestApi(id)          { return jsonPost(`/api/link-requests/${id}/attach`, {}); }
 async function rejectRequestApi(id)          { return jsonPost(`/api/link-requests/${id}/reject`, {}); }
 async function deleteRequestApi(id)          { return sendAuthRequest(`/api/link-requests/${id}`, { method: 'DELETE' }); }
 
@@ -958,21 +960,45 @@ function showToast(message, type = 'success', duration = 3000) {
 }
 
 /** Shows a custom confirm dialog. Returns a Promise that resolves to true/false. */
-function showConfirm({ title = 'Confirm', message = '', confirmText = 'Confirm', danger = true } = {}) {
+/**
+ * Modal confirm. Resolves true (confirm), false (cancel), or — when `altText`
+ * is given — the string 'alt' for the extra third choice.
+ * Listeners are removed on close so a stale one can never resolve a later call.
+ */
+function showConfirm({ title = 'Confirm', message = '', confirmText = 'Confirm', danger = true, altText = null } = {}) {
   return new Promise(resolve => {
     document.getElementById('confirmTitle').textContent = title;
     document.getElementById('confirmBody').textContent  = message;
-    const okBtn = document.getElementById('confirmOkBtn');
+    const okBtn     = document.getElementById('confirmOkBtn');
+    const cancelBtn = document.getElementById('confirmCancelBtn');
+    const altBtn    = document.getElementById('confirmAltBtn');
     okBtn.textContent = confirmText;
-    okBtn.className   = `btn ${danger ? 'btn-danger' : 'btn-primary'}`;
+    // With a third choice the recommended action is the primary one, so the
+    // destructive option steps back to an outline instead of solid red.
+    okBtn.className = danger
+      ? `btn ${altText ? 'btn-ghost-danger' : 'btn-danger'}`
+      : 'btn btn-primary';
+    altBtn.classList.toggle('hidden', !altText);
+    // Three choices stack full-width; two keep the usual right-aligned row.
+    document.getElementById('confirmActions').classList.toggle('has-alt', !!altText);
+    if (altText) altBtn.textContent = altText;
     document.getElementById('confirmOverlay').classList.remove('hidden');
 
-    const done = result => {
+    const onOk     = () => done(true);
+    const onCancel = () => done(false);
+    const onAlt    = () => done('alt');
+
+    function done(result) {
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      altBtn.removeEventListener('click', onAlt);
       document.getElementById('confirmOverlay').classList.add('hidden');
       resolve(result);
-    };
-    okBtn.addEventListener('click', () => done(true),  { once: true });
-    document.getElementById('confirmCancelBtn').addEventListener('click', () => done(false), { once: true });
+    }
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    altBtn.addEventListener('click', onAlt);
   });
 }
 
@@ -4903,6 +4929,43 @@ const REQUEST_FALLBACK_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" f
   <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
   <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
 
+/**
+ * True when the request points at a link that already exists — ignoring the
+ * link this very request created, which is expected for approved requests.
+ */
+function requestHasExistingLink(r) {
+  return !!(r.existing_link && r.existing_link.id !== r.created_link_id);
+}
+
+/** Group names the already-existing link belongs to. */
+function existingLinkGroupNames(existing) {
+  return (existing?.groups ?? []).map(g => g.name).filter(Boolean);
+}
+
+/** True when the existing link is already in the group this request asks for. */
+function existingLinkHasRequestedGroup(r) {
+  return !!r.existing_link?.groups?.some(g => g.id === r.group_id);
+}
+
+/** "Already added" chip; opens the existing link for editing when clicked. */
+function requestDupeChip(r) {
+  if (!requestHasExistingLink(r)) return '';
+  const ex     = r.existing_link;
+  const names  = existingLinkGroupNames(ex);
+  const suffix = names.length ? ` · ${names.join(', ')}` : '';
+  const title  = `Already added as "${ex.name}"${suffix} — click to open it`;
+  return `
+    <button type="button" class="request-row-dupe" data-req-existing="${ex.id}"
+            title="${escapeHtml(title)}">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      Already added${escapeHtml(suffix)}
+    </button>`;
+}
+
 function renderRequestsList(requests) {
   loadedRequests = requests;
   const list  = document.getElementById('requestsList');
@@ -4942,6 +5005,7 @@ function renderRequestsList(requests) {
             <span>${formatRequestDate(r.created_at)}</span>
             ${r.ip_address ? `<span class="request-row-ip" title="Submitter IP">${escapeHtml(r.ip_address)}</span>${ipTagChip(r.ip_address)}` : ''}
             ${statusBadge}
+            ${requestDupeChip(r)}
           </div>
           ${r.description ? `<div class="request-row-desc">${escapeHtml(r.description)}</div>` : ''}
         </div>
@@ -5004,14 +5068,58 @@ document.getElementById('requestsStatusFilter').addEventListener('change', e => 
 });
 
 document.getElementById('requestsList').addEventListener('click', async e => {
-  const approveBtn = e.target.closest('[data-req-approve]');
-  const rejectBtn  = e.target.closest('[data-req-reject]');
-  const deleteBtn  = e.target.closest('[data-req-delete]');
+  const approveBtn  = e.target.closest('[data-req-approve]');
+  const rejectBtn   = e.target.closest('[data-req-reject]');
+  const deleteBtn   = e.target.closest('[data-req-delete]');
+  const existingBtn = e.target.closest('[data-req-existing]');
+
+  // "Already added" chip — jump straight to the link that already exists.
+  if (existingBtn) {
+    const linkId = Number(existingBtn.dataset.reqExisting);
+    const link   = links.find(l => l.id === linkId);
+    if (!link) { showToast('That link no longer exists — refresh the list'); return; }
+    closeRequestsModal();
+    openEditLinkModal(link);
+    return;
+  }
 
   if (approveBtn) {
     const id  = Number(approveBtn.dataset.reqApprove);
     const req = loadedRequests.find(r => r.id === id);
     if (!req) return;
+    // The URL is already published: offer to add that link to the requested
+    // group instead of creating a second copy of it.
+    if (requestHasExistingLink(req)) {
+      const ex        = req.existing_link;
+      const names     = existingLinkGroupNames(ex);
+      const target    = req.group_name || 'the requested group';
+      const alreadyIn = existingLinkHasRequestedGroup(req);
+      const choice    = await showConfirm({
+        title:   'Link already exists',
+        message: alreadyIn
+          ? `"${ex.name}" already points at this URL and is already in ${target}. Approve the request as-is, or add a second copy of the link?`
+          : `"${ex.name}" already points at this URL${names.length ? ` (in ${names.join(', ')})` : ''}. Add that link to ${target} instead of creating a duplicate?`,
+        confirmText: 'Create duplicate',
+        altText:     alreadyIn ? 'Approve only' : `Add to ${target}`,
+      });
+      if (!choice) return;
+
+      if (choice === 'alt') {
+        const result = await attachRequestApi(req.id);
+        if (result?.ok !== true) {
+          showToast(result?.error || 'Could not approve the request', 'error');
+          return;
+        }
+        showToast(result.added
+          ? `Existing link added to ${target}`
+          : 'Request approved — the link was already in that group');
+        await loadRequests();
+        refreshRequestsBadge();
+        await loadAllData();   // the link's groups changed
+        return;
+      }
+      // choice === true → fall through and create the duplicate as usual.
+    }
     closeRequestsModal();
     openAddLinkModalFromRequest(req);
     return;

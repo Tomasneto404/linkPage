@@ -326,7 +326,7 @@
           </svg>
           <span>Changelog</span>
           <span class="changelog-version" id="changelogVersion">
-            v1.0.3
+            v1.0.4
             <span class="changelog-update-dot hidden" id="changelogUpdateDot" aria-hidden="true"></span>
           </span>
         </summary>
@@ -334,6 +334,99 @@
         <!-- "Update available" banner is populated and revealed by admin.js
              when the server detects a newer release on GitHub. -->
         <div class="changelog-update hidden" id="changelogUpdate"></div>
+
+        <div class="changelog-release-label">v1.0.4</div>
+        <ul class="changelog-list">
+          <li>
+            <div class="changelog-entry-title">Link requests from the public page</div>
+            <div class="changelog-entry-desc">
+              Visitors can propose links (name, URL, description, icon, target group
+              and section), optionally behind their own password. Requests land in a
+              review queue with a pending badge; approving one opens the Add-Link form
+              already filled in.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Duplicate detection on requests</div>
+            <div class="changelog-entry-desc">
+              A request whose URL already exists is flagged with an "Already added"
+              chip that opens the existing link. Matching ignores http/https,
+              <code>www.</code>, trailing slashes and #fragments. Approving offers to
+              add that link to the requested group instead of creating a second copy.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Click analytics dashboard</div>
+            <div class="changelog-entry-desc">
+              A dedicated analytics view over any period: totals, unique visitors,
+              busiest days and hours, top links and top IPs — beyond the per-link
+              stats that were already there.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">IP attribution tags</div>
+            <div class="changelog-entry-desc">
+              Give a known IP a human-readable name once, and it shows up wherever
+              that IP appears — click stats, the audit log, and link requests.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Themes &amp; appearance</div>
+            <div class="changelog-entry-desc">
+              Pick an accent colour (with optional dark-mode brightening and a glow),
+              choose light and dark palette variants, set which theme new visitors
+              land on, and decide whether the active group tab uses the group's own
+              colour.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Custom header title &amp; icon</div>
+            <div class="changelog-entry-desc">
+              The site title now shows in the page header, next to an icon you choose
+              from the library, the stock icon set, or your own upload. Both are
+              hidden automatically while a light/dark logo is set, since the logo
+              replaces the whole title block.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Mobile navigation position</div>
+            <div class="changelog-entry-desc">
+              Move the group tabs to the bottom of the screen on phones — easier to
+              reach one-handed — or keep them at the top.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Collapsible groups in the admin</div>
+            <div class="changelog-entry-desc">
+              Fold groups and sections in the sidebar to keep a long list manageable.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Hidden starter link on a fresh install</div>
+            <div class="changelog-entry-desc">
+              A brand-new install comes with one hidden "Buy me a coffee" link —
+              visible here in the admin, never on the public page. Its icon is
+              fetched on first boot, with a built-in fallback for offline installs.
+              Delete it and it stays deleted.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Developer footer toggle</div>
+            <div class="changelog-entry-desc">
+              A small credit line from the author, shown on both pages and switchable
+              off in Settings → Branding.
+            </div>
+          </li>
+          <li>
+            <div class="changelog-entry-title">Reorganised codebase &amp; AGPL licensing</div>
+            <div class="changelog-entry-desc">
+              The server was split from two large files into routes, controllers,
+              models, services, middleware and config — easier to read and to
+              contribute to. The project is now AGPL-3.0-or-later with an open-core
+              <code>ee/</code> directory, plus CONTRIBUTING and CLA documents.
+            </div>
+          </li>
+        </ul>
 
         <div class="changelog-release-label">v1.0.3</div>
         <ul class="changelog-list">
@@ -1044,7 +1137,7 @@
               <div class="settings-row-label">Version</div>
               <div class="settings-row-desc">
                 Current build is
-                <span class="settings-version-inline" id="settingsCurrentVersion">v1.0.3</span>.
+                <span class="settings-version-inline" id="settingsCurrentVersion">v1.0.4</span>.
                 Check GitHub for newer releases.
               </div>
             </div>
@@ -1784,9 +1877,14 @@
     <div class="modal modal-sm">
       <div class="modal-header"><h2 id="confirmTitle">Confirm</h2></div>
       <p class="confirm-msg" id="confirmBody"></p>
-      <div class="form-actions" style="padding: 6px 22px 22px">
+      <!-- DOM order is cancel → confirm → alt; with three choices the CSS flips
+           the row into a column-reverse stack, so the alt lands on top. -->
+      <div class="form-actions confirm-actions" id="confirmActions" style="padding: 6px 22px 22px">
         <button class="btn btn-ghost" id="confirmCancelBtn">Cancel</button>
         <button class="btn btn-danger" id="confirmOkBtn">Confirm</button>
+        <!-- Optional third choice (showConfirm({ altText }) → resolves 'alt'),
+             e.g. "add to group instead of duplicating". -->
+        <button class="btn btn-primary hidden" id="confirmAltBtn">Alternative</button>
       </div>
     </div>
   </div>

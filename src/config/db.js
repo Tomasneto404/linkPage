@@ -288,6 +288,7 @@ function isFreshDatabase() {
  * Runs every migration in order, inside a single transaction so the DB never
  * ends up half-migrated if one step throws. Each step is idempotent, so this
  * is safe to call on every startup — old DBs upgrade, new DBs do nothing.
+ * Returns true when this was a brand-new database.
  */
 function runMigrations() {
   const fresh = isFreshDatabase();
@@ -320,8 +321,12 @@ function runMigrations() {
   } else {
     console.log(`[db] Schema verified at v${CURRENT_SCHEMA_VERSION}`);
   }
+
+  return fresh;
 }
 
-runMigrations();
+// True when this process created the database. Startup uses it to decide
+// whether to add the first-run example content (see services/seedFirstRun.js).
+const isFreshInstall = runMigrations();
 
-module.exports = { db };
+module.exports = { db, isFreshInstall };

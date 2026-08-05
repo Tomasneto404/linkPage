@@ -6,7 +6,7 @@
  */
 
 const db = require('../models');
-const { getClientIp, isValidHttpUrl } = require('../utils/http');
+const { getClientIp, isValidHttpUrl, normalizeUrlForCompare } = require('../utils/http');
 const { requestAuthLimiter } = require('../middleware/rateLimit');
 const { resolveIconReference } = require('../services/uploadService');
 const { truncate } = require('../services/auditService');
@@ -80,15 +80,88 @@ function submit(req, res) {
 
 // ─── Admin review ─────────────────────────────────────────────────────────────
 
+/** Builds a normalised-URL → link index over every URL-backed link. */
+function buildUrlIndex() {
+  const index = new Map();
+  for (const link of db.getLinkUrlIndex()) {
+    const key = normalizeUrlForCompare(link.url);
+    if (key && !index.has(key)) index.set(key, link);
+  }
+  return index;
+}
+
+/** The already-published link a request URL points at, or null. */
+function findExistingLinkForUrl(url, index = buildUrlIndex()) {
+  const key = normalizeUrlForCompare(url);
+  return key ? (index.get(key) ?? null) : null;
+}
+
+/** Public shape of a matched link: enough for the admin to decide what to do. */
+function describeExistingLink(link) {
+  return {
+    id:     link.id,
+    name:   link.name,
+    url:    link.url,
+    groups: (db.getLinkById(link.id)?.groups ?? [])
+      .map(g => ({ id: g.id, name: g.name, section_id: g.section_id ?? null })),
+  };
+}
+
 function list(req, res) {
   const status   = req.query.status === 'all' ? undefined : (req.query.status || 'pending');
   const requests = db.getLinkRequests({ status });
-  // Attach the icon library id so the admin's prefill flow can preselect it.
-  const decorated = requests.map(r => ({
-    ...r,
-    icon_id: r.image_path ? (db.getIconByPath(r.image_path)?.id ?? null) : null,
-  }));
+
+  // Index existing links by normalised URL once, so the reviewer can see at a
+  // glance whether a request points at a link that's already published.
+  const urlIndex = buildUrlIndex();
+
+  const decorated = requests.map(r => {
+    const match = findExistingLinkForUrl(r.url, urlIndex);
+    return {
+      ...r,
+      // Icon library id, so the admin's prefill flow can preselect it.
+      icon_id: r.image_path ? (db.getIconByPath(r.image_path)?.id ?? null) : null,
+      existing_link: match ? describeExistingLink(match) : null,
+    };
+  });
+
   res.json({ pending_count: db.countPendingRequests(), requests: decorated });
+}
+
+/**
+ * Approves a request without creating a duplicate: the link that already has
+ * this URL simply joins the requested group (and section, when it belongs to
+ * that group). The request is marked approved and points at that link.
+ */
+function attachToExisting(req, res) {
+  const request = db.getLinkRequestById(req.params.id);
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+
+  const match = findExistingLinkForUrl(request.url);
+  if (!match) {
+    return res.status(409).json({ error: 'No existing link matches this request URL' });
+  }
+
+  const groupId = Number(request.group_id);
+  if (!Number.isFinite(groupId) || !db.getGroupById(groupId)) {
+    return res.status(400).json({ error: 'This request has no valid group to add' });
+  }
+
+  // Only honour the requested section when it really belongs to that group.
+  let sectionId = null;
+  if (request.section_id != null) {
+    const section = db.getSectionById(request.section_id);
+    if (section && section.group_id === groupId) sectionId = section.id;
+  }
+
+  const { added } = db.addLinkGroup(match.id, groupId, sectionId);
+  db.setLinkRequestStatus(request.id, 'approved', { linkId: match.id });
+
+  req._auditSummary = added
+    ? `Approved link request "${truncate(request.name)}" by adding the existing link "${truncate(match.name)}" to another group`
+    : `Approved link request "${truncate(request.name)}" — existing link "${truncate(match.name)}" was already in that group`;
+
+  res.json({ ok: true, added, link: db.getLinkById(match.id) });
 }
 
 function approve(req, res) {
@@ -118,4 +191,4 @@ function remove(req, res) {
   res.status(204).end();
 }
 
-module.exports = { submit, list, approve, reject, remove };
+module.exports = { submit, list, attachToExisting, approve, reject, remove };

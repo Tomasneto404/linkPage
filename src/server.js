@@ -11,9 +11,11 @@
 
 const app = require('./app');
 const { PORT, divider } = require('./config/env');
+const { isFreshInstall } = require('./config/db');
 const { getAdminToken } = require('./config/secrets');
 const db = require('./models');
 const { runHealthCheck } = require('./services/healthService');
+const { seedFirstRunContent } = require('./services/seedFirstRun');
 
 // Migrate old single-logo setting to the new light/dark format.
 const oldLogoPath = db.readSetting('logo_path');
@@ -21,6 +23,9 @@ if (oldLogoPath && !db.readSetting('logo_light')) {
   db.writeSetting('logo_light', oldLogoPath);
   db.deleteSetting('logo_path');
 }
+
+// Brand-new database → give the admin something to look at on first load.
+if (isFreshInstall) seedFirstRunContent();
 
 console.log(`\n┌${divider}┐`);
 console.log(`│  Admin Token: ${getAdminToken()}`);

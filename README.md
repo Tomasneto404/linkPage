@@ -59,15 +59,20 @@ The settings modal covers branding (custom site title, separate logos for light 
 - **Stock icon picker** — choose from a built-in line-icon set and a colour, instead of uploading; file links get a coloured file-type icon, and links with no icon fall back to the Settings favicon
 - **In-place file editor** — edit attached text files (HTML, XML, JSON, TXT, CSV, MD, SVG) in the admin with an expand view, line numbers, syntax highlighting, and a find bar; saves go live instantly
 - **File attachments** — link cards can point to an uploaded file (PDF, Office docs, archives, images, text, HTML/XML/JSON) instead of a URL, with a 100 MB cap and an extension whitelist
+- **Link requests** — let visitors propose links (name, URL, description, icon, target group/section), optionally behind their own password; requests queue up in the admin with a pending badge, and approving one opens the Add-Link form pre-filled
+- **Duplicate-aware approvals** — a request whose URL already exists is flagged with an "Already added" chip (matching ignores http/https, `www.`, trailing slashes and fragments), and approving offers to add that link to the requested group instead of creating a second copy
 - **Password-protected groups** — gate sensitive groups with a password; per-group unlock behaviour: auto-lock after 30 s (kiosk-safe) or stay unlocked for the browser session
 - **Admin audit log** — every admin change and every link click is recorded with the entity name, time, IP and device; live auto-refresh, search/type filters, and CSV/JSON export
 - **Hide links from the public page** — keep a link in the admin without exposing it publicly (eye-toggle on every card)
 - **Custom group colors** — pick any color via the native picker swatch
 - **Pinned default group** — choose which group the public page opens on (new visitors only — returning visitors keep the tab they were last viewing)
 - **Copy link** — one-click copy button on every public card, with a toast confirmation
-- **Click analytics** — per-link stats: total clicks, unique visitors, today/week counts, top IPs
+- **Click analytics** — per-link stats (total clicks, unique visitors, today/week counts, top IPs) plus a dashboard over any period: busiest days and hours, top links and top visitors
+- **IP attribution tags** — name a known IP once and that name appears wherever the IP shows up: click stats, audit log, and link requests
 - **Broken link checker** — automatic health check every 6 hours, flags dead links in the admin
-- **Custom branding** — upload separate logos for light and dark mode, a custom browser tab favicon, and set a custom site title
+- **Custom branding** — set the site title (shown in the browser tab *and* the page header), pick a header icon from the library / stock set / your own upload, upload separate logos for light and dark mode, and a custom browser-tab favicon; header title and icon step aside automatically when a logo is set
+- **Themes & appearance** — accent colour with optional dark-mode brightening and glow, light/dark palette variants, which theme new visitors land on, group-coloured active tabs, and whether phone navigation sits at the top or bottom of the screen
+- **Hidden starter link on first install** — a fresh install comes with a single hidden "Buy me a coffee" link: visible in the admin only, never on the public page; its icon is fetched on first boot (with a built-in fallback when offline). Delete it and it stays deleted
 - **Smart favicon fetching** — three-tier strategy (parse the page for `<link rel="icon">`, then `/favicon.ico`, then Google as fallback) so favicons work for intranet sites too; fetched in the background so saving a link is never blocked, and cached server-side
 - **Drag-to-reorder** — reorder links, groups, sections, and subsections by dragging
 - **Bulk actions** — multi-select (shift-click for ranges, Select all, Esc to clear) to delete, move into a section, hide, or show multiple links at once
@@ -88,18 +93,29 @@ The settings modal covers branding (custom site title, separate logos for light 
 ```
 linkPage/
 ├── src/
-│   ├── server.js      # Express API + static file serving
-│   └── database.js    # SQLite setup and all data access functions
+│   ├── server.js       # Startup: banner, health check, listen
+│   ├── app.js          # Express app: middleware order, static files, routes
+│   ├── config/         # env vars, constants, SQLite connection + migrations, secrets
+│   ├── routes/         # One router per resource; index.js mounts them all
+│   ├── controllers/    # Request handling and validation per resource
+│   ├── models/         # SQL data access (parameterized statements only)
+│   ├── services/       # Uploads, favicons, SSE, audit, version check, health
+│   ├── middleware/     # Auth, audit+broadcast, rate limits, security headers, errors
+│   └── utils/          # HTTP/URL helpers, CSV, group crypto, body parsers
 ├── public/
-│   ├── index.html     # Public page (end users)
-│   ├── app.js         # Public page logic
-│   ├── style.css      # Shared Apple-style theme (CSS variables)
+│   ├── index.html      # Public page (end users)
+│   ├── app.js          # Public page logic
+│   ├── style.css       # Shared Apple-style theme (CSS variables)
 │   └── admin/
-│       ├── index.html # Admin panel
-│       ├── admin.js   # Admin panel logic
-│       └── admin.css  # Admin-specific styles
+│       ├── index.html  # Admin panel
+│       ├── admin.js    # Admin panel logic
+│       ├── admin.css   # Admin-specific styles
+│       └── icon-presets.js  # Curated stock icon set
+├── ee/                 # Enterprise-licensed additions (see ee/LICENSE)
+├── scripts/            # Maintenance scripts (license headers)
 ├── Dockerfile
-└── docker-compose.yml
+├── docker-compose.yml       # Build from source
+└── docker-compose.prod.yml  # Run the published image
 ```
 
 ### Data Storage
@@ -108,8 +124,9 @@ All persistent data lives in `/app/data` inside the container, mapped to `./link
 
 | Path | Purpose |
 |------|---------|
-| `data/links.db` | SQLite database — links, groups, sections & subsections, link↔group mappings, icon library, settings, click analytics, and the admin audit log. The schema is auto-migrated on startup. |
+| `data/links.db` | SQLite database — links, groups, sections & subsections, link↔group mappings, icon library, settings, click analytics, link requests, IP tags, and the admin audit log. The schema is auto-migrated on startup. |
 | `data/admin-token.txt` | Admin token generated on first startup |
+| `data/group-secret.txt` | Key used to sign group-unlock cookies and hash group passwords |
 | `data/uploads/` | Uploaded images, logos, favicons, and link file attachments |
 
 ### Authentication
@@ -311,15 +328,23 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/auth/verify` | — | Verify admin token |
 | POST | `/api/auth/verify-public` | — | Verify public password |
 | POST | `/api/auth/rotate-token` | Admin | Generate a new admin token |
-| GET | `/api/settings` | — | Get site title, logos, favicon, pinned group, password status |
-| POST | `/api/settings/site-title` | Admin | Set the site title |
+| GET | `/api/settings` | — | Get branding, theme, feature flags, pinned group, password status |
+| POST | `/api/settings/site-title` | Admin | Set the site title (browser tab + header) |
+| POST | `/api/settings/brand-icon` | Admin | Set the header icon (image upload or library `icon_id`) |
+| DELETE | `/api/settings/brand-icon` | Admin | Remove the header icon |
 | POST | `/api/settings/logo/:variant` | Admin | Upload logo (`light` or `dark`) |
 | DELETE | `/api/settings/logo/:variant` | Admin | Remove logo |
 | POST | `/api/settings/favicon` | Admin | Upload custom browser-tab favicon |
 | DELETE | `/api/settings/favicon` | Admin | Remove custom favicon |
+| POST | `/api/settings/theme` | Admin | Update accent colour, palette variants, default theme, mobile nav position |
+| POST | `/api/settings/group-tab-color` | Admin | Toggle group-coloured active tabs on the public page |
+| POST | `/api/settings/footer-enabled` | Admin | Show/hide the developer credit footer |
 | POST | `/api/settings/pinned-group` | Admin | Pin a default group for the public page |
 | POST | `/api/settings/public-password` | Admin | Set public password |
 | DELETE | `/api/settings/public-password` | Admin | Remove public password |
+| POST | `/api/settings/requests-enabled` | Admin | Enable/disable the public "Request link" feature |
+| POST | `/api/settings/request-password` | Admin | Set the password required to submit a request |
+| DELETE | `/api/settings/request-password` | Admin | Remove the request password |
 | POST | `/api/settings/save-favicons` | Admin | Toggle auto-save of fetched favicons into the icon library |
 | GET | `/api/icons` | Admin | List every icon in the reusable library with usage counts |
 | POST | `/api/icons` | Admin | Upload a new icon directly into the library |
@@ -357,6 +382,16 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | DELETE | `/api/sections/:id` | Admin | Delete a section (and its subsections) |
 | POST | `/api/sections/reorder` | Admin | Save new section/subsection order |
 | GET | `/api/stats` | Admin | Aggregate click stats for all links |
+| GET | `/api/analytics` | Admin | Dashboard aggregates for a period (`?period=30d`) |
+| POST | `/api/link-requests` | — | Submit a link request (rate-limited; honors the request password) |
+| GET | `/api/link-requests` | Admin | List requests (`?status=pending\|approved\|rejected\|all`), flagged with any existing link at the same URL |
+| POST | `/api/link-requests/:id/approve` | Admin | Mark a request approved and record the published link |
+| POST | `/api/link-requests/:id/attach` | Admin | Approve without duplicating — add the existing link to the requested group |
+| POST | `/api/link-requests/:id/reject` | Admin | Reject a request |
+| DELETE | `/api/link-requests/:id` | Admin | Delete a request |
+| GET | `/api/ip-tags` | Admin | List every IP seen, with its attribution tag |
+| POST | `/api/ip-tags` | Admin | Tag an IP with a human-readable name |
+| DELETE | `/api/ip-tags/:ip` | Admin | Remove an IP tag |
 | GET | `/r/:id` | — | Redirect (or stream a file attachment) and record the click |
 
 ## Licensing

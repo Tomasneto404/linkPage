@@ -109,6 +109,7 @@ function deriveAuditEntry(req) {
   // Link requests (public submit + admin review)
   if (p === '/api/link-requests' && M === 'POST')             return { action: 'request.create',  entityType: 'request', entityId: null, summary: name ? `New link request "${truncate(name)}"` : 'New link request' };
   if (/^\/api\/link-requests\/\d+\/approve$/.test(p))         return { action: 'request.approve', entityType: 'request', entityId: id, summary: `Approved link request #${id}` };
+  if (/^\/api\/link-requests\/\d+\/attach$/.test(p))          return { action: 'request.approve', entityType: 'request', entityId: id, summary: `Approved link request #${id} without duplicating the link` };
   if (/^\/api\/link-requests\/\d+\/reject$/.test(p))          return { action: 'request.reject',  entityType: 'request', entityId: id, summary: `Rejected link request #${id}` };
   if (/^\/api\/link-requests\/\d+$/.test(p) && M === 'DELETE') return { action: 'request.delete',  entityType: 'request', entityId: id, summary: `Deleted link request #${id}` };
 

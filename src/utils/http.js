@@ -22,6 +22,28 @@ function isValidHttpUrl(urlString) {
   }
 }
 
+/**
+ * Reduces a URL to a comparison key, so near-identical URLs match as duplicates.
+ * Ignores the scheme (http/https serve the same page), a leading "www.", the
+ * default port, trailing slashes, and the #fragment. The query string is kept —
+ * a different query is usually a different resource.
+ * Returns '' for empty input, and a lowercased raw string for unparseable ones.
+ */
+function normalizeUrlForCompare(urlString) {
+  const raw = typeof urlString === 'string' ? urlString.trim() : '';
+  if (!raw) return '';
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return raw.toLowerCase();
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    const port = u.port && u.port !== '80' && u.port !== '443' ? `:${u.port}` : '';
+    const path = u.pathname.replace(/\/+$/, '');
+    return `${host}${port}${path}${u.search}`;
+  } catch {
+    return raw.toLowerCase();
+  }
+}
+
 /** Returns true if the value is a valid 3- or 6-digit CSS hex color. */
 function isValidHexColor(value) {
   return typeof value === 'string' && /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(value);
@@ -42,4 +64,6 @@ function parseCookies(cookieHeader) {
   return out;
 }
 
-module.exports = { getClientIp, isValidHttpUrl, isValidHexColor, parseCookies };
+module.exports = {
+  getClientIp, isValidHttpUrl, normalizeUrlForCompare, isValidHexColor, parseCookies,
+};
