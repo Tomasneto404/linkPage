@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Copyright (C) 2026 Tomás Neto -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -158,6 +160,17 @@
             <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
           </svg>
           <span class="requests-badge hidden" id="requestsBadge">0</span>
+        </button>
+
+        <!-- Analytics (bar chart icon) -->
+        <button class="theme-toggle" id="openAnalyticsBtn"
+                aria-label="Analytics" title="Analytics">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6"  y1="20" x2="6"  y2="14"/>
+          </svg>
         </button>
 
         <!-- Settings (gear icon) -->
@@ -848,6 +861,19 @@
               <option value="bottom">Bottom</option>
             </select>
           </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Group-Coloured Tabs</div>
+              <div class="settings-row-desc">
+                Paint the active group tab with the group's own colour. Turn off to use the secondary colour instead.
+              </div>
+            </div>
+            <label class="switch" for="groupTabColorToggle">
+              <input type="checkbox" id="groupTabColorToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
         </div>
 
         <!-- ── Icons ─────────────────────────────── -->
@@ -1090,6 +1116,48 @@
   <!-- ════════════════════════════════════════════════
        LINK REQUESTS MODAL
        ════════════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="analyticsOverlay">
+    <div class="modal modal-lg analytics-modal">
+      <div class="modal-header">
+        <h2>Analytics</h2>
+        <button class="modal-close" id="closeAnalyticsBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6"  y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="audit-toolbar">
+        <select id="analyticsPeriod" class="bulk-group-select">
+          <option value="today">Today</option>
+          <option value="7d">Last 7 days</option>
+          <option value="30d" selected>Last 30 days</option>
+          <option value="all">All time</option>
+        </select>
+        <span class="audit-toolbar-spacer"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="analyticsRefreshBtn" title="Refresh now">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+
+      <div class="audit-body">
+        <div class="audit-loading" id="analyticsLoading">
+          <div class="audit-spinner" aria-hidden="true"></div>
+          <span>Loading…</span>
+        </div>
+        <div class="analytics-cards hidden" id="analyticsCards"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay hidden" id="requestsOverlay">
     <div class="modal modal-lg requests-modal">
       <div class="modal-header">

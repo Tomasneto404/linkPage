@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Admin page — link and group management with token authentication.
  *
@@ -261,6 +263,8 @@ async function fetchIpTags()         { return apiJson('/api/ip-tags'); }
 async function saveIpTagApi(ip, tag) { return jsonPost('/api/ip-tags', { ip_address: ip, tag }); }
 async function deleteIpTagApi(ip)    { return sendAuthRequest(`/api/ip-tags/${encodeURIComponent(ip)}`, { method: 'DELETE' }); }
 
+async function fetchAnalytics(period = '30d') { return apiJson(`/api/analytics?period=${encodeURIComponent(period)}`); }
+
 // Cache of ip -> tag, so an attribution tag can be shown wherever an IP appears
 // (stats modal, requests list). Refreshed whenever those surfaces open.
 let ipTagMap = {};
@@ -366,6 +370,7 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   updatePublicPasswordStatus(s.public_password_required);
   document.getElementById('requestsEnabledToggle').checked = !!s.requests_enabled;
   document.getElementById('footerEnabledToggle').checked = !!s.footer_enabled;
+  document.getElementById('groupTabColorToggle').checked = s.group_tab_color !== false;
   updateRequestPasswordStatus(s.request_password_required);
   hydrateThemeControls(s);
   resetSettingsTabs();
@@ -495,6 +500,21 @@ document.getElementById('footerEnabledToggle').addEventListener('change', async 
   }
   updateFooterUI(enabled);
   showToast(enabled ? 'Footer shown' : 'Footer hidden');
+});
+
+document.getElementById('groupTabColorToggle').addEventListener('change', async e => {
+  const enabled = e.target.checked;
+  const res = await sendAuthRequest('/api/settings/group-tab-color', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    e.target.checked = !enabled;
+    showToast('Could not save setting');
+    return;
+  }
+  showToast(enabled ? 'Tabs use group colour' : 'Tabs use secondary colour');
 });
 
 document.getElementById('setRequestPasswordBtn').addEventListener('click', async () => {
@@ -4904,11 +4924,130 @@ document.getElementById('ipTagsList').addEventListener('click', async e => {
   }
 });
 
+// ─── ANALYTICS ─────────────────────────────────────────────────────────────
+//
+// Headline dashboard: the most-clicked link and the most-active user (top IP,
+// shown by its attribution tag when assigned).
+
+function analyticsStatTile(value, label) {
+  return `<div class="stat-box"><div class="stat-value">${escapeHtml(String(value))}</div>
+          <div class="stat-label">${escapeHtml(label)}</div></div>`;
+}
+
+/** Builds a 30-bar activity chart from the sparse {day,clicks} trend rows. */
+function renderTrendChart(trend) {
+  const byDay = {};
+  (trend || []).forEach(r => { byDay[r.day] = r.clicks; });
+  const now  = new Date();
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+    const key = d.toISOString().slice(0, 10);
+    days.push({ key, clicks: byDay[key] || 0 });
+  }
+  const max = Math.max(1, ...days.map(d => d.clicks));
+  const bars = days.map(d => {
+    const h = Math.round((d.clicks / max) * 100);
+    const cls = d.clicks ? 'trend-bar' : 'trend-bar trend-bar-empty';
+    return `<div class="${cls}" style="height:${h}%" title="${d.key}: ${d.clicks} click${d.clicks !== 1 ? 's' : ''}"></div>`;
+  }).join('');
+  return `
+    <section class="analytics-card analytics-card-wide">
+      <div class="analytics-card-title">Clicks · last 30 days</div>
+      <div class="trend-chart" role="img" aria-label="Clicks per day over the last 30 days">${bars}</div>
+    </section>`;
+}
+
+function renderLinkRank(topLinks) {
+  if (!topLinks.length) return `<div class="analytics-empty">No clicks recorded yet.</div>`;
+  return `<ol class="analytics-rank">${topLinks.map((l, i) => `
+    <li class="analytics-rank-row">
+      <span class="analytics-rank-n">${i + 1}</span>
+      <div class="analytics-rank-main">
+        <a class="analytics-rank-title" href="/r/${l.id}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.name)}</a>
+        <span class="analytics-rank-sub">${escapeHtml(getDomainName(l.url))}</span>
+      </div>
+      <span class="analytics-rank-metric">${l.total_clicks}<small>clicks</small></span>
+    </li>`).join('')}</ol>`;
+}
+
+function renderUserRank(topUsers) {
+  if (!topUsers.length) return `<div class="analytics-empty">No clicks recorded yet.</div>`;
+  return `<ol class="analytics-rank">${topUsers.map((u, i) => {
+    const title = u.tag
+      ? `<span class="analytics-rank-title">${escapeHtml(u.tag)}</span>
+         <span class="analytics-rank-sub analytics-mono">${escapeHtml(u.ip_address)}</span>`
+      : `<span class="analytics-rank-title analytics-mono">${escapeHtml(u.ip_address)}</span>
+         <span class="analytics-rank-sub">No tag assigned</span>`;
+    return `
+    <li class="analytics-rank-row">
+      <span class="analytics-rank-n">${i + 1}</span>
+      <div class="analytics-rank-main">${title}</div>
+      <span class="analytics-rank-metric">${u.click_count}<small>clicks</small></span>
+    </li>`;
+  }).join('')}</ol>`;
+}
+
+function renderAnalytics(data) {
+  const cards = document.getElementById('analyticsCards');
+  document.getElementById('analyticsLoading').classList.add('hidden');
+  cards.classList.remove('hidden');
+
+  const t = data.totals || {};
+  const totals = `
+    <div class="analytics-totals">
+      ${analyticsStatTile(t.total_clicks ?? 0, 'Total Clicks')}
+      ${analyticsStatTile(t.unique_visitors ?? 0, 'Unique Visitors')}
+      ${analyticsStatTile(t.total_links ?? 0, 'Total Links')}
+      ${analyticsStatTile(t.clicks_today ?? 0, 'Clicks Today')}
+      ${analyticsStatTile(t.clicks_this_week ?? 0, 'Clicks / 7 days')}
+    </div>`;
+
+  cards.innerHTML = `
+    ${totals}
+    ${renderTrendChart(data.trend)}
+    <div class="analytics-row">
+      <section class="analytics-card">
+        <div class="analytics-card-title">Most Valuable Links</div>
+        ${renderLinkRank(data.top_links || [])}
+      </section>
+      <section class="analytics-card">
+        <div class="analytics-card-title">Most Active Users</div>
+        ${renderUserRank(data.top_users || [])}
+      </section>
+    </div>`;
+}
+
+async function loadAnalytics() {
+  const period = document.getElementById('analyticsPeriod').value || '30d';
+  document.getElementById('analyticsLoading').classList.remove('hidden');
+  document.getElementById('analyticsCards').classList.add('hidden');
+  try {
+    renderAnalytics(await fetchAnalytics(period));
+  } catch {
+    document.getElementById('analyticsLoading').classList.add('hidden');
+    showToast('Could not load analytics', { type: 'error' });
+  }
+}
+
+function openAnalyticsModal() {
+  document.getElementById('analyticsOverlay').classList.remove('hidden');
+  loadAnalytics();
+}
+function closeAnalyticsModal() {
+  document.getElementById('analyticsOverlay').classList.add('hidden');
+}
+
+document.getElementById('openAnalyticsBtn').addEventListener('click', openAnalyticsModal);
+document.getElementById('closeAnalyticsBtn').addEventListener('click', closeAnalyticsModal);
+document.getElementById('analyticsRefreshBtn').addEventListener('click', loadAnalytics);
+document.getElementById('analyticsPeriod').addEventListener('change', loadAnalytics);
+
 const OVERLAY_IDS = [
   'statsOverlay', 'settingsOverlay', 'linkModalOverlay',
   'groupModalOverlay', 'deleteLinkOverlay', 'deleteGroupOverlay', 'confirmOverlay',
   'iconLibraryOverlay', 'versionOverlay', 'fileEditorOverlay', 'iconPresetsOverlay',
-  'auditOverlay', 'requestsOverlay',
+  'auditOverlay', 'requestsOverlay', 'analyticsOverlay',
 ];
 
 OVERLAY_IDS.forEach(id => {

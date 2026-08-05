@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Tomás Neto */
 /* ── Theme variables ─────────────────────────────────── */
 :root {
   --bg:           #f5f5f7;
@@ -345,15 +347,17 @@ header {
 
 /* Accent glow — opt-in via the admin Themes setting (data-accent-glow="on").
    Applies to accent-filled buttons on both the public and admin surfaces. */
+/* The active group tab sets --tab-rgb inline to its own colour when group-
+   coloured tabs are enabled; everything else falls back to the accent. */
 [data-accent-glow="on"] .btn-primary,
 [data-accent-glow="on"] .request-btn,
 [data-accent-glow="on"] .tab.active {
-  box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.25), 0 4px 18px rgba(var(--primary-rgb), 0.5);
+  box-shadow: 0 0 0 1px rgba(var(--tab-rgb, var(--primary-rgb)), 0.25), 0 4px 18px rgba(var(--tab-rgb, var(--primary-rgb)), 0.5);
 }
 [data-accent-glow="on"] .btn-primary:hover,
 [data-accent-glow="on"] .request-btn:hover,
 [data-accent-glow="on"] .tab.active:hover {
-  box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.35), 0 4px 24px rgba(var(--primary-rgb), 0.7);
+  box-shadow: 0 0 0 1px rgba(var(--tab-rgb, var(--primary-rgb)), 0.35), 0 4px 24px rgba(var(--tab-rgb, var(--primary-rgb)), 0.7);
 }
 
 .btn-ghost {

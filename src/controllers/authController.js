@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /** Admin/public authentication and token rotation. */
 
 const { divider } = require('../config/env');

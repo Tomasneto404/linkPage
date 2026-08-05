@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /** CSV helpers. */
 
 /** Wraps a value for safe inclusion in a CSV cell (RFC-4180 quoting). */

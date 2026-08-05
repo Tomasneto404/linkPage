@@ -3,6 +3,15 @@
   "version": "1.0.3",
   "description": "A simple link bookmarking app with image uploads",
   "main": "src/server.js",
+  "license": "AGPL-3.0-or-later",
+  "files": [
+    "src/",
+    "public/",
+    "scripts/",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js"

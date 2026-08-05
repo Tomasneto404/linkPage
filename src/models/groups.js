@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /** Groups data access + scrypt password hashing (reused for settings gates). */
 
 const crypto = require('node:crypto');

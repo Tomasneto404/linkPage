@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /** Public link-request submissions data access. */
 
 const { db } = require('../config/db');

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 const express = require('express');
 const { requireAdminToken } = require('../middleware/auth');
 const { upload } = require('../services/uploadService');
@@ -15,6 +17,7 @@ router.post  ('/api/settings/favicon',         requireAdminToken, upload.single(
 router.delete('/api/settings/favicon',         requireAdminToken,                           c.deleteFavicon);
 router.post  ('/api/settings/save-favicons',   requireAdminToken,                           c.saveFavicons);
 router.post  ('/api/settings/footer-enabled',  requireAdminToken,                           c.setFooterEnabled);
+router.post  ('/api/settings/group-tab-color', requireAdminToken,                           c.setGroupTabColor);
 router.post  ('/api/settings/site-title',      requireAdminToken,                           c.setSiteTitle);
 router.post  ('/api/settings/pinned-group',    requireAdminToken,                           c.setPinnedGroup);
 router.post  ('/api/settings/public-password', requireAdminToken,                           c.setPublicPassword);

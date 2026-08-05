@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Long-lived server secrets: the admin token and the group-unlock signing key.
  *

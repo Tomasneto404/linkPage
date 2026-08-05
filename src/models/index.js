@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Aggregated data-access API.
  *
@@ -15,6 +17,7 @@ const icons        = require('./icons');
 const audit        = require('./audit');
 const linkRequests = require('./linkRequests');
 const ipTags       = require('./ipTags');
+const analytics    = require('./analytics');
 
 module.exports = {
   ...settings,
@@ -26,4 +29,5 @@ module.exports = {
   ...audit,
   ...linkRequests,
   ...ipTags,
+  ...analytics,
 };

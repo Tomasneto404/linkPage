@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Express error handler — keeps multer / upload errors as nice JSON 400s
  * instead of the default HTML stack-trace page.

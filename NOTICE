@@ -1,0 +1,36 @@
+linkPage
+Copyright (C) 2026 Tomás Neto
+
+This product is offered under a dual-licensing / open-core model. It contains
+three distinct licensing arrangements:
+
+1. OPEN-SOURCE CORE — GNU AGPL-3.0-or-later
+   All of this repository EXCEPT the `ee/` directory is free software,
+   licensed under the GNU Affero General Public License, version 3 or later.
+   The full text is in the top-level LICENSE file. Among other things, the
+   AGPL requires that if you run a modified version of this software to provide
+   a network service, you must offer the complete corresponding source code of
+   your modified version to the users of that service.
+   SPDX-License-Identifier: AGPL-3.0-or-later
+
+2. ENTERPRISE MODULE — proprietary (source-available)
+   The `ee/` directory (the "Enterprise Edition") is NOT open source. It is
+   made source-available for evaluation and security review only; production
+   use requires a valid commercial subscription. Its terms are in `ee/LICENSE`.
+   The AGPL does NOT apply to the contents of `ee/`.
+   SPDX-License-Identifier: LicenseRef-linkPage-Enterprise
+
+3. COMMERCIAL LICENCE — for those who cannot comply with the AGPL
+   If the AGPL's obligations (notably the network-use source-disclosure
+   requirement) are incompatible with your intended use, a separate commercial
+   licence for the core is available from the copyright holder. This lets you
+   use linkPage under terms other than the AGPL.
+
+   Commercial licensing enquiries: tomasneto26@gmail.com
+
+Per-file SPDX-License-Identifier tags declare the licence that governs each
+source file. In case of any conflict, the LICENSE (AGPL) governs the core and
+`ee/LICENSE` governs the Enterprise module.
+
+Third-party dependencies retain their own licences; see the `node_modules`
+packages and their respective LICENSE files.

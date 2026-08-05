@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Tomás Neto */
 /* Admin page styles.
  * Imports the shared light/dark theme from the public style.css,
  * then adds admin-specific components on top. */
@@ -3236,6 +3238,10 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 @media (max-width: 720px) {
   .audit-modal { max-height: 100vh; }
   .audit-action-code { display: none; }
+  /* Full-bleed dashboard on phones; grids already collapse to one column. */
+  .analytics-modal { max-width: 100%; max-height: 100vh; }
+  .analytics-row   { grid-template-columns: 1fr; }
+  .trend-chart     { height: 80px; }
 }
 
 /* Audit: live toggle + new-entry highlight */
@@ -3345,3 +3351,85 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 }
 .dev-footer a:hover { text-decoration: underline; }
 .dev-footer.hidden { display: none; }
+
+/* ── Analytics dashboard ──────────────────────────────────────────────────── */
+/* Wider dashboard modal (overrides .modal-lg's 560px) with internal scroll. */
+.analytics-modal {
+  width: 100%;
+  max-width: min(1080px, 94vw);
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 820px);
+}
+
+.analytics-cards { display: flex; flex-direction: column; gap: 16px; }
+.analytics-cards.hidden { display: none; }
+.analytics-card {
+  background: var(--surface-2, rgba(120,120,128,0.06));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.analytics-card-title {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted); margin-bottom: 12px;
+}
+.analytics-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.analytics-empty { color: var(--text-muted); font-size: 0.9rem; padding: 8px 0; }
+
+/* Summary tiles row (reuses .stat-box / .stat-value / .stat-label). */
+.analytics-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+/* Two rank cards side-by-side on wide screens, stacked on narrow. */
+.analytics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+/* 30-day activity chart. */
+.trend-chart {
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 96px;
+}
+.trend-bar {
+  flex: 1; min-height: 2px;
+  background: var(--primary);
+  border-radius: 2px 2px 0 0;
+  opacity: 0.85;
+  transition: opacity var(--transition);
+}
+.trend-bar:hover { opacity: 1; }
+.trend-bar-empty { background: var(--border); opacity: 0.5; }
+
+/* Ranked top-3 lists. */
+.analytics-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.analytics-rank-row { display: flex; align-items: center; gap: 12px; }
+.analytics-rank-n {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 700;
+  background: rgba(var(--primary-rgb), 0.14); color: var(--primary);
+}
+.analytics-rank-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.analytics-rank-title {
+  font-size: 0.9rem; font-weight: 600; color: var(--text);
+  text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline; }
+.analytics-rank-sub {
+  font-size: 0.75rem; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.analytics-rank-metric {
+  flex-shrink: 0; text-align: right;
+  font-size: 1.05rem; font-weight: 700; color: var(--text); line-height: 1;
+}
+.analytics-rank-metric small {
+  display: block; font-size: 0.6rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-muted); margin-top: 2px;
+}

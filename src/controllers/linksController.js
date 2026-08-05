@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /** Links: public read, admin write, import/export, reorder, in-place file edit. */
 
 const path = require('path');

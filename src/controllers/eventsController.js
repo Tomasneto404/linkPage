@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /** Server-Sent Events stream that pushes "data changed" pings to open pages. */
 
 const { sseClients } = require('../services/sseService');

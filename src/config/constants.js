@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Shared constant values: upload allow-lists, theme enums, and validation
  * regexes. Kept dependency-free so any layer can require them.

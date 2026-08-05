@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /** Public settings read + admin settings/theme writes. */
 
 const db = require('../models');
@@ -32,6 +34,9 @@ function getSettings(req, res) {
     default_theme:             db.readSetting('default_theme') ?? 'system',
     // Developer credit footer. On by default; '0' means the admin turned it off.
     footer_enabled:            db.readSetting('footer_enabled') !== '0',
+    // Active public group tab uses the group's own colour (default) vs the
+    // secondary/accent colour. On by default; '0' means use the secondary.
+    group_tab_color:           db.readSetting('group_tab_color') !== '0',
   });
 }
 
@@ -120,6 +125,15 @@ function setFooterEnabled(req, res) {
   if (enabled) db.deleteSetting('footer_enabled');
   else         db.writeSetting('footer_enabled', '0');
   res.json({ footer_enabled: enabled });
+}
+
+// Whether the active public group tab is painted with the group's own colour
+// (default) or the secondary/accent colour. On by default → only persist "off".
+function setGroupTabColor(req, res) {
+  const enabled = !!req.body.enabled;
+  if (enabled) db.deleteSetting('group_tab_color');
+  else         db.writeSetting('group_tab_color', '0');
+  res.json({ group_tab_color: enabled });
 }
 
 function setSiteTitle(req, res) {
@@ -264,7 +278,7 @@ module.exports = {
   getSettings,
   uploadLogo, deleteLogo,
   uploadFavicon, deleteFavicon,
-  saveFavicons, setFooterEnabled, setSiteTitle, setPinnedGroup,
+  saveFavicons, setFooterEnabled, setGroupTabColor, setSiteTitle, setPinnedGroup,
   setPublicPassword, deletePublicPassword,
   setRequestsEnabled, setRequestPassword, deleteRequestPassword,
   setTheme,

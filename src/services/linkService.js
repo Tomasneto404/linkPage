@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Link import/visibility helpers shared by the links controller: name-based
  * group/section resolution (create-if-missing) and the public visibility

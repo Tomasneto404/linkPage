@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /** Sections: admin create (under a group), rename, delete, reorder. */
 
 const db = require('../models');

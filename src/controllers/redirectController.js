@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /** Click-tracking redirect (/r/:id) and the /admin SPA entry point. */
 
 const { PUBLIC_DIR } = require('../config/env');

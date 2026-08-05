@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * IP attribution: list every known IP (from clicks + requests) with its tag,
  * and create/update/delete the tag that names who is behind an IP.

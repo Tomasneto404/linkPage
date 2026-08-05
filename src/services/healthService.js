@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Broken-link health checker. Sends HEAD requests and flags links whose target
  * is unreachable or returns 4xx/5xx. Timers are started by server.js.

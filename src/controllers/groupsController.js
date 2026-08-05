@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /** Groups: public read + unlock/lock, admin write, reorder. */
 
 const db = require('../models');

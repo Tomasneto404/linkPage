@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Link requests: public submission (gated by feature flag + optional password)
  * and admin review (list / approve / reject / delete).

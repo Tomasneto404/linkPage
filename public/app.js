@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Public page — read-only view of links for end users.
  *
@@ -230,6 +232,9 @@ const FALLBACK_ICON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill=
 let links         = [];
 let groups        = [];
 let activeGroup   = 'all';
+// When true, the active group tab is painted with the group's own colour;
+// when false, it uses the default secondary/accent colour. Set from settings.
+let tabsUseGroupColor = true;
 let activeSection = null;
 let searchQuery   = '';
 // Pinned keywords. Each one narrows the result set further (AND combined
@@ -290,9 +295,14 @@ function renderTabs() {
     const count  = links.filter(l => linkBelongsToGroup(l, g.id)).length;
     const active = activeGroup === g.id;
     const locked = isGroupLocked(g);
+    // When active, paint the tab with the group's own colour instead of the
+    // default primary (inline style overrides the .tab.active rule).
+    const activeStyle = (active && tabsUseGroupColor)
+      ? ` style="background:${escapeHtml(g.color)};border-color:${escapeHtml(g.color)};--tab-rgb:${hexToRgb(g.color).join(',')}"`
+      : '';
     return `
       <button class="tab${active ? ' active' : ''}${locked ? ' locked' : ''}"
-              data-group="${g.id}" data-locked="${locked ? '1' : '0'}">
+              data-group="${g.id}" data-locked="${locked ? '1' : '0'}"${activeStyle}>
         <span class="tab-dot" style="background:${escapeHtml(active ? '#fff' : g.color)}"></span>
         ${escapeHtml(g.name)}
         ${locked ? LOCK_SVG : ''}
@@ -1282,6 +1292,7 @@ async function init() {
   applyThemeSettings(settings);
   applyRequestFeature(settings);
   applyFooter(settings);
+  tabsUseGroupColor = settings.group_tab_color !== false;
 
   if (settings.public_password_required) {
     const stored = localStorage.getItem('linkpage_public_password');

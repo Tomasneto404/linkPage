@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Express application assembly: middleware wiring, static assets, routes, and
  * the error handler. Exports the configured app; server.js starts it.

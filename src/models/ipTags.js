@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * IP attribution: maps a known IP address to a human-readable tag (a person's
  * name) so clicks and link requests can be attributed to who made them.

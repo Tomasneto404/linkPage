@@ -2,10 +2,10 @@
 // Copyright (C) 2026 Tomás Neto
 const express = require('express');
 const { requireAdminToken } = require('../middleware/auth');
-const c = require('../controllers/statsController');
+const c = require('../controllers/analyticsController');
 
 const router = express.Router();
 
-router.get('/api/stats', requireAdminToken, c.getStats);
+router.get('/api/analytics', requireAdminToken, c.getAnalytics);
 
 module.exports = router;

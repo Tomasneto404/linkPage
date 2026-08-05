@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Rate limiting: sliding-window request limiters and failure-only limiters for
  * auth endpoints. Prevents brute-force on auth and click spam.

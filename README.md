@@ -358,3 +358,30 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/sections/reorder` | Admin | Save new section/subsection order |
 | GET | `/api/stats` | Admin | Aggregate click stats for all links |
 | GET | `/r/:id` | — | Redirect (or stream a file attachment) and record the click |
+
+## Licensing
+
+linkPage uses a **dual-licensing / open-core** model. See [LICENSE](LICENSE),
+[NOTICE](NOTICE), and [ee/LICENSE](ee/LICENSE) for the authoritative terms.
+
+| | Core | Enterprise (`ee/`) |
+|---|---|---|
+| **Licence** | GNU AGPL-3.0-or-later | Proprietary (`LicenseRef-linkPage-Enterprise`) |
+| **SPDX id** | `AGPL-3.0-or-later` | `LicenseRef-linkPage-Enterprise` |
+| **Scope** | Everything outside `ee/` | The `ee/` directory only |
+| **Source available** | Yes (free software) | Yes — evaluation & security review only |
+| **Production use** | Free, under the AGPL | Requires a paid subscription |
+| **Redistribution / resale** | Allowed under the AGPL | Not permitted |
+| **Host as a service** | Allowed (AGPL source-disclosure applies) | Not permitted |
+| **Key obligation** | Network use ⇒ offer your modified source to users | Keep licence-key verification intact |
+
+> **AGPL note:** if you run a modified version of the core to provide a network
+> service, the AGPL requires you to make your modified source available to that
+> service's users.
+
+**Need terms other than the AGPL?** A separate **commercial licence** for the
+core is available for users who cannot comply with the AGPL. Contact
+**tomasneto26@gmail.com**.
+
+Contributions require signing the [Contributor License Agreement](CLA.md) — see
+[CONTRIBUTING.md](CONTRIBUTING.md).
