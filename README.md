@@ -1,5 +1,7 @@
 # LinkPage
 
+An Enterprise ready link sharing platform.
+
 A modern, self-hosted WebUI designed for enterprises to centralize and publish internal or external links/URLs for employees, collaborators, and clients.
 
 Instead of scattering important resources across emails, chats, and shared drives, LinkPage provides a single branded landing page (e.g. `linkpage.company.com`) where teams can quickly access everything they need — from internal tools and documentation to public-facing resources.
@@ -302,6 +304,28 @@ For development with auto-restart on file changes:
 ```bash
 npm run dev
 ```
+
+---
+
+## Tests
+
+The API test suite runs on Node's built-in test runner — no dev dependencies to install:
+
+```bash
+npm test                          # whole suite (~5 s)
+npm run test:watch                # re-run on change
+node --test tests/links.test.js   # one file
+```
+
+Each file under [`tests/`](tests/) covers one resource (`auth`, `settings`, `links`, `groups`,
+`linkRequests`, `icons`, `redirect`, `analytics`, `audit`, `ipTags`, `security`, `events`,
+`seed`, `migrations`, `version`) and drives the real Express app over HTTP.
+[`tests/helpers/harness.js`](tests/helpers/harness.js) boots it on an ephemeral port against a
+throwaway SQLite database in the system temp directory — your own `data/` is never touched —
+and stubs the favicon fetcher so the suite never reaches the network.
+
+CI runs the same command on every push to `main`, every `v*` tag and every pull request; the
+Docker image is only built and pushed when the suite is green.
 
 ---
 

@@ -42,6 +42,9 @@ function getSettings(req, res) {
     // Active public group tab uses the group's own colour (default) vs the
     // secondary/accent colour. On by default; '0' means use the secondary.
     group_tab_color:           db.readSetting('group_tab_color') !== '0',
+    // Group tab strip wraps around endlessly instead of stopping at the last
+    // group. Off by default.
+    group_tabs_loop:           db.readSetting('group_tabs_loop') === '1',
   });
 }
 
@@ -169,6 +172,15 @@ function setGroupTabColor(req, res) {
   if (enabled) db.deleteSetting('group_tab_color');
   else         db.writeSetting('group_tab_color', '0');
   res.json({ group_tab_color: enabled });
+}
+
+// Whether the public group tab strip loops back to the first group instead of
+// stopping at the last one. Off by default → only persist "on".
+function setGroupTabsLoop(req, res) {
+  const enabled = !!req.body.enabled;
+  if (enabled) db.writeSetting('group_tabs_loop', '1');
+  else         db.deleteSetting('group_tabs_loop');
+  res.json({ group_tabs_loop: enabled });
 }
 
 function setSiteTitle(req, res) {
@@ -314,7 +326,7 @@ module.exports = {
   uploadLogo, deleteLogo,
   setBrandIcon, deleteBrandIcon,
   uploadFavicon, deleteFavicon,
-  saveFavicons, setFooterEnabled, setGroupTabColor, setSiteTitle, setPinnedGroup,
+  saveFavicons, setFooterEnabled, setGroupTabColor, setGroupTabsLoop, setSiteTitle, setPinnedGroup,
   setPublicPassword, deletePublicPassword,
   setRequestsEnabled, setRequestPassword, deleteRequestPassword,
   setTheme,

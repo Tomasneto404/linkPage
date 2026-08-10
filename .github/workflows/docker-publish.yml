@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Tomás Neto
-name: Build & Push Docker Image
+name: Test, Build & Push Docker Image
 
 on:
   push:
@@ -8,9 +8,40 @@ on:
       - main
     tags:
       - "v*"
+  # Pull requests are verified but never publish an image (see the build job's
+  # event guard below).
+  pull_request:
+    branches:
+      - main
 
 jobs:
+  # API test suite. The build job depends on this, so a red test never ships.
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Node 24 matches the runtime in the Dockerfile (node:24-alpine), so the
+      # tests exercise the same node:sqlite build that production uses.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run API tests
+        run: npm test
+
   build:
+    # No green tests → no image.
+    needs: test
+    # Only publish for pushes to main and v* tags; a PR run stops after `test`.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:

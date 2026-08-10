@@ -453,6 +453,7 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   document.getElementById('requestsEnabledToggle').checked = !!s.requests_enabled;
   document.getElementById('footerEnabledToggle').checked = !!s.footer_enabled;
   document.getElementById('groupTabColorToggle').checked = s.group_tab_color !== false;
+  document.getElementById('groupTabsLoopToggle').checked = !!s.group_tabs_loop;
   updateRequestPasswordStatus(s.request_password_required);
   hydrateThemeControls(s);
   resetSettingsTabs();
@@ -659,6 +660,21 @@ document.getElementById('groupTabColorToggle').addEventListener('change', async 
     return;
   }
   showToast(enabled ? 'Tabs use group colour' : 'Tabs use secondary colour');
+});
+
+document.getElementById('groupTabsLoopToggle').addEventListener('change', async e => {
+  const enabled = e.target.checked;
+  const res = await sendAuthRequest('/api/settings/group-tabs-loop', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    e.target.checked = !enabled;
+    showToast('Could not save setting');
+    return;
+  }
+  showToast(enabled ? 'Group tabs loop endlessly' : 'Group tabs stop at the ends');
 });
 
 document.getElementById('setRequestPasswordBtn').addEventListener('click', async () => {
@@ -4908,9 +4924,15 @@ async function refreshRequestsBadge() {
   try {
     const data  = await fetchLinkRequests('pending');
     const count = data.pending_count || 0;
-    const badge = document.getElementById('requestsBadge');
-    badge.textContent = count > 99 ? '99+' : String(count);
-    badge.classList.toggle('hidden', count === 0);
+    const label = count > 99 ? '99+' : String(count);
+    // Header button on wide screens, kebab dot on phones (where that button is
+    // hidden) — both stay in sync so a pending request is never invisible.
+    for (const id of ['requestsBadge', 'mobileRequestsBadge']) {
+      const badge = document.getElementById(id);
+      if (!badge) continue;
+      badge.textContent = label;
+      badge.classList.toggle('hidden', count === 0);
+    }
     const mob = document.getElementById('mobileRequestsCount');
     if (mob) mob.textContent = count ? `(${count})` : '';
   } catch { /* non-critical */ }
@@ -5480,10 +5502,11 @@ function showEasterEgg() {
       document.getElementById(targetId)?.click();
     });
   };
-  forward('mobileThemeItem',    'themeToggle');
-  forward('mobileRequestsItem', 'openRequestsBtn');
-  forward('mobileSettingsItem', 'openSettingsBtn');
-  forward('mobileLogoutItem',   'logoutBtn');
+  forward('mobileThemeItem',     'themeToggle');
+  forward('mobileRequestsItem',  'openRequestsBtn');
+  forward('mobileAnalyticsItem', 'openAnalyticsBtn');
+  forward('mobileSettingsItem',  'openSettingsBtn');
+  forward('mobileLogoutItem',    'logoutBtn');
 })();
 
 

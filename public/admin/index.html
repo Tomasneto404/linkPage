@@ -135,9 +135,12 @@
 
         <!-- Theme toggle -->
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">
+          <!-- Optically centred: the crescent's mass sits down-left of the
+               viewBox centre, so the raw path reads off-centre in the button.
+               Same nudge as the public page. -->
           <svg id="iconMoon" width="15" height="15" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            <path transform="translate(0.92 -0.93)" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
           </svg>
           <svg id="iconSun" width="15" height="15" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round" class="hidden">
@@ -206,13 +209,16 @@
 
         <!-- Phone-only overflow menu — replaces theme / settings / logout on
              narrow viewports where those icons can't all fit comfortably. -->
-        <button class="theme-toggle mobile-more-btn" id="mobileMoreBtn"
+        <button class="theme-toggle mobile-more-btn requests-toggle" id="mobileMoreBtn"
                 aria-label="More" aria-haspopup="true" aria-expanded="false" title="More">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="5"  cy="12" r="2"/>
             <circle cx="12" cy="12" r="2"/>
             <circle cx="19" cy="12" r="2"/>
           </svg>
+          <!-- Mirrors #requestsBadge: on phones the Requests button lives in this
+               menu, so the pending count has to surface on the kebab itself. -->
+          <span class="requests-badge hidden" id="mobileRequestsBadge">0</span>
         </button>
       </div>
 
@@ -232,6 +238,15 @@
             <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
           </svg>
           <span>Link requests <span id="mobileRequestsCount"></span></span>
+        </button>
+        <button class="mobile-menu-item" id="mobileAnalyticsItem" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6"  y1="20" x2="6"  y2="14"/>
+          </svg>
+          <span>Analytics</span>
         </button>
         <button class="mobile-menu-item" id="mobileSettingsItem" role="menuitem">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -792,6 +807,7 @@
         <nav class="settings-nav" id="settingsNav">
           <button type="button" class="settings-tab active" data-tab="branding">Branding</button>
           <button type="button" class="settings-tab" data-tab="themes">Themes / Design</button>
+          <button type="button" class="settings-tab" data-tab="publicpage">Public Page</button>
           <button type="button" class="settings-tab" data-tab="icons">Icons</button>
           <button type="button" class="settings-tab" data-tab="public">Public Access</button>
           <button type="button" class="settings-tab" data-tab="requests">Link Requests</button>
@@ -969,6 +985,25 @@
               <option value="dark">Dark</option>
             </select>
           </div>
+        </div>
+
+        <!-- ── Public Page ───────────────────────────
+             Everything here only changes what visitors see on the public page;
+             admin-side appearance lives in Themes / Design. -->
+        <div class="settings-panel" data-panel="publicpage">
+          <div class="settings-section-title">Public Page</div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Default Group</div>
+              <div class="settings-row-desc">Group shown when visitors first land on the page</div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center">
+              <select id="pinnedGroupSelect" class="bulk-group-select" style="width:170px">
+                <option value="">All Links (none pinned)</option>
+              </select>
+            </div>
+          </div>
 
           <div class="settings-row" style="margin-top:8px">
             <div>
@@ -990,6 +1025,19 @@
             </div>
             <label class="switch" for="groupTabColorToggle">
               <input type="checkbox" id="groupTabColorToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Looping Group Tabs</div>
+              <div class="settings-row-desc">
+                When there are more groups than fit the bar, the strip wraps around endlessly instead of stopping at the last group.
+              </div>
+            </div>
+            <label class="switch" for="groupTabsLoopToggle">
+              <input type="checkbox" id="groupTabsLoopToggle" />
               <span class="switch-slider"></span>
             </label>
           </div>
@@ -1035,18 +1083,6 @@
                      style="width:140px; padding:6px 10px; font-size:0.875rem" autocomplete="new-password" />
               <button class="btn btn-ghost btn-sm" id="setPublicPasswordBtn">Set</button>
               <button class="btn btn-ghost-danger btn-sm hidden" id="removePublicPasswordBtn">Remove</button>
-            </div>
-          </div>
-
-          <div class="settings-row" style="margin-top:8px">
-            <div>
-              <div class="settings-row-label">Default Group</div>
-              <div class="settings-row-desc">Group shown when visitors first land on the page</div>
-            </div>
-            <div style="display:flex; gap:6px; align-items:center">
-              <select id="pinnedGroupSelect" class="bulk-group-select" style="width:170px">
-                <option value="">All Links (none pinned)</option>
-              </select>
             </div>
           </div>
         </div>

@@ -298,7 +298,11 @@ header {
 
 .search-input {
   flex: 1;
-  min-width: 80px;
+  /* Must be allowed to shrink below its content width: with a min-width the
+     input keeps its size while the wrap shrinks, spilling over the buttons
+     next to it on narrow screens. */
+  min-width: 0;
+  align-self: stretch;
   border: none;
   outline: none;
   background: transparent;
@@ -669,7 +673,12 @@ mark.hl {
   /* Let search fill whatever's left between brand and the right-edge buttons */
   .search-wrap { flex: 1 1 auto !important; max-width: none !important; min-width: 0; }
 
-  .theme-toggle { width: 32px; height: 32px; }
+  /* Thumb-sized header controls: the compact desktop sizes land under 28 px,
+     which is below a reliable tap target. */
+  .search-wrap   { min-height: 36px; cursor: text; }
+  .theme-toggle  { width: 34px; height: 34px; }
+  .request-btn,
+  .admin-btn     { min-height: 34px; }
 
   .btn       { padding: 7px 14px; font-size: 0.8125rem; }
   .btn-icon  { padding: 8px; }
@@ -1130,7 +1139,9 @@ select option { background: var(--surface); }
 .dev-footer {
   position: fixed;
   left: 0; right: 0; bottom: 0;
-  z-index: 900;
+  /* Below .modal-overlay (100): as a fixed bar it would otherwise paint over
+     the bottom of any modal tall enough to reach it on short screens. */
+  z-index: 30;
   padding: 12px 20px;
   text-align: center;
   font-size: 0.8rem;
@@ -1145,6 +1156,10 @@ body { padding-bottom: 52px; }
   color: var(--primary);
   text-decoration: none;
   font-weight: 600;
+  /* Inline text link inside a 44 px bar: padding gives it a hittable box. */
+  display: inline-block;
+  padding: 8px 4px;
+  margin: -8px 0;
 }
 .dev-footer a:hover { text-decoration: underline; }
 .dev-footer.hidden { display: none; }

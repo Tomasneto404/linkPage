@@ -21,6 +21,15 @@ function errorHandler(err, req, res, next) {
     return res.status(400).json({ error: err.message });
   }
 
+  // express.json() rejections: a truncated payload or one over the size limit is
+  // the caller's mistake, not a server fault, and must not be reported as a 500.
+  if (err && err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Request body is too large' });
+  }
+  if (err && err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Malformed JSON body' });
+  }
+
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 }

@@ -40,6 +40,13 @@ app.use(auditAndBroadcast);
 // All application routes.
 app.use(routes);
 
+// Anything under /api that no router claimed is a JSON 404. Without this Express
+// falls back to its HTML error page, so a typo'd endpoint answers a client that
+// only ever parses JSON with a page of markup.
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
 // Error handler last.
 app.use(errorHandler);
 

@@ -930,6 +930,10 @@ header {
 .link-card-wrap .card-meta {
   flex-wrap: wrap;
   margin-top: 12px;
+  /* The footer below only gets its own top padding *under* the divider, and its
+     margin-top: auto collapses to 0 on a short card — which left the divider
+     drawn flush against the group chips. This keeps them apart at any height. */
+  margin-bottom: 12px;
 }
 
 /* Footer sticks to the bottom with a divider above it */
@@ -2683,6 +2687,9 @@ header {
   font-size: 0.8125rem;
   font-family: inherit;
   outline: none;
+  /* Long group names must not widen the bar past the screen. */
+  max-width: 100%;
+  min-width: 0;
   cursor: pointer;
   width: 160px;
 }
@@ -2875,14 +2882,55 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 
 /* ─── Responsive ─────────────────────────────────────────────────────────────── */
 
+/*
+ * Tablet band (up to 900 px, e.g. iPad portrait at 768). The full desktop
+ * header needs ~940 px, so Analytics / Requests / Settings / Sign out / theme
+ * used to render past the right edge and were simply unreachable. They all have
+ * entries in the kebab menu, so collapse them into it here — the phone rules
+ * below then keep doing the same thing plus their own extras.
+ */
+@media (max-width: 900px) {
+  #themeToggle,
+  #openSettingsBtn,
+  #openRequestsBtn,
+  #openAnalyticsBtn,
+  #logoutBtn       { display: none; }
+  .mobile-more-btn { display: inline-flex; }
+  .sort-select     { display: none; }
+  /* Reclaim the last ~110 px so Import / Export / Select / Add Link and the
+     kebab all fit inside 768 (and still fit at 721). */
+  .admin-badge     { display: none; }
+  .header-inner    { gap: 6px; }
+  .search-input    { width: auto; min-width: 0; }
+  .search-wrap     { flex: 0 1 auto; min-width: 0; max-width: 150px; }
+
+  /* Touch-sized controls from here down — tablets are touch devices too, so the
+     15–22 px sidebar and settings controls need the same treatment as phones.
+     Only hit areas grow; the switch keeps its 38×22 slider. */
+  .add-group-btn         { width: 32px; height: 32px; display: inline-flex;
+                           align-items: center; justify-content: center; }
+  .group-collapse-btn    { width: 26px; height: 26px; }
+  .switch                { height: 38px; display: inline-flex; align-items: center; }
+  .switch .switch-slider { position: relative; inset: auto; width: 38px; height: 22px; }
+  .btn-sm                { min-height: 32px; }
+  .link-mode-tab         { min-height: 32px; padding: 7px 12px; }
+  .icon-presets-swatch   { width: 28px; height: 28px; }
+  .request-row-dupe      { min-height: 30px; }
+}
+
 @media (max-width: 720px) {
   /* Sidebar slides over the main content instead of pushing it */
   .sidebar         { transform: translateX(-100%); }
   .sidebar.open    { transform: none; box-shadow: var(--shadow-md); }
   .main-content    { margin-left: 0 !important; padding: 16px 14px 80px; }
-  .dev-footer      { left: 0; }
-  .search-input    { width: 130px; }
-  .links-grid      { grid-template-columns: 1fr; }
+  /* Shrinkable, not a fixed 130px: at 320 the fixed width pushed the whole
+     right-hand control cluster ~5 px past the viewport edge. */
+  .search-input    { width: auto; min-width: 0; }
+  .search-wrap     { flex: 1 1 auto; min-width: 0; }
+  /* minmax(0, …) not 1fr: a bare fr track takes min-content as its minimum, so
+     one long nowrap link name would stretch the column past the viewport and
+     make the whole page scroll sideways instead of ellipsizing. */
+  .links-grid      { grid-template-columns: minmax(0, 1fr); }
   .bulk-bar        { left: 16px; right: 16px; transform: none; border-radius: var(--radius-lg); flex-wrap: wrap; }
   .header-inner    { padding: 0 14px; gap: 8px; }
   .admin-badge     { display: none; }
@@ -2901,9 +2949,14 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   #bulkSelectBtn,
   .sort-select    { display: none; }
 
-  /* The three solo icon buttons collapse into a single overflow menu */
+  /* The solo icon buttons collapse into a single overflow menu. Requests and
+     Analytics were still in the row at 320 and pushed the kebab ~17 px off the
+     right edge; both have menu entries, and the kebab carries the pending-count
+     badge while they're hidden. */
   #themeToggle,
   #openSettingsBtn,
+  #openRequestsBtn,
+  #openAnalyticsBtn,
   #logoutBtn      { display: none; }
   .mobile-more-btn { display: inline-flex; }
 
@@ -2919,8 +2972,12 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   /* Theme / settings / logout — round, comfortable tap targets */
   .theme-toggle   { width: 34px; height: 34px; }
 
+  /* Phone-only extras on top of the tablet-band touch sizes above. */
+  #headerLogo      { min-width: 32px; min-height: 32px; justify-content: center; }
+  .request-row-url { display: inline-block; padding: 5px 0; }
+
   .main-content   { padding: 14px 10px 90px; }
-  .links-grid     { gap: 8px; grid-template-columns: 1fr; }
+  .links-grid     { gap: 8px; grid-template-columns: minmax(0, 1fr); }
 
   /* Cards: card-action buttons need bigger touch targets, and on phones the
      hover state never fires — so make the action bar always visible there.
@@ -3273,7 +3330,7 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   .audit-action-code { display: none; }
   /* Full-bleed dashboard on phones; grids already collapse to one column. */
   .analytics-modal { max-width: 100%; max-height: 100vh; }
-  .analytics-row   { grid-template-columns: 1fr; }
+  .analytics-row   { grid-template-columns: minmax(0, 1fr); }
   .trend-chart     { height: 80px; }
 }
 
@@ -3377,10 +3434,24 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 .sidebar.collapsed ~ .main-content .dev-footer { left: 0; }
 /* Reserve space so admin content never hides behind the fixed footer. */
 .main-content { padding-bottom: 60px; }
+
+/* Phones: the sidebar becomes an off-canvas drawer, so the footer must span the
+   full width. This lives *after* the base rule on purpose — the same override
+   inside the earlier @media block loses on source order and left the footer as
+   an 88 px column stacked over the bottom-right of the content. */
+@media (max-width: 720px) {
+  .dev-footer   { left: 0; }
+  .main-content { padding-bottom: 76px; }
+}
 .dev-footer a {
   color: var(--primary);
   text-decoration: none;
   font-weight: 600;
+  /* Same reasoning as the public footer: a 15 px-tall inline link is not a
+     realistic tap target, so it gets a padded box without moving the text. */
+  display: inline-block;
+  padding: 8px 4px;
+  margin: -8px 0;
 }
 .dev-footer a:hover { text-decoration: underline; }
 .dev-footer.hidden { display: none; }

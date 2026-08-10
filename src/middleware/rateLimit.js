@@ -15,13 +15,15 @@ const { getClientIp } = require('../utils/http');
 function createRateLimiter(maxRequests, windowMs) {
   const store = new Map(); // ip → { count, windowStart }
 
-  // Clean up expired entries periodically to prevent memory growth
+  // Clean up expired entries periodically to prevent memory growth.
+  // unref'd: this only evicts cache entries, so it must never be the reason a
+  // process stays alive (short-lived scripts and the test runner would hang).
   setInterval(() => {
     const now = Date.now();
     for (const [ip, entry] of store.entries()) {
       if (now - entry.windowStart > windowMs) store.delete(ip);
     }
-  }, windowMs);
+  }, windowMs).unref();
 
   return function rateLimitMiddleware(req, res, next) {
     const ip  = getClientIp(req);
@@ -57,12 +59,13 @@ function createRateLimiter(maxRequests, windowMs) {
 function createFailureRateLimiter(maxFailures, windowMs) {
   const store = new Map();
 
+  // unref'd for the same reason as above — cache eviction only.
   setInterval(() => {
     const now = Date.now();
     for (const [ip, entry] of store.entries()) {
       if (now - entry.windowStart > windowMs) store.delete(ip);
     }
-  }, windowMs);
+  }, windowMs).unref();
 
   return {
     isLimited(req) {
