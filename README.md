@@ -16,7 +16,7 @@ Instead of scattering important resources across emails, chats, and shared drive
 |:---:|:---:|
 | ![Public page – light mode](linkPagePrints/linkPage-userSide-lightMode.png) | ![Public page – dark mode](linkPagePrints/linkPage-userSide-darkMode.png) |
 
-The public page greets end users with a clean card grid, sticky group tabs for filtering, a live search bar, and auto-fetched favicons — no sign-in required.
+The public page greets end users with a clean card grid, sticky group tabs for filtering, a live search bar, and auto-fetched favicons — no sign-in required. When there are more groups than fit the bar, the tab strip scrolls sideways with faded edges and nudge arrows (mouse wheel, trackpad and touch all work), and can optionally wrap around endlessly.
 
 ---
 
@@ -26,33 +26,44 @@ The public page greets end users with a clean card grid, sticky group tabs for f
 |:---:|:---:|
 | ![Admin panel – light mode](linkPagePrints/linkPage-adminSide-lightMode.png) | ![Admin panel – dark mode](linkPagePrints/linkPage-adminSide-darkMode.png) |
 
-The admin panel is protected by a secret token. The left sidebar lists all groups; the main area shows link cards with drag-to-reorder, bulk selection, import/export, and one-click link creation.
+The admin panel is protected by a secret token. The left sidebar lists all groups with their sections and subsections; the main area shows link cards with drag-to-reorder, bulk selection, import/export, per-card click counts, and one-click link creation. The top bar badges pending link requests.
 
 ---
 
 ### Click Analytics
 
+| Per-link stats | Dashboard over any period |
+|:---:|:---:|
+| ![Per-link click stats](linkPagePrints/linkPage-statistics.png) | ![Analytics dashboard](linkPagePrints/linkPage-analytics.png) |
+
+Per-link analytics show total clicks, unique visitors, today and this-week counts, a recent-click log with IP and device type, and a bar chart of top visitor IPs. The dashboard aggregates any period: daily click volume, most valuable links and most active visitors — the latter labelled with their IP attribution tag where one exists.
+
+---
+
+### Audit Log
+
 <p align="center">
-  <img src="linkPagePrints/linkPage-statistics.png" width="480" alt="Click analytics modal" />
+  <img src="linkPagePrints/linkPage-auditLog.png" width="560" alt="Admin audit log" />
 </p>
 
-Per-link analytics show total clicks, unique visitors, today and this-week counts, a recent-click log with IP and device type, and a bar chart of top visitor IPs.
+Every admin change and every public click lands in the audit log, with the entity name, action id, IP (attribution tag included) and device. It auto-refreshes live, filters by search text and entry type, and exports to CSV or JSON.
 
 ---
 
 ### Settings
 
-<p align="center">
-  <img src="linkPagePrints/linkPage-settings.png" width="480" alt="Settings modal" />
-</p>
+| Branding | Public Page |
+|:---:|:---:|
+| ![Settings – branding](linkPagePrints/linkPage-settings.png) | ![Settings – public page](linkPagePrints/linkPage-settings-publicPage.png) |
 
-The settings modal covers branding (custom site title, separate logos for light and dark mode), an icon library (manage reusable icons, opt-in to saving fetched favicons), public access (optional password gate, default group), security (one-click admin token rotation), and an About section with an on-demand "Check for updates" button.
+Settings are split into tabs: **Branding** (site title, header icon, light/dark logos, favicon, developer footer), **Themes / Design** (accent colour, palette variants, default theme), **Public Page** (default group, phone navbar position, group-coloured tabs, looping group tabs), **Icons** (reusable library), **Public Access** (optional password gate), **Link Requests**, **IP Attribution**, **Security** (one-click admin token rotation) and **About** with an on-demand "Check for updates" button.
 
 ---
 
 ## Features
 
 - **Public page** — clean, searchable landing page for end users with group tabs and multi-keyword search
+- **Scrollable group tabs** — with more groups than fit the bar, the tab strip becomes a horizontal scroller driven by the mouse wheel, trackpad, touch or its two edge arrows; the edges fade and each arrow retracts at the end it reaches. Turn on *Looping Group Tabs* and the strip wraps around endlessly instead of stopping
 - **Admin panel** — full link and group management behind a secure token gate
 - **Multiple groups per link** — assign a link to as many groups as needed via a checkbox multi-select
 - **Sections & subsections** — organize cards under named section headings, and nest one level of subsections inside them; drag to reorder in the sidebar (reflected on the public page), or drag a link straight onto a group/section/subsection
@@ -73,7 +84,8 @@ The settings modal covers branding (custom site title, separate logos for light 
 - **IP attribution tags** — name a known IP once and that name appears wherever the IP shows up: click stats, audit log, and link requests
 - **Broken link checker** — automatic health check every 6 hours, flags dead links in the admin
 - **Custom branding** — set the site title (shown in the browser tab *and* the page header), pick a header icon from the library / stock set / your own upload, upload separate logos for light and dark mode, and a custom browser-tab favicon; header title and icon step aside automatically when a logo is set
-- **Themes & appearance** — accent colour with optional dark-mode brightening and glow, light/dark palette variants, which theme new visitors land on, group-coloured active tabs, and whether phone navigation sits at the top or bottom of the screen
+- **Themes & appearance** — accent colour with optional dark-mode brightening and glow, light/dark palette variants, and which theme new visitors land on
+- **Public-page controls** — a Settings tab of its own for everything visitors see: default group, phone navbar at the top or bottom, group-coloured active tabs, and looping group tabs
 - **Hidden starter link on first install** — a fresh install comes with a single hidden "Buy me a coffee" link: visible in the admin only, never on the public page; its icon is fetched on first boot (with a built-in fallback when offline). Delete it and it stays deleted
 - **Smart favicon fetching** — three-tier strategy (parse the page for `<link rel="icon">`, then `/favicon.ico`, then Google as fallback) so favicons work for intranet sites too; fetched in the background so saving a link is never blocked, and cached server-side
 - **Drag-to-reorder** — reorder links, groups, sections, and subsections by dragging
@@ -195,7 +207,7 @@ docker compose -f docker-compose.prod.yml logs linkpage
 Look for a line like:
 
 ```
-│  🔑 Admin Token: 5c5665cfeaf662e95f98e832e2cdbaa3c2ab5d0b...
+│  Admin Token: 5c5665cfeaf662e95f98e832e2cdbaa3c2ab5d0b...
 ```
 
 Copy the full token. It is saved to `linkpage_data/admin-token.txt` and reused across restarts.
@@ -362,6 +374,7 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | DELETE | `/api/settings/favicon` | Admin | Remove custom favicon |
 | POST | `/api/settings/theme` | Admin | Update accent colour, palette variants, default theme, mobile nav position |
 | POST | `/api/settings/group-tab-color` | Admin | Toggle group-coloured active tabs on the public page |
+| POST | `/api/settings/group-tabs-loop` | Admin | Toggle endless wrap-around scrolling of the public group tab strip |
 | POST | `/api/settings/footer-enabled` | Admin | Show/hide the developer credit footer |
 | POST | `/api/settings/pinned-group` | Admin | Pin a default group for the public page |
 | POST | `/api/settings/public-password` | Admin | Set public password |

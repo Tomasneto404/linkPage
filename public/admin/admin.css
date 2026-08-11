@@ -3213,7 +3213,7 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   background: rgba(var(--primary-rgb), 0.14); color: var(--primary);
 }
 
-/* IP Atribution settings panel list. */
+/* IP Attribution settings panel list. */
 .ip-tags-list { display: flex; flex-direction: column; gap: 8px; }
 .ip-tag-row {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
