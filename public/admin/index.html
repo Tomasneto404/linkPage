@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Copyright (C) 2026 Tomás Neto -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -79,11 +81,13 @@
       <a class="logo" id="headerLogo" href="/" aria-label="Open public page">
         <img id="brandImg" class="logo-img hidden" alt="Company logo" />
         <span id="brandText" style="display:flex; align-items:center; gap:8px">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-          </svg>
+          <span id="brandIcon" class="brand-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+          </span>
           <span class="brand-label">LinkPage</span>
         </span>
         <span class="admin-badge">Admin</span>
@@ -131,9 +135,12 @@
 
         <!-- Theme toggle -->
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">
+          <!-- Optically centred: the crescent's mass sits down-left of the
+               viewBox centre, so the raw path reads off-centre in the button.
+               Same nudge as the public page. -->
           <svg id="iconMoon" width="15" height="15" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            <path transform="translate(0.92 -0.93)" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
           </svg>
           <svg id="iconSun" width="15" height="15" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round" class="hidden">
@@ -158,6 +165,17 @@
             <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
           </svg>
           <span class="requests-badge hidden" id="requestsBadge">0</span>
+        </button>
+
+        <!-- Analytics (bar chart icon) -->
+        <button class="theme-toggle" id="openAnalyticsBtn"
+                aria-label="Analytics" title="Analytics">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6"  y1="20" x2="6"  y2="14"/>
+          </svg>
         </button>
 
         <!-- Settings (gear icon) -->
@@ -191,13 +209,16 @@
 
         <!-- Phone-only overflow menu — replaces theme / settings / logout on
              narrow viewports where those icons can't all fit comfortably. -->
-        <button class="theme-toggle mobile-more-btn" id="mobileMoreBtn"
+        <button class="theme-toggle mobile-more-btn requests-toggle" id="mobileMoreBtn"
                 aria-label="More" aria-haspopup="true" aria-expanded="false" title="More">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="5"  cy="12" r="2"/>
             <circle cx="12" cy="12" r="2"/>
             <circle cx="19" cy="12" r="2"/>
           </svg>
+          <!-- Mirrors #requestsBadge: on phones the Requests button lives in this
+               menu, so the pending count has to surface on the kebab itself. -->
+          <span class="requests-badge hidden" id="mobileRequestsBadge">0</span>
         </button>
       </div>
 
@@ -217,6 +238,15 @@
             <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
           </svg>
           <span>Link requests <span id="mobileRequestsCount"></span></span>
+        </button>
+        <button class="mobile-menu-item" id="mobileAnalyticsItem" role="menuitem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6"  y1="20" x2="6"  y2="14"/>
+          </svg>
+          <span>Analytics</span>
         </button>
         <button class="mobile-menu-item" id="mobileSettingsItem" role="menuitem">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -311,7 +341,7 @@
           </svg>
           <span>Changelog</span>
           <span class="changelog-version" id="changelogVersion">
-            v1.0.3
+            <span id="changelogVersionLabel"></span>
             <span class="changelog-update-dot hidden" id="changelogUpdateDot" aria-hidden="true"></span>
           </span>
         </summary>
@@ -320,234 +350,10 @@
              when the server detects a newer release on GitHub. -->
         <div class="changelog-update hidden" id="changelogUpdate"></div>
 
-        <div class="changelog-release-label">v1.0.3</div>
-        <ul class="changelog-list">
-          <li>
-            <div class="changelog-entry-title">In-place file editor</div>
-            <div class="changelog-entry-desc">
-              Edit the contents of attached text files (HTML, XML, JSON, TXT, CSV, MD…)
-              right in the admin — with an expand view, line numbers, language-aware
-              syntax highlighting, a Ctrl/Cmd+F find bar, and Ctrl/Cmd+S to save.
-              Changes are live on the public page immediately.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Stock icon picker + colours</div>
-            <div class="changelog-entry-desc">
-              Pick from a built-in set of line icons and choose a colour, instead of
-              uploading an image. File-backed links also get a tidy file-type icon,
-              and links with no icon fall back to the Settings favicon.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Icon library: export, import & bulk delete</div>
-            <div class="changelog-entry-desc">
-              Export the whole icon library as a single file and import it elsewhere
-              (idempotent). Multi-select icons (shift-click ranges) to delete in bulk.
-              The Settings favicon now appears in the library for reuse.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Admin audit log</div>
-            <div class="changelog-entry-desc">
-              Every admin change <em>and</em> every link click is recorded with the
-              entity's name, time, IP and device. Live auto-refresh, search and
-              type filters, and CSV/JSON export — under Settings → Security → View Log.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Subsections</div>
-            <div class="changelog-entry-desc">
-              Sections can now contain subsections (one level). Add and drag-reorder
-              them in the sidebar; the public page renders the nesting, and the link
-              form lets you drop a link straight into a subsection.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Smarter bulk editing</div>
-            <div class="changelog-entry-desc">
-              Shift-click to select ranges of links, "Select all", Esc to deselect,
-              and move the selection into a specific group section/subsection. You can
-              also drag a link card onto any group, section, or subsection in the sidebar.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Multi-keyword search</div>
-            <div class="changelog-entry-desc">
-              The public search now pins keywords as chips (press Enter), combines them
-              with AND, and matches link names, URLs, groups, sections and subsections.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Copy link button</div>
-            <div class="changelog-entry-desc">
-              Each public card has a copy-link button with a toast confirmation —
-              copies the destination URL, or a tracked redirect link for file attachments.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Per-group unlock behaviour</div>
-            <div class="changelog-entry-desc">
-              Password-protected groups can either auto-lock after 30 seconds (kiosk-safe)
-              or stay unlocked for the whole browser session — chosen per group.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Redesigned admin cards</div>
-            <div class="changelog-entry-desc">
-              A cleaner, premium link card: icon + title header, description, tags,
-              and a footer showing views and date with the action buttons revealing
-              on hover.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">In-app update checker</div>
-            <div class="changelog-entry-desc">
-              Settings → About has a "Check for updates" button showing the current
-              build, the latest GitHub release, and its notes. A pulsing dot on the
-              Changelog pill flags when an update is available.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Versioned database migrations</div>
-            <div class="changelog-entry-desc">
-              The DB layer runs transactional, version-tracked migrations on every
-              startup and logs what changed, so upgrading from any past version is
-              safe and automatic.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Faster saves & polish</div>
-            <div class="changelog-entry-desc">
-              Favicon fetching no longer blocks saving a link (it loads in the
-              background and appears live). Plus a scrollable Settings modal and a
-              fix for icons bleeding between consecutive edits.
-            </div>
-          </li>
-        </ul>
-
-        <div class="changelog-release-label">v1.0.2</div>
-        <ul class="changelog-list">
-          <li>
-            <div class="changelog-entry-title">Reusable icon library</div>
-            <div class="changelog-entry-desc">
-              Every uploaded icon goes into a shared library you can browse, search,
-              and re-use across links — no need to upload the same image twice.
-              An optional setting also saves auto-fetched favicons to the library
-              for the same convenience.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Smarter favicon fetching (intranet-friendly)</div>
-            <div class="changelog-entry-desc">
-              Replaced the Google-only fetch with a three-tier strategy: parse the
-              page for <code>&lt;link rel="icon"&gt;</code>, then try <code>/favicon.ico</code>,
-              then fall back to Google. Intranet URLs now resolve correctly. The
-              live preview while typing uses the same fetcher.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Live updates on the public page</div>
-            <div class="changelog-entry-desc">
-              The public page subscribes to a Server-Sent Events channel and
-              fade-refreshes within a fraction of a second whenever an admin adds,
-              edits, reorders, or deletes anything.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Drag-to-reorder sections</div>
-            <div class="changelog-entry-desc">
-              Sections inside a group now have a drag handle in the sidebar; drop
-              one onto another to reorder. The new order persists and is reflected
-              on the public page immediately.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Remember last viewed group</div>
-            <div class="changelog-entry-desc">
-              Returning visitors stay on the tab they were viewing across refreshes.
-              The admin-configured default group only applies to brand-new
-              (uncached) visitors.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">HTML / XML / JSON attachments + 100 MB cap</div>
-            <div class="changelog-entry-desc">
-              The attachment whitelist now accepts <code>.htm</code>, <code>.html</code>,
-              <code>.xml</code>, and <code>.json</code> files. The per-attachment size
-              limit was raised from 25 MB to 100 MB.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Logo links to the public page</div>
-            <div class="changelog-entry-desc">
-              Clicking the brand logo — on either the admin or public page —
-              navigates to the public home.
-            </div>
-          </li>
-        </ul>
-
-        <div class="changelog-release-label">v1.0.1</div>
-        <ul class="changelog-list">
-          <li>
-            <div class="changelog-entry-title">Sections inside groups</div>
-            <div class="changelog-entry-desc">
-              Groups can now contain sections. Add, rename, and delete them from the
-              sidebar; assign a link to a specific section via the per-group picker
-              in the link modal. Cards in a group view split under section headings.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">File attachments</div>
-            <div class="changelog-entry-desc">
-              A link can point to an uploaded file (PDF, Office docs, archives, images,
-              text) instead of a URL. The link modal has a URL / File toggle; click-tracking
-              still records every visit.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Hide links from the public page</div>
-            <div class="changelog-entry-desc">
-              Each card has a new eye-toggle that hides a link from the public page
-              and its <code>/r/:id</code> redirect — admins keep full access. Reversible
-              with one click.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Custom group colors</div>
-            <div class="changelog-entry-desc">
-              The group colour palette now includes a "+" swatch that opens the native
-              colour picker, so groups can use any hex colour beyond the ten presets.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Mobile-friendly UI</div>
-            <div class="changelog-entry-desc">
-              Phones get a slide-over sidebar, full-width modal sheets, larger tap targets,
-              and a compact header that drops power-user controls. The public page
-              gets responsive padding, search, and card layout.
-            </div>
-          </li>
-        </ul>
-
-        <div class="changelog-release-label">v1.0.0</div>
-        <ul class="changelog-list">
-          <li>
-            <div class="changelog-entry-title">Multiple groups per link</div>
-            <div class="changelog-entry-desc">
-              A link can now belong to several groups at once. The link form has a
-              multi-select group picker, and cards show one coloured badge per group.
-            </div>
-          </li>
-          <li>
-            <div class="changelog-entry-title">Password-protected groups</div>
-            <div class="changelog-entry-desc">
-              Groups can be locked with a password. Protected groups show a lock icon
-              on the public page; visitors must enter the password to view their links.
-              Unlocks automatically expire after 30&nbsp;seconds.
-            </div>
-          </li>
-        </ul>
+        <!-- Release notes are rendered by admin.js from /api/changelog, which
+             parses CHANGELOG.md — the single source of truth shared with the
+             GitHub release notes. Nothing version-specific is hard-coded here. -->
+        <div class="changelog-body" id="changelogBody"></div>
 
         <a class="changelog-repo-link"
            href="https://github.com/Tomasneto404/linkPage"
@@ -596,6 +402,10 @@
         <button class="btn btn-primary empty-cta hidden" id="emptyCta"></button>
       </div>
       <div class="links-grid" id="linksGrid"></div>
+      <footer class="dev-footer hidden" id="devFooter">
+        Developed with care by
+        <a href="https://github.com/Tomasneto404/linkPage" target="_blank" rel="noopener noreferrer">Tomás Neto</a>
+      </footer>
     </main>
   </div>
 
@@ -680,9 +490,11 @@
         <nav class="settings-nav" id="settingsNav">
           <button type="button" class="settings-tab active" data-tab="branding">Branding</button>
           <button type="button" class="settings-tab" data-tab="themes">Themes / Design</button>
+          <button type="button" class="settings-tab" data-tab="publicpage">Public Page</button>
           <button type="button" class="settings-tab" data-tab="icons">Icons</button>
           <button type="button" class="settings-tab" data-tab="public">Public Access</button>
           <button type="button" class="settings-tab" data-tab="requests">Link Requests</button>
+          <button type="button" class="settings-tab" data-tab="ipattribution">IP Attribution</button>
           <button type="button" class="settings-tab" data-tab="security">Security</button>
           <button type="button" class="settings-tab" data-tab="about">About</button>
         </nav>
@@ -696,13 +508,37 @@
           <div class="settings-row">
             <div>
               <div class="settings-row-label">Site Title</div>
-              <div class="settings-row-desc">Shown in the browser tab and header fallback</div>
+              <div class="settings-row-desc">Shown in the browser tab and as the header title</div>
             </div>
             <div style="display:flex; gap:6px; align-items:center">
               <input type="text" id="siteTitleInput" placeholder="LinkPage"
                      style="width:140px; padding:6px 10px; font-size:0.875rem" />
               <button class="btn btn-ghost btn-sm" id="saveSiteTitleBtn">Save</button>
             </div>
+          </div>
+
+          <!-- Header glyph shown next to the title. Ignored (and disabled below)
+               whenever a light/dark logo is set, since the logo replaces the
+               whole title block. -->
+          <div class="settings-row brand-icon-row" id="brandIconRow" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Header Icon</div>
+              <div class="settings-row-desc">Glyph shown next to the header title</div>
+            </div>
+            <div class="logo-control">
+              <img id="brandIconPreview" class="logo-thumb hidden" alt="Header icon" />
+              <input type="file" id="brandIconFileInput"
+                     accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" hidden />
+              <button class="btn btn-ghost btn-sm" id="pickBrandIconLibraryBtn">Library</button>
+              <button class="btn btn-ghost btn-sm" id="pickBrandIconPresetBtn">Icons</button>
+              <button class="btn btn-ghost btn-sm" id="uploadBrandIconBtn">Upload</button>
+              <button class="btn btn-ghost-danger btn-sm hidden" id="removeBrandIconBtn">Remove</button>
+            </div>
+          </div>
+
+          <div class="settings-hint hidden" id="brandOverriddenHint">
+            A Light/Dark mode logo is set, so the header title and icon are hidden on
+            the public and admin pages. Remove both logos to use them again.
           </div>
 
           <div class="settings-row" style="margin-top:8px">
@@ -745,6 +581,17 @@
               <button class="btn btn-ghost btn-sm" id="uploadFaviconBtn">Upload</button>
               <button class="btn btn-ghost-danger btn-sm hidden" id="removeFaviconBtn">Remove</button>
             </div>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Developer Footer</div>
+              <div class="settings-row-desc">Show a credit message from the author in every page</div>
+            </div>
+            <label class="switch" for="footerEnabledToggle">
+              <input type="checkbox" id="footerEnabledToggle" />
+              <span class="switch-slider"></span>
+            </label>
           </div>
         </div>
 
@@ -821,6 +668,25 @@
               <option value="dark">Dark</option>
             </select>
           </div>
+        </div>
+
+        <!-- ── Public Page ───────────────────────────
+             Everything here only changes what visitors see on the public page;
+             admin-side appearance lives in Themes / Design. -->
+        <div class="settings-panel" data-panel="publicpage">
+          <div class="settings-section-title">Public Page</div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Default Group</div>
+              <div class="settings-row-desc">Group shown when visitors first land on the page</div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center">
+              <select id="pinnedGroupSelect" class="bulk-group-select" style="width:170px">
+                <option value="">All Links (none pinned)</option>
+              </select>
+            </div>
+          </div>
 
           <div class="settings-row" style="margin-top:8px">
             <div>
@@ -831,6 +697,32 @@
               <option value="top">Top</option>
               <option value="bottom">Bottom</option>
             </select>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Group-Coloured Tabs</div>
+              <div class="settings-row-desc">
+                Paint the active group tab with the group's own colour. Turn off to use the secondary colour instead.
+              </div>
+            </div>
+            <label class="switch" for="groupTabColorToggle">
+              <input type="checkbox" id="groupTabColorToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Looping Group Tabs</div>
+              <div class="settings-row-desc">
+                When there are more groups than fit the bar, the strip wraps around endlessly instead of stopping at the last group.
+              </div>
+            </div>
+            <label class="switch" for="groupTabsLoopToggle">
+              <input type="checkbox" id="groupTabsLoopToggle" />
+              <span class="switch-slider"></span>
+            </label>
           </div>
         </div>
 
@@ -876,18 +768,6 @@
               <button class="btn btn-ghost-danger btn-sm hidden" id="removePublicPasswordBtn">Remove</button>
             </div>
           </div>
-
-          <div class="settings-row" style="margin-top:8px">
-            <div>
-              <div class="settings-row-label">Default Group</div>
-              <div class="settings-row-desc">Group shown when visitors first land on the page</div>
-            </div>
-            <div style="display:flex; gap:6px; align-items:center">
-              <select id="pinnedGroupSelect" class="bulk-group-select" style="width:170px">
-                <option value="">All Links (none pinned)</option>
-              </select>
-            </div>
-          </div>
         </div>
 
         <!-- ── Link Requests ─────────────────────── -->
@@ -918,6 +798,29 @@
               <button class="btn btn-ghost btn-sm" id="setRequestPasswordBtn">Set</button>
               <button class="btn btn-ghost-danger btn-sm hidden" id="removeRequestPasswordBtn">Remove</button>
             </div>
+          </div>
+        </div>
+
+        <!-- ── IP Attribution ─────────────────────── -->
+        <div class="settings-panel" data-panel="ipattribution">
+          <div class="settings-section-title">IP Attribution</div>
+          <div class="settings-row-desc" style="margin-bottom:12px">
+            Assign a tag to a known IP address to identify who is behind it. Every IP seen clicking a
+            link or submitting a request is listed here; the tag then appears next to that IP in click
+            stats and requests.
+          </div>
+
+          <div class="audit-toolbar">
+            <input type="search" id="ipTagSearch" placeholder="Search IP or tag…" class="bulk-group-select"
+                   style="flex:1; min-width:0" />
+            <span class="audit-toolbar-spacer"></span>
+            <button class="btn btn-ghost btn-sm" id="ipTagsRefreshBtn">Refresh</button>
+          </div>
+
+          <div class="audit-body">
+            <div class="audit-loading" id="ipTagsLoading">Loading…</div>
+            <div class="audit-empty hidden" id="ipTagsEmpty">No IP addresses seen yet.</div>
+            <div class="ip-tags-list" id="ipTagsList"></div>
           </div>
         </div>
 
@@ -953,7 +856,7 @@
               <div class="settings-row-label">Version</div>
               <div class="settings-row-desc">
                 Current build is
-                <span class="settings-version-inline" id="settingsCurrentVersion">v1.0.3</span>.
+                <span class="settings-version-inline" id="settingsCurrentVersion"></span>.
                 Check GitHub for newer releases.
               </div>
             </div>
@@ -1051,6 +954,48 @@
   <!-- ════════════════════════════════════════════════
        LINK REQUESTS MODAL
        ════════════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="analyticsOverlay">
+    <div class="modal modal-lg analytics-modal">
+      <div class="modal-header">
+        <h2>Analytics</h2>
+        <button class="modal-close" id="closeAnalyticsBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6"  y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="audit-toolbar">
+        <select id="analyticsPeriod" class="bulk-group-select">
+          <option value="today">Today</option>
+          <option value="7d">Last 7 days</option>
+          <option value="30d" selected>Last 30 days</option>
+          <option value="all">All time</option>
+        </select>
+        <span class="audit-toolbar-spacer"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="analyticsRefreshBtn" title="Refresh now">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+
+      <div class="audit-body">
+        <div class="audit-loading" id="analyticsLoading">
+          <div class="audit-spinner" aria-hidden="true"></div>
+          <span>Loading…</span>
+        </div>
+        <div class="analytics-cards hidden" id="analyticsCards"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay hidden" id="requestsOverlay">
     <div class="modal modal-lg requests-modal">
       <div class="modal-header">
@@ -1651,9 +1596,14 @@
     <div class="modal modal-sm">
       <div class="modal-header"><h2 id="confirmTitle">Confirm</h2></div>
       <p class="confirm-msg" id="confirmBody"></p>
-      <div class="form-actions" style="padding: 6px 22px 22px">
+      <!-- DOM order is cancel → confirm → alt; with three choices the CSS flips
+           the row into a column-reverse stack, so the alt lands on top. -->
+      <div class="form-actions confirm-actions" id="confirmActions" style="padding: 6px 22px 22px">
         <button class="btn btn-ghost" id="confirmCancelBtn">Cancel</button>
         <button class="btn btn-danger" id="confirmOkBtn">Confirm</button>
+        <!-- Optional third choice (showConfirm({ altText }) → resolves 'alt'),
+             e.g. "add to group instead of duplicating". -->
+        <button class="btn btn-primary hidden" id="confirmAltBtn">Alternative</button>
       </div>
     </div>
   </div>

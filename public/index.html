@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Copyright (C) 2026 Tomás Neto -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -8,6 +10,7 @@
   <link rel="stylesheet" href="style.css" />
   <style>
     .tabs-wrap {
+      --tab-gap: 6px;
       position: sticky;
       top: var(--header-h);
       background: rgba(255,255,255,0.82);
@@ -24,11 +27,93 @@
       margin: 0 auto;
       padding: 8px 22px;
       display: flex;
-      gap: 6px;
-      overflow-x: auto;
-      scrollbar-width: none;
+      align-items: center;
+      gap: var(--tab-gap);
     }
-    .tabs::-webkit-scrollbar { display: none; }
+    /* "All" never scrolls away — it stays pinned left of the group scroller. */
+    .tab-all { flex-shrink: 0; }
+
+    /* Holds the scroller plus its two edge arrows. */
+    .tabs-strip {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Viewport for the group strip. Native scrolling (trackpad, touch,
+       shift+wheel) stays on; the native scrollbar is hidden — with looping on
+       a thumb would jump on every teleport, and either way the edge fades plus
+       the arrows below are what signal "there is more this way".
+
+       A scroll container always clips both axes, so the vertical padding (undone
+       by an equal negative margin, leaving the row height untouched) is what
+       keeps the active tab's accent glow from being sliced into a rectangle. */
+    .tabs-viewport {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 24px 0 30px;
+      margin: -24px 0 -30px;
+      scrollbar-width: none;
+      overscroll-behavior-x: contain;
+      /* That padding hangs over the header and the grid below, so the box must
+         not swallow their clicks or wheel events — only the pills do. Events on
+         the track still bubble up here, so scrolling keeps working. */
+      pointer-events: none;
+    }
+    .tabs-viewport::-webkit-scrollbar { display: none; }
+
+    /* Fade the scrollable edges so tabs slide out of view instead of being
+       hard-clipped mid-pill, and so they pass under the arrows. JS zeroes
+       --fade-l / --fade-r at whichever end a non-looping strip has reached. */
+    .tabs-viewport.is-scrollable {
+      --fade-l: 34px;
+      --fade-r: 34px;
+      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+              mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+    }
+
+    .tabs-track {
+      display: flex;
+      gap: var(--tab-gap);
+      width: max-content;
+      pointer-events: auto;
+    }
+
+    /* Always-on affordance: two nudge buttons sitting on the faded edges. Only
+       rendered while the strip actually overflows, and each one retracts once
+       that end is reached (never, while looping). */
+    .tabs-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: var(--surface);
+      color: var(--text-muted);
+      box-shadow: var(--shadow-xs);
+      cursor: pointer;
+      opacity: 0.9;
+      transition: opacity var(--transition), color var(--transition),
+                  background var(--transition), transform var(--transition);
+    }
+    .tabs-strip.is-scrollable .tabs-arrow { display: flex; }
+    .tabs-strip.at-start .tabs-arrow-l,
+    .tabs-strip.at-end   .tabs-arrow-r { display: none; }
+    .tabs-arrow:hover {
+      opacity: 1;
+      color: var(--text);
+      background: var(--surface-3);
+    }
+    .tabs-arrow:active { transform: translateY(-50%) scale(0.92); }
+    .tabs-arrow-l { left: 0; }
+    .tabs-arrow-r { right: 0; }
+    .tabs-arrow svg { width: 13px; height: 13px; }
 
     .tab {
       display: inline-flex;
@@ -246,9 +331,15 @@
     @media (max-width: 720px) {
       .tabs { padding: 8px 14px; }
       main  { padding: 18px 14px 56px; }
+
+      /* Touch swipes the strip already; the arrows would only cover pills on a
+         narrow bar. */
+      .tabs-strip.is-scrollable .tabs-arrow { display: none; }
+      .tabs-viewport.is-scrollable { --fade-l: 16px; --fade-r: 16px; }
     }
     @media (max-width: 480px) {
-      .tabs { padding: 8px 10px; gap: 4px; }
+      .tabs      { padding: 8px 10px; }
+      .tabs-wrap { --tab-gap: 4px; }
       .tab  { padding: 5px 11px; font-size: 0.8125rem; }
       main  { padding: 14px 10px 56px; }
 
@@ -290,9 +381,17 @@
     }
     .req-icon-preview img, .req-icon-preview svg { width: 26px; height: 26px; object-fit: contain; }
     .req-icon-controls { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
-    .req-icon-actions { display: flex; gap: 14px; align-items: center; }
+    .req-icon-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .req-icon-hint { font-size: 0.75rem; color: var(--text-muted); }
-    .req-upload-label { font-size: 0.78rem; color: var(--primary); cursor: pointer; font-weight: 600; background: none; border: none; padding: 0; font-family: inherit; }
+    /* Text-only links here were 15 px tall — too small to hit on a phone, so
+       they get real padding and a 32 px floor while staying visually light. */
+    .req-upload-label {
+      display: inline-flex; align-items: center; min-height: 32px;
+      padding: 6px 10px; border-radius: 8px;
+      font-size: 0.78rem; font-weight: 600; font-family: inherit;
+      color: var(--primary); background: none; border: none; cursor: pointer;
+    }
+    .req-upload-label:hover { background: rgba(var(--primary-rgb), 0.1); }
     .req-preset-search {
       width: 100%; padding: 8px 12px; margin-bottom: 12px;
       border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -348,11 +447,13 @@
     <a class="logo" id="headerLogo" href="/" aria-label="Go to home">
       <img id="brandImg" class="logo-img hidden" alt="Logo" />
       <span id="brandText" style="display:flex;align-items:center;gap:8px">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-        </svg>
-        LinkPage
+        <span id="brandIcon" class="brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+        </span>
+        <span class="brand-label">LinkPage</span>
       </span>
     </a>
 
@@ -365,7 +466,10 @@
     </div>
 
     <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
-      <svg id="iconMoon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <!-- The crescent's mass sits down-left of the viewBox centre (measured
+           centroid 11.03,12.88 against the sun's 11.95,11.95), so it reads
+           off-centre in the round button. Optical centring nudges it back. -->
+      <svg id="iconMoon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path transform="translate(0.92 -0.93)" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       <svg id="iconSun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="hidden"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
     </button>
 
@@ -381,9 +485,20 @@
   </div>
 </header>
 
-<div class="tabs-wrap">
-  <div class="tabs" id="tabs">
-    <button class="tab active" data-group="all">All</button>
+<div class="tabs-wrap" id="tabsWrap">
+  <div class="tabs" id="tabsRow">
+    <button class="tab tab-all active" id="tabAll" data-group="all">All</button>
+    <div class="tabs-strip" id="tabsStrip">
+      <div class="tabs-viewport" id="tabsViewport">
+        <div class="tabs-track" id="tabs"></div>
+      </div>
+      <button class="tabs-arrow tabs-arrow-l" id="tabsPrev" aria-label="Show previous groups">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18 9 12l6-6"/></svg>
+      </button>
+      <button class="tabs-arrow tabs-arrow-r" id="tabsNext" aria-label="Show next groups">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -395,6 +510,11 @@
   </div>
   <div class="links-grid" id="linksGrid"></div>
 </main>
+
+<footer class="dev-footer hidden" id="devFooter">
+  Developed with care by
+  <a href="https://github.com/Tomasneto404/linkPage" target="_blank" rel="noopener noreferrer">Tomás Neto</a>
+</footer>
 
 <!-- ════════════════════════════════════════════════
      GROUP UNLOCK MODAL

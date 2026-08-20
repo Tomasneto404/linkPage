@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Admin page — link and group management with token authentication.
  *
@@ -27,6 +29,7 @@
 let logoLightUrl = null;
 let logoDarkUrl  = null;
 let faviconUrl   = null;
+let brandIconUrl = null;   // header glyph next to the site title
 
 
 // ─── 1. THEME ─────────────────────────────────────────────────────────────────
@@ -130,6 +133,7 @@ async function showAdminUI() {
   document.getElementById('adminWrap').classList.remove('hidden');
   await loadSettings();
   await loadAllData();
+  renderChangelog().catch(() => {});
   // Fire-and-forget: a missing/slow GitHub response shouldn't block the UI.
   checkForUpdates().catch(() => {});
 }
@@ -232,6 +236,17 @@ async function uploadLogo(variant, file) {
 }
 async function removeLogo(variant)     { return sendAuthRequest(`/api/settings/logo/${variant}`, { method: 'DELETE' }); }
 
+async function uploadBrandIcon(file) {
+  const fd = new FormData(); fd.append('icon', file);
+  return apiJson('/api/settings/brand-icon', { method: 'POST', body: fd });
+}
+async function setBrandIconFromLibrary(iconId) {
+  return jsonPost('/api/settings/brand-icon', { icon_id: iconId });
+}
+async function removeBrandIconApi() {
+  return sendAuthRequest('/api/settings/brand-icon', { method: 'DELETE' });
+}
+
 async function uploadFavicon(file) {
   const fd = new FormData(); fd.append('favicon', file);
   return apiJson('/api/settings/favicon', { method: 'POST', body: fd });
@@ -254,8 +269,29 @@ async function saveTheme(patch)            { return jsonPost('/api/settings/them
 
 async function fetchLinkRequests(status = 'pending') { return apiJson(`/api/link-requests?status=${status}`); }
 async function approveRequestApi(id, linkId) { return jsonPost(`/api/link-requests/${id}/approve`, { link_id: linkId }); }
+// Approves without duplicating: the existing link joins the requested group.
+async function attachRequestApi(id)          { return jsonPost(`/api/link-requests/${id}/attach`, {}); }
 async function rejectRequestApi(id)          { return jsonPost(`/api/link-requests/${id}/reject`, {}); }
 async function deleteRequestApi(id)          { return sendAuthRequest(`/api/link-requests/${id}`, { method: 'DELETE' }); }
+
+async function fetchIpTags()         { return apiJson('/api/ip-tags'); }
+async function saveIpTagApi(ip, tag) { return jsonPost('/api/ip-tags', { ip_address: ip, tag }); }
+async function deleteIpTagApi(ip)    { return sendAuthRequest(`/api/ip-tags/${encodeURIComponent(ip)}`, { method: 'DELETE' }); }
+
+async function fetchAnalytics(period = '30d') { return apiJson(`/api/analytics?period=${encodeURIComponent(period)}`); }
+
+// Cache of ip -> tag, so an attribution tag can be shown wherever an IP appears
+// (stats modal, requests list). Refreshed whenever those surfaces open.
+let ipTagMap = {};
+function refreshIpTagMap() {
+  return fetchIpTags()
+    .then(data => { ipTagMap = {}; (data.ips || []).forEach(r => { if (r.tag) ipTagMap[r.ip_address] = r.tag; }); })
+    .catch(() => { /* non-critical */ });
+}
+function ipTagChip(ip) {
+  const t = ipTagMap[ip];
+  return t ? ` <span class="ip-tag-chip" title="Attributed to">${escapeHtml(t)}</span>` : '';
+}
 
 
 // ─── 4. SETTINGS ──────────────────────────────────────────────────────────────
@@ -265,6 +301,9 @@ async function loadSettings() {
   logoLightUrl = s.logo_light || null;
   logoDarkUrl  = s.logo_dark  || null;
   faviconUrl   = s.favicon    || null;
+  brandIconUrl = s.brand_icon || null;
+  applyBrandText(s.site_title);
+  applyBrandIcon(brandIconUrl);
   updateHeaderLogo();
   applyFavicon(faviconUrl);
   if (s.site_title) {
@@ -275,6 +314,13 @@ async function loadSettings() {
   updateRequestsFeatureUI(!!s.requests_enabled);
   refreshRequestsBadge();
   applyThemeSettings(s);
+  updateFooterUI(s.footer_enabled);
+}
+
+/** Shows or hides the developer credit footer on the admin page. */
+function updateFooterUI(enabled) {
+  const footer = document.getElementById('devFooter');
+  if (footer) footer.classList.toggle('hidden', !enabled);
 }
 
 function applyFavicon(url) {
@@ -289,6 +335,68 @@ function updateFaviconPreview(url) {
   const btn = document.getElementById('removeFaviconBtn');
   if (url) { img.src = url; img.classList.remove('hidden'); btn.classList.remove('hidden'); }
   else      { img.classList.add('hidden');    btn.classList.add('hidden'); }
+}
+
+// ─── Header brand (title text + glyph) ──────────────────────────────────────
+
+// Fallback glyph used when no custom header icon is configured.
+const DEFAULT_BRAND_ICON_SVG = `
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+  </svg>`;
+
+/** Header title text. Falls back to "LinkPage" when no site title is set. */
+function applyBrandText(title) {
+  const label = document.querySelector('#brandText .brand-label');
+  if (label) label.textContent = title || 'LinkPage';
+}
+
+/** Header glyph: a configured image, or the built-in chain-link SVG. */
+function applyBrandIcon(url) {
+  const slot = document.getElementById('brandIcon');
+  if (!slot) return;
+  if (url) {
+    slot.innerHTML = '';
+    const img = document.createElement('img');
+    img.className = 'brand-icon-img';
+    img.src       = url;
+    img.alt       = '';
+    slot.appendChild(img);
+  } else {
+    slot.innerHTML = DEFAULT_BRAND_ICON_SVG;
+  }
+}
+
+// Thumbnail only; updateBrandRowState() owns the Remove button's visibility.
+function updateBrandIconPreview(url) {
+  const img = document.getElementById('brandIconPreview');
+  if (url) { img.src = url; img.classList.remove('hidden'); }
+  else     { img.classList.add('hidden'); }
+}
+
+/** A light/dark logo replaces the whole title block, title + glyph included. */
+function brandIsOverriddenByLogo() {
+  return !!(logoLightUrl || logoDarkUrl);
+}
+
+/**
+ * Greys out and disables the Header Icon controls while a logo is set, and
+ * shows the hint that explains why the title/icon aren't visible.
+ */
+function updateBrandRowState() {
+  const overridden = brandIsOverriddenByLogo();
+  const row  = document.getElementById('brandIconRow');
+  const hint = document.getElementById('brandOverriddenHint');
+  if (!row) return;
+
+  row.classList.toggle('is-inactive', overridden);
+  hint.classList.toggle('hidden', !overridden);
+  ['pickBrandIconLibraryBtn', 'pickBrandIconPresetBtn', 'uploadBrandIconBtn', 'removeBrandIconBtn']
+    .forEach(id => { document.getElementById(id).disabled = overridden; });
+  document.getElementById('removeBrandIconBtn')
+    .classList.toggle('hidden', !brandIconUrl || overridden);
 }
 
 function getLogoForCurrentTheme() {
@@ -336,11 +444,17 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   updateSettingsPreview('light', logoLightUrl);
   updateSettingsPreview('dark',  logoDarkUrl);
   updateFaviconPreview(faviconUrl);
+  brandIconUrl = s.brand_icon || null;
+  updateBrandIconPreview(brandIconUrl);
+  updateBrandRowState();
   populatePinnedGroupSelect(s.pinned_group_id ?? null);
   document.getElementById('siteTitleInput').value = s.site_title || '';
   document.getElementById('saveFaviconsToggle').checked = !!s.save_favicons_to_library;
   updatePublicPasswordStatus(s.public_password_required);
   document.getElementById('requestsEnabledToggle').checked = !!s.requests_enabled;
+  document.getElementById('footerEnabledToggle').checked = !!s.footer_enabled;
+  document.getElementById('groupTabColorToggle').checked = s.group_tab_color !== false;
+  document.getElementById('groupTabsLoopToggle').checked = !!s.group_tabs_loop;
   updateRequestPasswordStatus(s.request_password_required);
   hydrateThemeControls(s);
   resetSettingsTabs();
@@ -362,12 +476,13 @@ document.getElementById('lightLogoFileInput').addEventListener('change', async e
   const file = e.target.files[0]; if (!file) return;
   const r    = await uploadLogo('light', file);
   logoLightUrl = r.logo_url;
-  updateHeaderLogo(); updateSettingsPreview('light', logoLightUrl);
+  updateHeaderLogo(); updateSettingsPreview('light', logoLightUrl); updateBrandRowState();
   e.target.value = ''; showToast('Light logo updated');
 });
 document.getElementById('removeLightLogoBtn').addEventListener('click', async () => {
   await removeLogo('light'); logoLightUrl = null;
-  updateHeaderLogo(); updateSettingsPreview('light', null); showToast('Light logo removed');
+  updateHeaderLogo(); updateSettingsPreview('light', null); updateBrandRowState();
+  showToast('Light logo removed');
 });
 
 document.getElementById('uploadDarkLogoBtn').addEventListener('click', () =>
@@ -376,13 +491,73 @@ document.getElementById('darkLogoFileInput').addEventListener('change', async e 
   const file = e.target.files[0]; if (!file) return;
   const r    = await uploadLogo('dark', file);
   logoDarkUrl  = r.logo_url;
-  updateHeaderLogo(); updateSettingsPreview('dark', logoDarkUrl);
+  updateHeaderLogo(); updateSettingsPreview('dark', logoDarkUrl); updateBrandRowState();
   e.target.value = ''; showToast('Dark logo updated');
 });
 document.getElementById('removeDarkLogoBtn').addEventListener('click', async () => {
   await removeLogo('dark'); logoDarkUrl = null;
-  updateHeaderLogo(); updateSettingsPreview('dark', null); showToast('Dark logo removed');
+  updateHeaderLogo(); updateSettingsPreview('dark', null); updateBrandRowState();
+  showToast('Dark logo removed');
 });
+
+// ─── Header icon: library pick / stock icon / upload / remove ───────────────
+
+/** Applies a saved brand-icon path to state, header, and the settings row. */
+function adoptBrandIcon(url) {
+  brandIconUrl = url || null;
+  applyBrandIcon(brandIconUrl);
+  updateBrandIconPreview(brandIconUrl);
+  updateBrandRowState();
+}
+
+/**
+ * Adopts the response of a brand-icon write. apiJson resolves with the error
+ * body on failure, so a missing path means the write didn't happen — leave the
+ * current icon alone in that case.
+ */
+function adoptBrandIconResponse(res) {
+  if (!res?.brand_icon) {
+    showToast(res?.error || 'Could not update the header icon', 'error');
+    return;
+  }
+  adoptBrandIcon(res.brand_icon);
+  showToast('Header icon updated');
+}
+
+document.getElementById('uploadBrandIconBtn').addEventListener('click', () =>
+  document.getElementById('brandIconFileInput').click());
+document.getElementById('brandIconFileInput').addEventListener('change', async e => {
+  const file = e.target.files[0]; if (!file) return;
+  e.target.value = '';
+  try {
+    adoptBrandIconResponse(await uploadBrandIcon(file));
+  } catch {
+    showToast('Could not update the header icon', 'error');
+  }
+});
+
+document.getElementById('removeBrandIconBtn').addEventListener('click', async () => {
+  await removeBrandIconApi();
+  adoptBrandIcon(null);
+  showToast('Header icon removed');
+});
+
+// Both pickers reuse the link-form modals; they hide Settings while open and
+// restore it once a choice is applied or cancelled.
+document.getElementById('pickBrandIconLibraryBtn').addEventListener('click', () => {
+  document.getElementById('settingsOverlay').classList.add('hidden');
+  openIconLibrary({ pickerMode: true, target: 'brand' });
+});
+
+document.getElementById('pickBrandIconPresetBtn').addEventListener('click', () => {
+  document.getElementById('settingsOverlay').classList.add('hidden');
+  openIconPresets({ target: 'brand' });
+});
+
+/** Re-opens Settings after a brand-icon picker closes. */
+function reopenSettingsAfterBrandPick() {
+  document.getElementById('settingsOverlay').classList.remove('hidden');
+}
 
 document.getElementById('uploadFaviconBtn').addEventListener('click', () =>
   document.getElementById('faviconFileInput').click());
@@ -426,6 +601,7 @@ document.getElementById('saveSiteTitleBtn').addEventListener('click', async () =
   const title  = document.getElementById('siteTitleInput').value.trim();
   const result = await saveSiteTitle(title);
   document.title = result.site_title ? `${result.site_title} — Admin` : 'LinkPage — Admin';
+  applyBrandText(result.site_title);
   showToast(title ? 'Site title saved' : 'Site title cleared');
 });
 
@@ -454,6 +630,52 @@ document.getElementById('requestsEnabledToggle').addEventListener('change', asyn
   }
   updateRequestsFeatureUI(enabled);
   showToast(enabled ? 'Link requests enabled' : 'Link requests disabled');
+});
+
+document.getElementById('footerEnabledToggle').addEventListener('change', async e => {
+  const enabled = e.target.checked;
+  const res = await sendAuthRequest('/api/settings/footer-enabled', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    e.target.checked = !enabled;
+    showToast('Could not save setting');
+    return;
+  }
+  updateFooterUI(enabled);
+  showToast(enabled ? 'Footer shown' : 'Footer hidden');
+});
+
+document.getElementById('groupTabColorToggle').addEventListener('change', async e => {
+  const enabled = e.target.checked;
+  const res = await sendAuthRequest('/api/settings/group-tab-color', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    e.target.checked = !enabled;
+    showToast('Could not save setting');
+    return;
+  }
+  showToast(enabled ? 'Tabs use group colour' : 'Tabs use secondary colour');
+});
+
+document.getElementById('groupTabsLoopToggle').addEventListener('change', async e => {
+  const enabled = e.target.checked;
+  const res = await sendAuthRequest('/api/settings/group-tabs-loop', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    e.target.checked = !enabled;
+    showToast('Could not save setting');
+    return;
+  }
+  showToast(enabled ? 'Group tabs loop endlessly' : 'Group tabs stop at the ends');
 });
 
 document.getElementById('setRequestPasswordBtn').addEventListener('click', async () => {
@@ -558,6 +780,7 @@ document.getElementById('settingsNav').addEventListener('click', e => {
   document.querySelectorAll('#settingsPanels .settings-panel')
     .forEach(p => p.classList.toggle('active', p.dataset.panel === id));
   document.getElementById('settingsPanels').scrollTop = 0;
+  if (id === 'ipattribution') loadIpTags();
 });
 
 // Always open the settings modal on the first tab.
@@ -754,21 +977,45 @@ function showToast(message, type = 'success', duration = 3000) {
 }
 
 /** Shows a custom confirm dialog. Returns a Promise that resolves to true/false. */
-function showConfirm({ title = 'Confirm', message = '', confirmText = 'Confirm', danger = true } = {}) {
+/**
+ * Modal confirm. Resolves true (confirm), false (cancel), or — when `altText`
+ * is given — the string 'alt' for the extra third choice.
+ * Listeners are removed on close so a stale one can never resolve a later call.
+ */
+function showConfirm({ title = 'Confirm', message = '', confirmText = 'Confirm', danger = true, altText = null } = {}) {
   return new Promise(resolve => {
     document.getElementById('confirmTitle').textContent = title;
     document.getElementById('confirmBody').textContent  = message;
-    const okBtn = document.getElementById('confirmOkBtn');
+    const okBtn     = document.getElementById('confirmOkBtn');
+    const cancelBtn = document.getElementById('confirmCancelBtn');
+    const altBtn    = document.getElementById('confirmAltBtn');
     okBtn.textContent = confirmText;
-    okBtn.className   = `btn ${danger ? 'btn-danger' : 'btn-primary'}`;
+    // With a third choice the recommended action is the primary one, so the
+    // destructive option steps back to an outline instead of solid red.
+    okBtn.className = danger
+      ? `btn ${altText ? 'btn-ghost-danger' : 'btn-danger'}`
+      : 'btn btn-primary';
+    altBtn.classList.toggle('hidden', !altText);
+    // Three choices stack full-width; two keep the usual right-aligned row.
+    document.getElementById('confirmActions').classList.toggle('has-alt', !!altText);
+    if (altText) altBtn.textContent = altText;
     document.getElementById('confirmOverlay').classList.remove('hidden');
 
-    const done = result => {
+    const onOk     = () => done(true);
+    const onCancel = () => done(false);
+    const onAlt    = () => done('alt');
+
+    function done(result) {
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      altBtn.removeEventListener('click', onAlt);
       document.getElementById('confirmOverlay').classList.add('hidden');
       resolve(result);
-    };
-    okBtn.addEventListener('click', () => done(true),  { once: true });
-    document.getElementById('confirmCancelBtn').addEventListener('click', () => done(false), { once: true });
+    }
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    altBtn.addEventListener('click', onAlt);
   });
 }
 
@@ -1650,7 +1897,7 @@ async function openStatsModal(link) {
   document.getElementById('recentClicksContainer').innerHTML = '<div class="stats-loading">Loading…</div>';
   document.getElementById('topIpsContainer').innerHTML       = '<div class="stats-loading">Loading…</div>';
   document.getElementById('statsOverlay').classList.remove('hidden');
-  const d = await fetchLinkClicks(link.id);
+  const [d] = await Promise.all([fetchLinkClicks(link.id), refreshIpTagMap()]);
   renderRecentClicks(d.recentClicks); renderTopIps(d.topIps);
 }
 
@@ -1659,7 +1906,7 @@ function renderRecentClicks(clicks) {
   if (!clicks.length) { c.innerHTML = '<div class="stats-empty">No clicks recorded yet</div>'; return; }
   c.innerHTML = `<div class="click-log">${clicks.map(cl => `
     <div class="click-row">
-      <span class="click-ip">${escapeHtml(cl.ip_address)}</span>
+      <span class="click-ip">${escapeHtml(cl.ip_address)}${ipTagChip(cl.ip_address)}</span>
       <span class="click-device">${escapeHtml(getDeviceType(cl.user_agent))}</span>
       <span class="click-time">${timeAgo(cl.clicked_at)}</span>
     </div>`).join('')}</div>`;
@@ -1671,7 +1918,7 @@ function renderTopIps(topIps) {
   const hi = topIps[0].click_count;
   c.innerHTML = `<div class="click-log">${topIps.map(ip => `
     <div class="click-row">
-      <span class="click-ip">${escapeHtml(ip.ip_address)}</span>
+      <span class="click-ip">${escapeHtml(ip.ip_address)}${ipTagChip(ip.ip_address)}</span>
       <div class="click-bar-wrap"><div class="click-bar" style="width:${Math.round(ip.click_count/hi*100)}%"></div></div>
       <span class="click-count">${ip.click_count} click${ip.click_count !== 1 ? 's' : ''}</span>
     </div>`).join('')}</div>`;
@@ -2964,6 +3211,41 @@ document.getElementById('searchInput').addEventListener('input', e => {
 });
 
 
+// ─── 20.3b. CHANGELOG ────────────────────────────────────────────────────────
+//
+// The sidebar list is rendered from /api/changelog, which parses CHANGELOG.md.
+// That file is also what the release workflow turns into the GitHub release
+// notes, so the two can never drift apart.
+
+/** Renders one release section per entry group, newest first. */
+async function renderChangelog() {
+  const host = document.getElementById('changelogBody');
+  if (!host) return;
+
+  const data = await apiJson('/api/changelog').catch(() => null);
+  if (!data?.releases?.length) {
+    host.innerHTML = '<div class="changelog-entry-desc">Release notes are unavailable.</div>';
+    return;
+  }
+
+  host.innerHTML = data.releases.map(release => `
+    <div class="changelog-release-label">v${escapeHtml(release.version)}</div>
+    <ul class="changelog-list">
+      ${release.entries.map(entry => `
+        <li>
+          <div class="changelog-entry-title">${escapeHtml(entry.title)}</div>
+          <div class="changelog-entry-desc">${renderChangelogText(entry.description)}</div>
+        </li>`).join('')}
+    </ul>`).join('');
+}
+
+/** Inline markdown the changelog actually uses: `code` and **bold**. */
+function renderChangelogText(text) {
+  return escapeHtml(text || '')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
 // ─── 20.4. UPDATE CHECK ──────────────────────────────────────────────────────
 //
 // Surfaces newer releases from GitHub. The server caches the response so the
@@ -2995,8 +3277,8 @@ async function checkForUpdates() {
  * About row, etc.) in sync with the canonical value from the server.
  */
 function syncCurrentVersionLabels(current) {
-  const pill = document.getElementById('changelogVersion');
-  if (pill?.firstChild) pill.firstChild.nodeValue = ` v${current} `;
+  const label = document.getElementById('changelogVersionLabel');
+  if (label) label.textContent = `v${current}`;
   const inline = document.getElementById('settingsCurrentVersion');
   if (inline) inline.textContent = `v${current}`;
 }
@@ -3007,10 +3289,8 @@ function applyVersionInfo(info) {
   const banner = document.getElementById('changelogUpdate');
   if (!pill || !banner) return;
 
-  // Keep the static pill text in sync with package.json, regardless of update
-  // status. (If a user edits the HTML and the version bumps, this still reads
-  // correctly.)
-  pill.firstChild && (pill.firstChild.nodeValue = ` v${info.current} `);
+  // Keep the pill in sync with package.json regardless of update status.
+  syncCurrentVersionLabels(info.current);
 
   if (!info.update_available || !Array.isArray(info.newer_releases) || !info.newer_releases.length) {
     banner.classList.add('hidden');
@@ -3819,12 +4099,14 @@ const ICON_PRESET_DEFAULT_COLOR = '#0071e3';
 let iconPresetsQuery        = '';
 let iconPresetsColor        = ICON_PRESET_DEFAULT_COLOR;
 let iconPresetsSelectedName = null;
+let iconPresetsTarget       = 'link';   // 'link' form field, or the header icon
 
 function buildPresetSvgString(body, color, { size = 64, strokeWidth = 2 } = {}) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 }
 
-function openIconPresets() {
+function openIconPresets({ target = 'link' } = {}) {
+  iconPresetsTarget       = target;
   iconPresetsQuery        = '';
   iconPresetsSelectedName = null;
   document.getElementById('iconPresetsSearchInput').value = '';
@@ -3839,6 +4121,11 @@ function openIconPresets() {
 
 function closeIconPresets() {
   document.getElementById('iconPresetsOverlay').classList.add('hidden');
+  // The header-icon flow starts in Settings; return the user there.
+  if (iconPresetsTarget === 'brand') {
+    iconPresetsTarget = 'link';
+    reopenSettingsAfterBrandPick();
+  }
 }
 
 function renderIconPresetsPalette() {
@@ -3919,21 +4206,40 @@ function updateIconPresetsSelectedState() {
   apply.disabled    = false;
 }
 
-function applyIconPresetsSelection() {
+/**
+ * Renders a preset at icon size in the current colour and wraps it in a File,
+ * so both consumers (link form, header icon) go through a normal image upload.
+ */
+function buildPresetSvgFile(icon) {
+  const svgString = buildPresetSvgString(icon.body, iconPresetsColor, { size: 128, strokeWidth: 1.8 });
+  const blob      = new Blob([svgString], { type: 'image/svg+xml' });
+  return new File([blob], `icon-${icon.name}-${iconPresetsColor.replace('#', '')}.svg`,
+                  { type: 'image/svg+xml' });
+}
+
+async function applyIconPresetsSelection() {
   if (!iconPresetsSelectedName) return;
   const icon = (window.ICON_PRESETS || []).find(i => i.name === iconPresetsSelectedName);
   if (!icon) return;
 
-  // Render the chosen icon at a larger size for crisp display on link cards,
-  // wrap it in a Blob, stuff it into the link form's #inputImage as if the
-  // admin had uploaded an SVG themselves — the rest of the submit flow then
-  // handles uploading + library auto-registration with no extra plumbing.
+  // Header icon: upload the generated SVG straight to the brand-icon setting
+  // (which registers it in the library too, same as the link flow).
+  if (iconPresetsTarget === 'brand') {
+    try {
+      adoptBrandIconResponse(await uploadBrandIcon(buildPresetSvgFile(icon)));
+    } catch {
+      showToast('Could not update the header icon', 'error');
+    }
+    closeIconPresets();
+    return;
+  }
+
+  // Stuff the generated SVG into the link form's #inputImage as if the admin
+  // had uploaded it themselves — the rest of the submit flow then handles
+  // uploading + library auto-registration with no extra plumbing.
   const svgString = buildPresetSvgString(icon.body, iconPresetsColor, { size: 128, strokeWidth: 1.8 });
-  const blob      = new Blob([svgString], { type: 'image/svg+xml' });
-  const file      = new File([blob], `icon-${icon.name}-${iconPresetsColor.replace('#', '')}.svg`,
-                             { type: 'image/svg+xml' });
   const dt = new DataTransfer();
-  dt.items.add(file);
+  dt.items.add(buildPresetSvgFile(icon));
   document.getElementById('inputImage').files = dt.files;
 
   // Wire the preview the same way the upload flow does.
@@ -3944,7 +4250,7 @@ function applyIconPresetsSelection() {
 }
 
 // Event wiring
-document.getElementById('openIconPresetsBtn').addEventListener('click', openIconPresets);
+document.getElementById('openIconPresetsBtn').addEventListener('click', () => openIconPresets());
 document.getElementById('closeIconPresetsBtn').addEventListener('click', closeIconPresets);
 document.getElementById('cancelIconPresetsBtn').addEventListener('click', closeIconPresets);
 document.getElementById('applyIconPresetsBtn').addEventListener('click', applyIconPresetsSelection);
@@ -3985,6 +4291,7 @@ document.getElementById('iconPresetsGrid').addEventListener('click', e => {
 let iconLibraryItems    = [];
 let iconLibraryQuery    = '';
 let iconLibraryPicker   = false;  // true when opened from the link modal
+let iconLibraryTarget   = 'link'; // where a picked icon goes: 'link' | 'brand'
 let iconSelectMode      = false;  // bulk-select mode (manage view)
 let iconSelectedIds     = new Set();
 let iconLastClickedId   = null;   // anchor for shift-click range selection
@@ -4002,8 +4309,9 @@ async function deleteIconById(id) {
   return sendAuthRequest(`/api/icons/${id}`, { method: 'DELETE' });
 }
 
-async function openIconLibrary({ pickerMode = false } = {}) {
+async function openIconLibrary({ pickerMode = false, target = 'link' } = {}) {
   iconLibraryPicker = pickerMode;
+  iconLibraryTarget = pickerMode ? target : 'link';
   iconLibraryQuery  = '';
   exitIconSelectMode();
   // Hide the Select button in picker mode (picking, not managing).
@@ -4020,6 +4328,11 @@ async function openIconLibrary({ pickerMode = false } = {}) {
 function closeIconLibrary() {
   exitIconSelectMode();
   document.getElementById('iconLibraryOverlay').classList.add('hidden');
+  // Picking a header icon came from Settings — hand the user back to it.
+  if (iconLibraryTarget === 'brand') {
+    iconLibraryTarget = 'link';
+    reopenSettingsAfterBrandPick();
+  }
 }
 
 function enterIconSelectMode() {
@@ -4090,7 +4403,9 @@ function renderIconLibrary() {
   grid.innerHTML = visible.map(icon => {
     const label      = icon.original_name || 'icon';
     const used        = icon.usage_count || 0;
-    const pickedHere  = iconLibraryPicker && pendingIconId === icon.id;
+    const pickedHere  = iconLibraryPicker && (iconLibraryTarget === 'brand'
+                          ? icon.file_path === brandIconUrl
+                          : pendingIconId === icon.id);
     const bulkPicked  = iconSelectMode && iconSelectedIds.has(icon.id);
     const selected    = pickedHere || bulkPicked;
     // In select mode the whole card toggles selection; the per-card delete
@@ -4333,9 +4648,20 @@ document.getElementById('iconLibraryGrid').addEventListener('click', async e => 
   }
 });
 
-function pickIconFromLibrary(id) {
+async function pickIconFromLibrary(id) {
   const icon = iconLibraryItems.find(i => i.id === id);
   if (!icon) return;
+
+  if (iconLibraryTarget === 'brand') {
+    try {
+      adoptBrandIconResponse(await setBrandIconFromLibrary(icon.id));
+    } catch {
+      showToast('Could not update the header icon', 'error');
+    }
+    closeIconLibrary();
+    return;
+  }
+
   pendingIconId    = icon.id;
   shouldRemoveIcon = false;
   document.getElementById('inputImage').value = '';
@@ -4395,6 +4721,7 @@ async function openAuditLog() {
   document.getElementById('auditOverlay').classList.remove('hidden');
   document.getElementById('auditSearchInput').value = '';
   document.getElementById('auditTypeFilter').value = '';
+  await refreshIpTagMap();   // so attribution tags render next to IPs
   await reloadAuditLog();
   startAuditPolling();
 }
@@ -4506,7 +4833,12 @@ function renderAuditList(newIds = null) {
     const meta = AUDIT_TYPE_META[e.entity_type] || { cls: 'other', label: e.entity_type || '—' };
     const verb = auditActionVerb(e.action);
     const ua   = e.user_agent ? deviceFromUA(e.user_agent) : '';
-    const metaBits = [e.ip_address, ua].filter(Boolean).join(' · ');
+    // Build origin as HTML (not a pre-escaped string) so the IP can carry its
+    // attribution chip. Each text part is still escaped individually.
+    const originParts = [];
+    if (e.ip_address) originParts.push(`${escapeHtml(e.ip_address)}${ipTagChip(e.ip_address)}`);
+    if (ua)           originParts.push(escapeHtml(ua));
+    const originHtml = originParts.join(' · ');
     const isNew = newIds && newIds.has(e.id);
     return `
       <div class="audit-row${isNew ? ' audit-row-new' : ''}">
@@ -4516,7 +4848,7 @@ function renderAuditList(newIds = null) {
           <div class="audit-meta">
             <span class="audit-badge audit-badge-${meta.cls}">${escapeHtml(meta.label)}</span>
             <span class="audit-action-code">${escapeHtml(e.action)}</span>
-            ${metaBits ? `<span class="audit-origin">${escapeHtml(metaBits)}</span>` : ''}
+            ${originHtml ? `<span class="audit-origin">${originHtml}</span>` : ''}
           </div>
         </div>
         <time class="audit-time" title="${escapeHtml(e.created_at)} UTC">${escapeHtml(formatAuditTime(e.created_at))}</time>
@@ -4626,9 +4958,15 @@ async function refreshRequestsBadge() {
   try {
     const data  = await fetchLinkRequests('pending');
     const count = data.pending_count || 0;
-    const badge = document.getElementById('requestsBadge');
-    badge.textContent = count > 99 ? '99+' : String(count);
-    badge.classList.toggle('hidden', count === 0);
+    const label = count > 99 ? '99+' : String(count);
+    // Header button on wide screens, kebab dot on phones (where that button is
+    // hidden) — both stay in sync so a pending request is never invisible.
+    for (const id of ['requestsBadge', 'mobileRequestsBadge']) {
+      const badge = document.getElementById(id);
+      if (!badge) continue;
+      badge.textContent = label;
+      badge.classList.toggle('hidden', count === 0);
+    }
     const mob = document.getElementById('mobileRequestsCount');
     if (mob) mob.textContent = count ? `(${count})` : '';
   } catch { /* non-critical */ }
@@ -4646,6 +4984,43 @@ const REQUEST_FALLBACK_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" f
   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
   <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
   <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+
+/**
+ * True when the request points at a link that already exists — ignoring the
+ * link this very request created, which is expected for approved requests.
+ */
+function requestHasExistingLink(r) {
+  return !!(r.existing_link && r.existing_link.id !== r.created_link_id);
+}
+
+/** Group names the already-existing link belongs to. */
+function existingLinkGroupNames(existing) {
+  return (existing?.groups ?? []).map(g => g.name).filter(Boolean);
+}
+
+/** True when the existing link is already in the group this request asks for. */
+function existingLinkHasRequestedGroup(r) {
+  return !!r.existing_link?.groups?.some(g => g.id === r.group_id);
+}
+
+/** "Already added" chip; opens the existing link for editing when clicked. */
+function requestDupeChip(r) {
+  if (!requestHasExistingLink(r)) return '';
+  const ex     = r.existing_link;
+  const names  = existingLinkGroupNames(ex);
+  const suffix = names.length ? ` · ${names.join(', ')}` : '';
+  const title  = `Already added as "${ex.name}"${suffix} — click to open it`;
+  return `
+    <button type="button" class="request-row-dupe" data-req-existing="${ex.id}"
+            title="${escapeHtml(title)}">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      Already added${escapeHtml(suffix)}
+    </button>`;
+}
 
 function renderRequestsList(requests) {
   loadedRequests = requests;
@@ -4684,7 +5059,9 @@ function renderRequestsList(requests) {
               ${escapeHtml(r.group_name || 'Unknown group')}${sectionLabel ? ' · ' + escapeHtml(sectionLabel) : ''}
             </span>
             <span>${formatRequestDate(r.created_at)}</span>
+            ${r.ip_address ? `<span class="request-row-ip" title="Submitter IP">${escapeHtml(r.ip_address)}</span>${ipTagChip(r.ip_address)}` : ''}
             ${statusBadge}
+            ${requestDupeChip(r)}
           </div>
           ${r.description ? `<div class="request-row-desc">${escapeHtml(r.description)}</div>` : ''}
         </div>
@@ -4698,7 +5075,7 @@ async function loadRequests() {
   document.getElementById('requestsEmpty').classList.add('hidden');
   document.getElementById('requestsList').innerHTML = '';
   try {
-    const data = await fetchLinkRequests(requestsStatus);
+    const [data] = await Promise.all([fetchLinkRequests(requestsStatus), refreshIpTagMap()]);
     renderRequestsList(data.requests || []);
     const badge = document.getElementById('requestsBadge');
     const count = data.pending_count || 0;
@@ -4747,14 +5124,58 @@ document.getElementById('requestsStatusFilter').addEventListener('change', e => 
 });
 
 document.getElementById('requestsList').addEventListener('click', async e => {
-  const approveBtn = e.target.closest('[data-req-approve]');
-  const rejectBtn  = e.target.closest('[data-req-reject]');
-  const deleteBtn  = e.target.closest('[data-req-delete]');
+  const approveBtn  = e.target.closest('[data-req-approve]');
+  const rejectBtn   = e.target.closest('[data-req-reject]');
+  const deleteBtn   = e.target.closest('[data-req-delete]');
+  const existingBtn = e.target.closest('[data-req-existing]');
+
+  // "Already added" chip — jump straight to the link that already exists.
+  if (existingBtn) {
+    const linkId = Number(existingBtn.dataset.reqExisting);
+    const link   = links.find(l => l.id === linkId);
+    if (!link) { showToast('That link no longer exists — refresh the list'); return; }
+    closeRequestsModal();
+    openEditLinkModal(link);
+    return;
+  }
 
   if (approveBtn) {
     const id  = Number(approveBtn.dataset.reqApprove);
     const req = loadedRequests.find(r => r.id === id);
     if (!req) return;
+    // The URL is already published: offer to add that link to the requested
+    // group instead of creating a second copy of it.
+    if (requestHasExistingLink(req)) {
+      const ex        = req.existing_link;
+      const names     = existingLinkGroupNames(ex);
+      const target    = req.group_name || 'the requested group';
+      const alreadyIn = existingLinkHasRequestedGroup(req);
+      const choice    = await showConfirm({
+        title:   'Link already exists',
+        message: alreadyIn
+          ? `"${ex.name}" already points at this URL and is already in ${target}. Approve the request as-is, or add a second copy of the link?`
+          : `"${ex.name}" already points at this URL${names.length ? ` (in ${names.join(', ')})` : ''}. Add that link to ${target} instead of creating a duplicate?`,
+        confirmText: 'Create duplicate',
+        altText:     alreadyIn ? 'Approve only' : `Add to ${target}`,
+      });
+      if (!choice) return;
+
+      if (choice === 'alt') {
+        const result = await attachRequestApi(req.id);
+        if (result?.ok !== true) {
+          showToast(result?.error || 'Could not approve the request', 'error');
+          return;
+        }
+        showToast(result.added
+          ? `Existing link added to ${target}`
+          : 'Request approved — the link was already in that group');
+        await loadRequests();
+        refreshRequestsBadge();
+        await loadAllData();   // the link's groups changed
+        return;
+      }
+      // choice === true → fall through and create the duplicate as usual.
+    }
     closeRequestsModal();
     openAddLinkModalFromRequest(req);
     return;
@@ -4776,16 +5197,224 @@ document.getElementById('requestsList').addEventListener('click', async e => {
   }
 });
 
+// ─── IP ATTRIBUTION ────────────────────────────────────────────────────────
+//
+// Lists every IP the app has seen (from clicks + requests) so the admin can
+// attach a human-readable tag naming who is behind it.
+
+let loadedIpTags = [];
+
+function renderIpTagsList(ips) {
+  loadedIpTags = ips;
+  const list  = document.getElementById('ipTagsList');
+  const empty = document.getElementById('ipTagsEmpty');
+  document.getElementById('ipTagsLoading').classList.add('hidden');
+
+  const q = (document.getElementById('ipTagSearch').value || '').toLowerCase().trim();
+  const rows = q
+    ? ips.filter(r => r.ip_address.toLowerCase().includes(q) || (r.tag || '').toLowerCase().includes(q))
+    : ips;
+
+  if (!rows.length) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  list.innerHTML = rows.map(r => {
+    const events = r.event_count === 0
+      ? 'no activity'
+      : `${r.event_count} event${r.event_count !== 1 ? 's' : ''}`;
+    const seen = r.last_seen ? `last seen ${formatRequestDate(r.last_seen)}` : 'never seen';
+    return `
+      <div class="ip-tag-row" data-ip="${escapeHtml(r.ip_address)}">
+        <div class="ip-tag-main">
+          <span class="ip-tag-addr">${escapeHtml(r.ip_address)}</span>
+          <span class="ip-tag-meta">${events} · ${seen}</span>
+        </div>
+        <div class="ip-tag-actions">
+          <input type="text" class="ip-tag-input" placeholder="Name / tag…"
+                 value="${escapeHtml(r.tag || '')}" maxlength="120" />
+          <button class="btn btn-primary btn-sm" data-ip-save>Save</button>
+          <button class="btn btn-ghost-danger btn-sm ${r.tag ? '' : 'hidden'}" data-ip-clear>Clear</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadIpTags() {
+  document.getElementById('ipTagsLoading').classList.remove('hidden');
+  document.getElementById('ipTagsEmpty').classList.add('hidden');
+  document.getElementById('ipTagsList').innerHTML = '';
+  try {
+    const data = await fetchIpTags();
+    const ips  = data.ips || [];
+    // Keep the shared map in sync so other surfaces show fresh tags too.
+    ipTagMap = {};
+    ips.forEach(r => { if (r.tag) ipTagMap[r.ip_address] = r.tag; });
+    renderIpTagsList(ips);
+  } catch {
+    document.getElementById('ipTagsLoading').classList.add('hidden');
+    showToast('Could not load IP attribution', { type: 'error' });
+  }
+}
+
+document.getElementById('ipTagsRefreshBtn').addEventListener('click', loadIpTags);
+document.getElementById('ipTagSearch').addEventListener('input', () => renderIpTagsList(loadedIpTags));
+document.getElementById('ipTagsList').addEventListener('click', async e => {
+  const row = e.target.closest('.ip-tag-row');
+  if (!row) return;
+  const ip = row.dataset.ip;
+
+  if (e.target.closest('[data-ip-save]')) {
+    const tag = row.querySelector('.ip-tag-input').value.trim();
+    if (!tag) { showToast('Enter a tag first', { type: 'error' }); return; }
+    try { await saveIpTagApi(ip, tag); showToast('Tag saved'); await loadIpTags(); }
+    catch { showToast('Could not save tag', { type: 'error' }); }
+    return;
+  }
+  if (e.target.closest('[data-ip-clear]')) {
+    try { await deleteIpTagApi(ip); showToast('Tag removed'); await loadIpTags(); }
+    catch { showToast('Could not remove tag', { type: 'error' }); }
+  }
+});
+
+// ─── ANALYTICS ─────────────────────────────────────────────────────────────
+//
+// Headline dashboard: the most-clicked link and the most-active user (top IP,
+// shown by its attribution tag when assigned).
+
+function analyticsStatTile(value, label) {
+  return `<div class="stat-box"><div class="stat-value">${escapeHtml(String(value))}</div>
+          <div class="stat-label">${escapeHtml(label)}</div></div>`;
+}
+
+/** Builds a 30-bar activity chart from the sparse {day,clicks} trend rows. */
+function renderTrendChart(trend) {
+  const byDay = {};
+  (trend || []).forEach(r => { byDay[r.day] = r.clicks; });
+  const now  = new Date();
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+    const key = d.toISOString().slice(0, 10);
+    days.push({ key, clicks: byDay[key] || 0 });
+  }
+  const max = Math.max(1, ...days.map(d => d.clicks));
+  const bars = days.map(d => {
+    const h = Math.round((d.clicks / max) * 100);
+    const cls = d.clicks ? 'trend-bar' : 'trend-bar trend-bar-empty';
+    return `<div class="${cls}" style="height:${h}%" title="${d.key}: ${d.clicks} click${d.clicks !== 1 ? 's' : ''}"></div>`;
+  }).join('');
+  return `
+    <section class="analytics-card analytics-card-wide">
+      <div class="analytics-card-title">Clicks · last 30 days</div>
+      <div class="trend-chart" role="img" aria-label="Clicks per day over the last 30 days">${bars}</div>
+    </section>`;
+}
+
+function renderLinkRank(topLinks) {
+  if (!topLinks.length) return `<div class="analytics-empty">No clicks recorded yet.</div>`;
+  return `<ol class="analytics-rank">${topLinks.map((l, i) => `
+    <li class="analytics-rank-row">
+      <span class="analytics-rank-n">${i + 1}</span>
+      <div class="analytics-rank-main">
+        <a class="analytics-rank-title" href="/r/${l.id}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.name)}</a>
+        <span class="analytics-rank-sub">${escapeHtml(getDomainName(l.url))}</span>
+      </div>
+      <span class="analytics-rank-metric">${l.total_clicks}<small>clicks</small></span>
+    </li>`).join('')}</ol>`;
+}
+
+function renderUserRank(topUsers) {
+  if (!topUsers.length) return `<div class="analytics-empty">No clicks recorded yet.</div>`;
+  return `<ol class="analytics-rank">${topUsers.map((u, i) => {
+    const title = u.tag
+      ? `<span class="analytics-rank-title">${escapeHtml(u.tag)}</span>
+         <span class="analytics-rank-sub analytics-mono">${escapeHtml(u.ip_address)}</span>`
+      : `<span class="analytics-rank-title analytics-mono">${escapeHtml(u.ip_address)}</span>
+         <span class="analytics-rank-sub">No tag assigned</span>`;
+    return `
+    <li class="analytics-rank-row">
+      <span class="analytics-rank-n">${i + 1}</span>
+      <div class="analytics-rank-main">${title}</div>
+      <span class="analytics-rank-metric">${u.click_count}<small>clicks</small></span>
+    </li>`;
+  }).join('')}</ol>`;
+}
+
+function renderAnalytics(data) {
+  const cards = document.getElementById('analyticsCards');
+  document.getElementById('analyticsLoading').classList.add('hidden');
+  cards.classList.remove('hidden');
+
+  const t = data.totals || {};
+  const totals = `
+    <div class="analytics-totals">
+      ${analyticsStatTile(t.total_clicks ?? 0, 'Total Clicks')}
+      ${analyticsStatTile(t.unique_visitors ?? 0, 'Unique Visitors')}
+      ${analyticsStatTile(t.total_links ?? 0, 'Total Links')}
+      ${analyticsStatTile(t.clicks_today ?? 0, 'Clicks Today')}
+      ${analyticsStatTile(t.clicks_this_week ?? 0, 'Clicks / 7 days')}
+    </div>`;
+
+  cards.innerHTML = `
+    ${totals}
+    ${renderTrendChart(data.trend)}
+    <div class="analytics-row">
+      <section class="analytics-card">
+        <div class="analytics-card-title">Most Valuable Links</div>
+        ${renderLinkRank(data.top_links || [])}
+      </section>
+      <section class="analytics-card">
+        <div class="analytics-card-title">Most Active Users</div>
+        ${renderUserRank(data.top_users || [])}
+      </section>
+    </div>`;
+}
+
+async function loadAnalytics() {
+  const period = document.getElementById('analyticsPeriod').value || '30d';
+  document.getElementById('analyticsLoading').classList.remove('hidden');
+  document.getElementById('analyticsCards').classList.add('hidden');
+  try {
+    renderAnalytics(await fetchAnalytics(period));
+  } catch {
+    document.getElementById('analyticsLoading').classList.add('hidden');
+    showToast('Could not load analytics', { type: 'error' });
+  }
+}
+
+function openAnalyticsModal() {
+  document.getElementById('analyticsOverlay').classList.remove('hidden');
+  loadAnalytics();
+}
+function closeAnalyticsModal() {
+  document.getElementById('analyticsOverlay').classList.add('hidden');
+}
+
+document.getElementById('openAnalyticsBtn').addEventListener('click', openAnalyticsModal);
+document.getElementById('closeAnalyticsBtn').addEventListener('click', closeAnalyticsModal);
+document.getElementById('analyticsRefreshBtn').addEventListener('click', loadAnalytics);
+document.getElementById('analyticsPeriod').addEventListener('change', loadAnalytics);
+
 const OVERLAY_IDS = [
   'statsOverlay', 'settingsOverlay', 'linkModalOverlay',
   'groupModalOverlay', 'deleteLinkOverlay', 'deleteGroupOverlay', 'confirmOverlay',
   'iconLibraryOverlay', 'versionOverlay', 'fileEditorOverlay', 'iconPresetsOverlay',
-  'auditOverlay', 'requestsOverlay',
+  'auditOverlay', 'requestsOverlay', 'analyticsOverlay',
 ];
+
+// Overlays whose own close function restores state (e.g. handing the user back
+// to Settings after picking a header icon) instead of just hiding the element.
+const OVERLAY_CLOSERS = {
+  iconLibraryOverlay: closeIconLibrary,
+  iconPresetsOverlay: closeIconPresets,
+};
 
 OVERLAY_IDS.forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
-    if (e.target.id === id) e.target.classList.add('hidden');
+    if (e.target.id !== id) return;
+    const closer = OVERLAY_CLOSERS[id];
+    if (closer) closer();
+    else        e.target.classList.add('hidden');
   });
 });
 
@@ -4797,6 +5426,10 @@ document.addEventListener('keydown', e => {
     .map(id => document.getElementById(id))
     .find(el => el && !el.classList.contains('hidden'));
   if (openOverlay) {
+    // Escape dismisses everything, so drop any pending picker target instead of
+    // bouncing the user back into Settings.
+    iconLibraryTarget = 'link';
+    iconPresetsTarget = 'link';
     OVERLAY_IDS.forEach(id => document.getElementById(id).classList.add('hidden'));
     return;
   }
@@ -4903,10 +5536,11 @@ function showEasterEgg() {
       document.getElementById(targetId)?.click();
     });
   };
-  forward('mobileThemeItem',    'themeToggle');
-  forward('mobileRequestsItem', 'openRequestsBtn');
-  forward('mobileSettingsItem', 'openSettingsBtn');
-  forward('mobileLogoutItem',   'logoutBtn');
+  forward('mobileThemeItem',     'themeToggle');
+  forward('mobileRequestsItem',  'openRequestsBtn');
+  forward('mobileAnalyticsItem', 'openAnalyticsBtn');
+  forward('mobileSettingsItem',  'openSettingsBtn');
+  forward('mobileLogoutItem',    'logoutBtn');
 })();
 
 

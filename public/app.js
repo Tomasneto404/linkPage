@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Tomás Neto
 /**
  * Public page — read-only view of links for end users.
  *
@@ -105,6 +107,35 @@ document.getElementById('themeToggle').addEventListener('click', () => {
 applyTheme(getInitialTheme(), false);
 
 // ─── Branding ─────────────────────────────────────────────────────────────────
+
+// Fallback glyph used when no custom header icon is configured.
+const DEFAULT_BRAND_ICON_SVG = `
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+  </svg>`;
+
+/** Header title text. Falls back to "LinkPage" when no site title is set. */
+function applyBrandText(title) {
+  const label = document.querySelector('#brandText .brand-label');
+  if (label) label.textContent = title || 'LinkPage';
+}
+
+/** Header glyph: a configured image, or the built-in chain-link SVG. */
+function applyBrandIcon(url) {
+  const slot = document.getElementById('brandIcon');
+  if (!slot) return;
+  if (url) {
+    slot.innerHTML = '';
+    const img = document.createElement('img');
+    img.className = 'brand-icon-img';
+    img.src       = url;
+    img.alt       = '';
+    slot.appendChild(img);
+  } else {
+    slot.innerHTML = DEFAULT_BRAND_ICON_SVG;
+  }
+}
 
 function getLogoForCurrentTheme() {
   return (document.documentElement.getAttribute('data-theme') || 'light') === 'dark'
@@ -230,6 +261,12 @@ const FALLBACK_ICON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill=
 let links         = [];
 let groups        = [];
 let activeGroup   = 'all';
+// When true, the active group tab is painted with the group's own colour;
+// when false, it uses the default secondary/accent colour. Set from settings.
+let tabsUseGroupColor = true;
+// Admin opt-in: when the group strip overflows, wrap it around endlessly
+// instead of stopping at the first/last group. Set from settings.
+let tabsLoopEnabled = false;
 let activeSection = null;
 let searchQuery   = '';
 // Pinned keywords. Each one narrows the result set further (AND combined
@@ -284,38 +321,240 @@ function isGroupLocked(group) {
   return group.is_protected && !group.is_unlocked;
 }
 
+/** One group pill. `dup` marks a clone from the loop, hidden from a11y tools. */
+function groupTabHtml(g, dup) {
+  const count  = links.filter(l => linkBelongsToGroup(l, g.id)).length;
+  const active = activeGroup === g.id;
+  const locked = isGroupLocked(g);
+  // When active, paint the tab with the group's own colour instead of the
+  // default primary (inline style overrides the .tab.active rule).
+  const activeStyle = (active && tabsUseGroupColor)
+    ? ` style="background:${escapeHtml(g.color)};border-color:${escapeHtml(g.color)};--tab-rgb:${hexToRgb(g.color).join(',')}"`
+    : '';
+  return `
+    <button class="tab${active ? ' active' : ''}${locked ? ' locked' : ''}"
+            data-group="${g.id}" data-locked="${locked ? '1' : '0'}"${activeStyle}${dup ? ' aria-hidden="true" tabindex="-1"' : ''}>
+      <span class="tab-dot" style="background:${escapeHtml(active ? '#fff' : g.color)}"></span>
+      ${escapeHtml(g.name)}
+      ${locked ? LOCK_SVG : ''}
+      <span class="tab-count">${count}</span>
+    </button>`;
+}
+
 function renderTabs() {
-  const container = document.getElementById('tabs');
-  const groupsHtml = groups.map(g => {
-    const count  = links.filter(l => linkBelongsToGroup(l, g.id)).length;
-    const active = activeGroup === g.id;
-    const locked = isGroupLocked(g);
-    return `
-      <button class="tab${active ? ' active' : ''}${locked ? ' locked' : ''}"
-              data-group="${g.id}" data-locked="${locked ? '1' : '0'}">
-        <span class="tab-dot" style="background:${escapeHtml(active ? '#fff' : g.color)}"></span>
-        ${escapeHtml(g.name)}
-        ${locked ? LOCK_SVG : ''}
-        <span class="tab-count">${count}</span>
-      </button>`;
-  }).join('');
+  const allBtn = document.getElementById('tabAll');
+  allBtn.className = `tab tab-all${activeGroup === 'all' ? ' active' : ''}`;
+  allBtn.innerHTML = `All <span class="tab-count">${links.length}</span>`;
 
-  container.innerHTML = `
-    <button class="tab${activeGroup === 'all' ? ' active' : ''}" data-group="all">
-      All <span class="tab-count">${links.length}</span>
-    </button>${groupsHtml}`;
+  const t = tabScroller();
+  // Keep the reader where they were across re-renders (a tab click rebuilds the
+  // whole strip); null means "first paint", which reveals the active group.
+  const keep = t.painted ? t.vp.scrollLeft : null;
+  t.oneCopy  = groups.map(g => groupTabHtml(g, false)).join('');
+  t.dupCopy  = groups.map(g => groupTabHtml(g, true)).join('');
+  layoutTabScroller(keep);
+}
 
-  container.querySelectorAll('.tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (btn.dataset.locked === '1') {
-        const gid = Number(btn.dataset.group);
-        const g   = groups.find(x => x.id === gid);
-        if (g) openUnlockModal(g);
-        return;
-      }
-      activeGroup = btn.dataset.group === 'all' ? 'all' : Number(btn.dataset.group);
-      saveStoredGroup(activeGroup);
-      renderTabs(); renderLinks(true);
+// ─── Group tabs: looping horizontal scroller ──────────────────────────────────
+
+/**
+ * When there are more groups than fit the bar, the strip becomes a horizontal
+ * scroller driven by the wheel, the trackpad, touch, or the two nudge arrows on
+ * its faded edges. There is no scrollbar — the fades and arrows are the
+ * affordance, and they retract at whichever end the strip has reached.
+ *
+ * With the admin's "Looping Group Tabs" setting on it never reaches an end: the
+ * whole set is repeated enough times to cover the viewport twice over and the
+ * scroll offset is teleported back by exactly one cycle whenever it drifts out
+ * of the middle band, so the seam is invisible.
+ */
+const TABS = {
+  vp: null, track: null, strip: null,
+  oneCopy: '', dupCopy: '',
+  cycle: 0,           // px of one full pass of the group set, gap included
+  maxScroll: 0,       // furthest scrollLeft, cached so scroll handlers cause no reflow
+  overflowing: false, // false when everything already fits: plain static row
+  loop: false,        // overflowing *and* the admin turned looping on
+  painted: false,     // laid out at least once (so scroll offset is worth keeping)
+  glideRaf: null,     // rAF id of an arrow nudge in flight
+  holdTimer: null,    // repeat timer while an arrow is held down
+};
+
+function tabScroller() {
+  if (!TABS.vp) {
+    TABS.vp    = document.getElementById('tabsViewport');
+    TABS.track = document.getElementById('tabs');
+    TABS.strip = document.getElementById('tabsStrip');
+    bindTabScroller();
+  }
+  return TABS;
+}
+
+/** Measures one copy, then repeats it as many times as the loop needs. */
+function layoutTabScroller(keep = null) {
+  const t = TABS;
+  t.track.innerHTML = t.oneCopy;
+
+  const gap  = parseFloat(getComputedStyle(t.track).columnGap) || 0;
+  const one  = t.track.scrollWidth;
+  const vpW  = t.vp.clientWidth;
+
+  t.overflowing = groups.length > 0 && one > vpW + 1;
+  t.loop        = t.overflowing && tabsLoopEnabled;
+  t.cycle       = one + gap;
+  t.painted     = true;
+
+  t.vp.classList.toggle('is-scrollable', t.overflowing);
+  t.strip.classList.toggle('is-scrollable', t.overflowing);
+
+  if (!t.overflowing) {
+    t.vp.scrollLeft = 0;
+    updateTabEdges();
+    return;
+  }
+
+  if (t.loop) {
+    // Two spare cycles (one each side) is all the teleport band ever needs.
+    const copies = Math.max(3, Math.ceil(vpW / t.cycle) + 2);
+    t.track.innerHTML = t.oneCopy + t.dupCopy.repeat(copies - 1);
+    t.vp.scrollLeft = normalizeTabScroll(keep ?? activeTabScrollLeft(vpW));
+  } else {
+    // Out-of-range values are clamped by the browser.
+    t.vp.scrollLeft = keep ?? activeTabScrollLeft(vpW);
+  }
+  t.maxScroll = t.vp.scrollWidth - vpW;
+  updateTabEdges();
+}
+
+/** Puts the active group's pill in the middle of the viewport. */
+function activeTabScrollLeft(vpW) {
+  const active = TABS.track.querySelector('.tab.active');
+  if (!active) return 0;
+  return active.offsetLeft - (vpW - active.offsetWidth) / 2;
+}
+
+/**
+ * Retracts the fade and its arrow at whichever end the strip has hit. A looping
+ * strip has no ends, so both stay put.
+ */
+function updateTabEdges() {
+  const t = TABS;
+  const atStart = !t.overflowing || (!t.loop && t.vp.scrollLeft <= 1);
+  const atEnd   = !t.overflowing || (!t.loop && t.vp.scrollLeft >= t.maxScroll - 1);
+
+  t.strip.classList.toggle('at-start', atStart);
+  t.strip.classList.toggle('at-end', atEnd);
+  t.vp.style.setProperty('--fade-l', atStart ? '0px' : '');
+  t.vp.style.setProperty('--fade-r', atEnd   ? '0px' : '');
+}
+
+/** Folds any offset into the middle band [0.5, 1.5] cycles. */
+function normalizeTabScroll(x) {
+  const c = TABS.cycle;
+  if (c <= 0) return 0;
+  let s = x;
+  while (s < c * 0.5) s += c;
+  while (s > c * 1.5) s -= c;
+  return s;
+}
+
+/**
+ * Arrow nudge. Animated by hand in relative steps rather than with
+ * scroll-behavior:smooth, because the loop teleport moves scrollLeft under any
+ * absolute target mid-animation and the glide would snap.
+ */
+function glideTabs(dir) {
+  const t = TABS;
+  if (!t.overflowing) return;
+  if (t.glideRaf) cancelAnimationFrame(t.glideRaf);
+
+  const total    = Math.max(120, t.vp.clientWidth * 0.8) * dir;
+  const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 340;
+  let elapsed    = 0;
+  let done       = 0;
+  let last       = null;
+
+  const step = now => {
+    if (last !== null) elapsed += now - last;
+    last = now;
+    const p    = Math.min(1, elapsed / duration);
+    const ease = 1 - Math.pow(1 - p, 3);
+    const want = total * ease;
+    t.vp.scrollLeft += want - done;
+    done = want;
+    t.glideRaf = p < 1 ? requestAnimationFrame(step) : null;
+  };
+  t.glideRaf = requestAnimationFrame(step);
+}
+
+function bindTabScroller() {
+  const t = TABS;
+
+  // Delegated so the clones — rebuilt on every render — need no wiring.
+  document.getElementById('tabsRow').addEventListener('click', e => {
+    const btn = e.target.closest('.tab');
+    if (!btn) return;
+    if (btn.dataset.locked === '1') {
+      const g = groups.find(x => x.id === Number(btn.dataset.group));
+      if (g) openUnlockModal(g);
+      return;
+    }
+    activeGroup = btn.dataset.group === 'all' ? 'all' : Number(btn.dataset.group);
+    saveStoredGroup(activeGroup);
+    renderTabs(); renderLinks(true);
+  });
+
+  t.vp.addEventListener('scroll', () => {
+    if (t.loop) {
+      // Teleport a whole cycle so the strip under the cursor is unchanged.
+      if      (t.vp.scrollLeft < t.cycle * 0.5) t.vp.scrollLeft += t.cycle;
+      else if (t.vp.scrollLeft > t.cycle * 1.5) t.vp.scrollLeft -= t.cycle;
+    }
+    updateTabEdges();
+  }, { passive: true });
+
+  // Vertical wheel over the strip scrolls it sideways; a horizontal gesture is
+  // left to the browser, and with nothing to scroll the page scrolls as usual.
+  t.vp.addEventListener('wheel', e => {
+    if (!t.overflowing || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    // Without a loop, hand the wheel back to the page once the strip is
+    // parked at the end the reader is pushing towards.
+    if (!t.loop) {
+      if (delta < 0 && t.vp.scrollLeft <= 0)               return;
+      if (delta > 0 && t.vp.scrollLeft >= t.maxScroll - 1) return;
+    }
+    e.preventDefault();
+    t.vp.scrollLeft += delta;
+  }, { passive: false });
+
+  // Edge arrows: one nudge per click, and keep nudging while held down.
+  for (const [id, dir] of [['tabsPrev', -1], ['tabsNext', 1]]) {
+    const btn = document.getElementById(id);
+    btn.addEventListener('click', () => glideTabs(dir));
+    btn.addEventListener('pointerdown', () => {
+      clearInterval(t.holdTimer);
+      t.holdTimer = setInterval(() => glideTabs(dir), 300);
+    });
+  }
+  for (const ev of ['pointerup', 'pointercancel', 'blur']) {
+    window.addEventListener(ev, () => { clearInterval(t.holdTimer); t.holdTimer = null; });
+  }
+
+  // Pill widths (and therefore the cycle length) shift once webfonts land, so
+  // re-measure or the loop seam would show a gap.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => {
+      if (TABS.oneCopy) layoutTabScroller(TABS.loop ? TABS.vp.scrollLeft : 0);
+    });
+  }
+
+  let resizeRaf = null;
+  window.addEventListener('resize', () => {
+    if (resizeRaf) cancelAnimationFrame(resizeRaf);
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = null;
+      layoutTabScroller(TABS.loop ? TABS.vp.scrollLeft : 0);
     });
   });
 }
@@ -422,6 +661,11 @@ function applyRequestFeature(settings) {
   requestPasswordRequired = !!settings.request_password_required;
   const btn = document.getElementById('requestLinkBtn');
   if (btn) btn.classList.toggle('hidden', !requestFeatureEnabled);
+}
+
+function applyFooter(settings) {
+  const footer = document.getElementById('devFooter');
+  if (footer) footer.classList.toggle('hidden', !settings.footer_enabled);
 }
 
 function presetSvgString(body, color, size = 64) {
@@ -1162,6 +1406,16 @@ document.getElementById('searchInput').addEventListener('input', e => {
   renderLinks();
 });
 
+// The pill is taller than the input inside it, so tapping its padding (easy to
+// do on a phone) would otherwise hit nothing. Chips keep their own handlers.
+document.getElementById('searchWrap').addEventListener('mousedown', e => {
+  if (e.target.closest('.search-chip')) return;
+  if (e.target.id !== 'searchInput') {
+    e.preventDefault();
+    document.getElementById('searchInput').focus();
+  }
+});
+
 document.getElementById('searchInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     e.preventDefault();
@@ -1268,6 +1522,8 @@ async function init() {
   const settings = await fetch('/api/settings').then(r => r.json());
 
   if (settings.site_title) document.title = settings.site_title;
+  applyBrandText(settings.site_title);
+  applyBrandIcon(settings.brand_icon || null);
   logoLightUrl   = settings.logo_light || null;
   logoDarkUrl    = settings.logo_dark  || null;
   siteFaviconUrl = settings.favicon || null;
@@ -1276,6 +1532,9 @@ async function init() {
   updateHeaderLogo();
   applyThemeSettings(settings);
   applyRequestFeature(settings);
+  applyFooter(settings);
+  tabsUseGroupColor = settings.group_tab_color !== false;
+  tabsLoopEnabled   = !!settings.group_tabs_loop;
 
   if (settings.public_password_required) {
     const stored = localStorage.getItem('linkpage_public_password');

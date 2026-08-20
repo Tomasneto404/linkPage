@@ -1,11 +1,26 @@
 {
   "name": "linkpage",
-  "version": "1.0.3",
-  "description": "A simple link bookmarking app with image uploads",
+  "version": "1.0.4",
+  "description": "An enterprise-ready self-hosted link page to share links with collaborators or clients.",
   "main": "src/server.js",
+  "license": "AGPL-3.0-or-later",
+  "files": [
+    "src/",
+    "public/",
+    "scripts/",
+    "LICENSE",
+    "NOTICE",
+    "CHANGELOG.md",
+    "README.md"
+  ],
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "test:watch": "node --test --watch"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "dependencies": {
     "express": "^4.18.3",

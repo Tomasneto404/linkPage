@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Tomás Neto */
 /* ── Theme variables ─────────────────────────────────── */
 :root {
   --bg:           #f5f5f7;
@@ -187,6 +189,20 @@ header {
   display: block;
 }
 
+/* Header glyph slot: holds either the built-in SVG or a custom brand image. */
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-icon-img {
+  height: 20px;
+  width: 20px;
+  object-fit: contain;
+  display: block;
+}
+
 /* ── Search ──────────────────────────────── */
 /*
  * The wrapper is now the styled pill (chips live inside it alongside the
@@ -282,7 +298,11 @@ header {
 
 .search-input {
   flex: 1;
-  min-width: 80px;
+  /* Must be allowed to shrink below its content width: with a min-width the
+     input keeps its size while the wrap shrinks, spilling over the buttons
+     next to it on narrow screens. */
+  min-width: 0;
+  align-self: stretch;
   border: none;
   outline: none;
   background: transparent;
@@ -345,15 +365,17 @@ header {
 
 /* Accent glow — opt-in via the admin Themes setting (data-accent-glow="on").
    Applies to accent-filled buttons on both the public and admin surfaces. */
+/* The active group tab sets --tab-rgb inline to its own colour when group-
+   coloured tabs are enabled; everything else falls back to the accent. */
 [data-accent-glow="on"] .btn-primary,
 [data-accent-glow="on"] .request-btn,
 [data-accent-glow="on"] .tab.active {
-  box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.25), 0 4px 18px rgba(var(--primary-rgb), 0.5);
+  box-shadow: 0 0 0 1px rgba(var(--tab-rgb, var(--primary-rgb)), 0.25), 0 4px 18px rgba(var(--tab-rgb, var(--primary-rgb)), 0.5);
 }
 [data-accent-glow="on"] .btn-primary:hover,
 [data-accent-glow="on"] .request-btn:hover,
 [data-accent-glow="on"] .tab.active:hover {
-  box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.35), 0 4px 24px rgba(var(--primary-rgb), 0.7);
+  box-shadow: 0 0 0 1px rgba(var(--tab-rgb, var(--primary-rgb)), 0.35), 0 4px 24px rgba(var(--tab-rgb, var(--primary-rgb)), 0.7);
 }
 
 .btn-ghost {
@@ -651,7 +673,12 @@ mark.hl {
   /* Let search fill whatever's left between brand and the right-edge buttons */
   .search-wrap { flex: 1 1 auto !important; max-width: none !important; min-width: 0; }
 
-  .theme-toggle { width: 32px; height: 32px; }
+  /* Thumb-sized header controls: the compact desktop sizes land under 28 px,
+     which is below a reliable tap target. */
+  .search-wrap   { min-height: 36px; cursor: text; }
+  .theme-toggle  { width: 34px; height: 34px; }
+  .request-btn,
+  .admin-btn     { min-height: 34px; }
 
   .btn       { padding: 7px 14px; font-size: 0.8125rem; }
   .btn-icon  { padding: 8px; }
@@ -920,6 +947,9 @@ select option { background: var(--surface); }
   justify-content: flex-end;
   gap: 8px;
   padding-top: 4px;
+  /* Buttons are nowrap, so without this a long label pushes the row out of the
+     modal instead of moving to a second line. */
+  flex-wrap: wrap;
 }
 
 .confirm-msg {
@@ -927,9 +957,38 @@ select option { background: var(--surface); }
   color: var(--text-2);
   font-size: 0.9375rem;
   line-height: 1.5;
+  /* Link names, URLs and group names go in here — break them rather than
+     stretching the card. */
+  overflow-wrap: anywhere;
 }
 
 .modal-sm .form-actions { padding: 6px 22px 22px; }
+
+/*
+ * Confirm dialog actions. Two choices sit in the usual right-aligned row; a
+ * third one (.has-alt, e.g. "add to group instead of duplicating") stacks them
+ * full-width instead, so a long group name can never overflow the card.
+ * column-reverse + DOM order (cancel, confirm, alt) puts the recommended action
+ * on top and Cancel at the bottom.
+ */
+.confirm-actions .btn {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  text-align: center;
+}
+
+.confirm-actions.has-alt {
+  flex-direction: column-reverse;
+  align-items: stretch;
+  gap: 8px;
+}
+.confirm-actions.has-alt .btn { width: 100%; }
+
+/* Keep every choice on the same pill shape (btn-ghost-danger is squarer). */
+.confirm-actions .btn-ghost-danger { border-radius: 980px; }
 
 /* ── Utility ─────────────────────────────── */
 .hidden { display: none !important; }
@@ -1075,3 +1134,32 @@ select option { background: var(--surface); }
   transition: opacity var(--transition);
 }
 .link-card:hover .drag-handle { opacity: 0.5; }
+
+/* ── Developer credit footer (optional, toggled in settings) ─────────────── */
+.dev-footer {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  /* Below .modal-overlay (100): as a fixed bar it would otherwise paint over
+     the bottom of any modal tall enough to reach it on short screens. */
+  z-index: 30;
+  padding: 12px 20px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--surface, var(--bg));
+  border-top: 1px solid var(--border);
+  backdrop-filter: saturate(180%) blur(10px);
+}
+/* Reserve space so page content never hides behind the fixed footer. */
+body { padding-bottom: 52px; }
+.dev-footer a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  /* Inline text link inside a 44 px bar: padding gives it a hittable box. */
+  display: inline-block;
+  padding: 8px 4px;
+  margin: -8px 0;
+}
+.dev-footer a:hover { text-decoration: underline; }
+.dev-footer.hidden { display: none; }

@@ -3,5 +3,7 @@ data
 .git
 .claude
 *.md
+# …except the changelog, which /api/changelog parses at runtime.
+!CHANGELOG.md
 .gitignore
 .dockerignore

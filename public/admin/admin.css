@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Tomás Neto */
 /* Admin page styles.
  * Imports the shared light/dark theme from the public style.css,
  * then adds admin-specific components on top. */
@@ -928,6 +930,10 @@ header {
 .link-card-wrap .card-meta {
   flex-wrap: wrap;
   margin-top: 12px;
+  /* The footer below only gets its own top padding *under* the divider, and its
+     margin-top: auto collapses to 0 on a short card — which left the divider
+     drawn flush against the group chips. This keeps them apart at any height. */
+  margin-bottom: 12px;
 }
 
 /* Footer sticks to the bottom with a divider above it */
@@ -1551,6 +1557,26 @@ header {
   background: var(--surface);
   object-fit: contain;
   padding: 3px;
+}
+
+/* Header brand glyph slot (built-in SVG or a custom image) */
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-icon-img {
+  height: 20px;
+  width: 20px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Settings row switched off by another setting (e.g. Header Icon while a
+   light/dark logo is set). Buttons also get `disabled` in JS. */
+.settings-row.is-inactive {
+  opacity: 0.5;
 }
 
 /* Hint text shown below the logo rows */
@@ -2661,6 +2687,9 @@ header {
   font-size: 0.8125rem;
   font-family: inherit;
   outline: none;
+  /* Long group names must not widen the bar past the screen. */
+  max-width: 100%;
+  min-width: 0;
   cursor: pointer;
   width: 160px;
 }
@@ -2853,13 +2882,55 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 
 /* ─── Responsive ─────────────────────────────────────────────────────────────── */
 
+/*
+ * Tablet band (up to 900 px, e.g. iPad portrait at 768). The full desktop
+ * header needs ~940 px, so Analytics / Requests / Settings / Sign out / theme
+ * used to render past the right edge and were simply unreachable. They all have
+ * entries in the kebab menu, so collapse them into it here — the phone rules
+ * below then keep doing the same thing plus their own extras.
+ */
+@media (max-width: 900px) {
+  #themeToggle,
+  #openSettingsBtn,
+  #openRequestsBtn,
+  #openAnalyticsBtn,
+  #logoutBtn       { display: none; }
+  .mobile-more-btn { display: inline-flex; }
+  .sort-select     { display: none; }
+  /* Reclaim the last ~110 px so Import / Export / Select / Add Link and the
+     kebab all fit inside 768 (and still fit at 721). */
+  .admin-badge     { display: none; }
+  .header-inner    { gap: 6px; }
+  .search-input    { width: auto; min-width: 0; }
+  .search-wrap     { flex: 0 1 auto; min-width: 0; max-width: 150px; }
+
+  /* Touch-sized controls from here down — tablets are touch devices too, so the
+     15–22 px sidebar and settings controls need the same treatment as phones.
+     Only hit areas grow; the switch keeps its 38×22 slider. */
+  .add-group-btn         { width: 32px; height: 32px; display: inline-flex;
+                           align-items: center; justify-content: center; }
+  .group-collapse-btn    { width: 26px; height: 26px; }
+  .switch                { height: 38px; display: inline-flex; align-items: center; }
+  .switch .switch-slider { position: relative; inset: auto; width: 38px; height: 22px; }
+  .btn-sm                { min-height: 32px; }
+  .link-mode-tab         { min-height: 32px; padding: 7px 12px; }
+  .icon-presets-swatch   { width: 28px; height: 28px; }
+  .request-row-dupe      { min-height: 30px; }
+}
+
 @media (max-width: 720px) {
   /* Sidebar slides over the main content instead of pushing it */
   .sidebar         { transform: translateX(-100%); }
   .sidebar.open    { transform: none; box-shadow: var(--shadow-md); }
   .main-content    { margin-left: 0 !important; padding: 16px 14px 80px; }
-  .search-input    { width: 130px; }
-  .links-grid      { grid-template-columns: 1fr; }
+  /* Shrinkable, not a fixed 130px: at 320 the fixed width pushed the whole
+     right-hand control cluster ~5 px past the viewport edge. */
+  .search-input    { width: auto; min-width: 0; }
+  .search-wrap     { flex: 1 1 auto; min-width: 0; }
+  /* minmax(0, …) not 1fr: a bare fr track takes min-content as its minimum, so
+     one long nowrap link name would stretch the column past the viewport and
+     make the whole page scroll sideways instead of ellipsizing. */
+  .links-grid      { grid-template-columns: minmax(0, 1fr); }
   .bulk-bar        { left: 16px; right: 16px; transform: none; border-radius: var(--radius-lg); flex-wrap: wrap; }
   .header-inner    { padding: 0 14px; gap: 8px; }
   .admin-badge     { display: none; }
@@ -2878,9 +2949,14 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   #bulkSelectBtn,
   .sort-select    { display: none; }
 
-  /* The three solo icon buttons collapse into a single overflow menu */
+  /* The solo icon buttons collapse into a single overflow menu. Requests and
+     Analytics were still in the row at 320 and pushed the kebab ~17 px off the
+     right edge; both have menu entries, and the kebab carries the pending-count
+     badge while they're hidden. */
   #themeToggle,
   #openSettingsBtn,
+  #openRequestsBtn,
+  #openAnalyticsBtn,
   #logoutBtn      { display: none; }
   .mobile-more-btn { display: inline-flex; }
 
@@ -2896,8 +2972,12 @@ body.is-link-dragging .section-nav-item:not(.editing) {
   /* Theme / settings / logout — round, comfortable tap targets */
   .theme-toggle   { width: 34px; height: 34px; }
 
+  /* Phone-only extras on top of the tablet-band touch sizes above. */
+  #headerLogo      { min-width: 32px; min-height: 32px; justify-content: center; }
+  .request-row-url { display: inline-block; padding: 5px 0; }
+
   .main-content   { padding: 14px 10px 90px; }
-  .links-grid     { gap: 8px; grid-template-columns: 1fr; }
+  .links-grid     { gap: 8px; grid-template-columns: minmax(0, 1fr); }
 
   /* Cards: card-action buttons need bigger touch targets, and on phones the
      hover state never fires — so make the action bar always visible there.
@@ -3120,6 +3200,43 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 }
 .request-row-group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .request-row-desc { margin-top: 5px; font-size: 0.8rem; color: var(--text-dim); }
+.request-row-ip {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem; padding: 1px 6px; border-radius: 5px;
+  background: var(--surface-2, rgba(120,120,128,0.12)); color: var(--text-muted);
+}
+/* Attribution tag chip shown next to an IP wherever one appears. */
+.ip-tag-chip {
+  display: inline-block;
+  font-size: 0.68rem; font-weight: 600;
+  padding: 1px 7px; border-radius: 980px; vertical-align: middle;
+  background: rgba(var(--primary-rgb), 0.14); color: var(--primary);
+}
+
+/* IP Attribution settings panel list. */
+.ip-tags-list { display: flex; flex-direction: column; gap: 8px; }
+.ip-tag-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: 10px;
+  background: var(--surface-2, rgba(120,120,128,0.08));
+}
+.ip-tag-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.ip-tag-addr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem; color: var(--text);
+}
+.ip-tag-meta { font-size: 0.72rem; color: var(--text-muted); }
+.ip-tag-actions { display: flex; gap: 6px; align-items: center; }
+.ip-tag-input {
+  width: 180px; padding: 6px 10px; font-size: 0.85rem;
+  border: 1px solid var(--border, rgba(120,120,128,0.3)); border-radius: 8px;
+  background: var(--surface, transparent); color: var(--text);
+}
+@media (max-width: 620px) {
+  .ip-tag-actions { width: 100%; }
+  .ip-tag-input   { flex: 1; width: auto; }
+}
+
 .request-row-status {
   font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   padding: 1px 7px; border-radius: 980px; align-self: flex-start;
@@ -3128,6 +3245,19 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 .request-status-rejected { background: rgba(224,57,43,0.14); color: #c4342a; }
 [data-theme="dark"] .request-status-approved { color: #30d158; }
 [data-theme="dark"] .request-status-rejected { color: #ff6961; }
+/* "Already added" chip: the requested URL matches a link that already exists.
+   Clickable — opens that link's edit modal. */
+.request-row-dupe {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.01em;
+  padding: 2px 8px; border-radius: 980px; cursor: pointer;
+  border: 1px solid rgba(255,159,10,0.35);
+  background: rgba(255,159,10,0.16); color: #a05a00;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.request-row-dupe:hover { background: rgba(255,159,10,0.26); }
+[data-theme="dark"] .request-row-dupe { color: #ffb340; }
+
 .request-row-actions {
   display: flex; flex-direction: column; gap: 6px;
   flex-shrink: 0; align-items: stretch;
@@ -3198,6 +3328,10 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 @media (max-width: 720px) {
   .audit-modal { max-height: 100vh; }
   .audit-action-code { display: none; }
+  /* Full-bleed dashboard on phones; grids already collapse to one column. */
+  .analytics-modal { max-width: 100%; max-height: 100vh; }
+  .analytics-row   { grid-template-columns: minmax(0, 1fr); }
+  .trend-chart     { height: 80px; }
 }
 
 /* Audit: live toggle + new-entry highlight */
@@ -3279,4 +3413,127 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 .icon-library-card.is-checked .icon-library-check {
   background: var(--primary);
   border-color: var(--primary);
+}
+
+/* ── Developer credit footer (optional, toggled in settings) ─────────────── */
+.dev-footer {
+  position: fixed;
+  /* Start after the sidebar so it never covers the sidebar changelog. */
+  left: var(--sidebar-w); right: 0; bottom: 0;
+  z-index: 30;
+  padding: 12px 20px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  backdrop-filter: saturate(180%) blur(10px);
+  transition: left var(--transition);
+}
+/* When the sidebar is collapsed, span the full width like the content does. */
+.sidebar.collapsed ~ .main-content .dev-footer { left: 0; }
+/* Reserve space so admin content never hides behind the fixed footer. */
+.main-content { padding-bottom: 60px; }
+
+/* Phones: the sidebar becomes an off-canvas drawer, so the footer must span the
+   full width. This lives *after* the base rule on purpose — the same override
+   inside the earlier @media block loses on source order and left the footer as
+   an 88 px column stacked over the bottom-right of the content. */
+@media (max-width: 720px) {
+  .dev-footer   { left: 0; }
+  .main-content { padding-bottom: 76px; }
+}
+.dev-footer a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  /* Same reasoning as the public footer: a 15 px-tall inline link is not a
+     realistic tap target, so it gets a padded box without moving the text. */
+  display: inline-block;
+  padding: 8px 4px;
+  margin: -8px 0;
+}
+.dev-footer a:hover { text-decoration: underline; }
+.dev-footer.hidden { display: none; }
+
+/* ── Analytics dashboard ──────────────────────────────────────────────────── */
+/* Wider dashboard modal (overrides .modal-lg's 560px) with internal scroll. */
+.analytics-modal {
+  width: 100%;
+  max-width: min(1080px, 94vw);
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 820px);
+}
+
+.analytics-cards { display: flex; flex-direction: column; gap: 16px; }
+.analytics-cards.hidden { display: none; }
+.analytics-card {
+  background: var(--surface-2, rgba(120,120,128,0.06));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.analytics-card-title {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted); margin-bottom: 12px;
+}
+.analytics-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.analytics-empty { color: var(--text-muted); font-size: 0.9rem; padding: 8px 0; }
+
+/* Summary tiles row (reuses .stat-box / .stat-value / .stat-label). */
+.analytics-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+/* Two rank cards side-by-side on wide screens, stacked on narrow. */
+.analytics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+/* 30-day activity chart. */
+.trend-chart {
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 96px;
+}
+.trend-bar {
+  flex: 1; min-height: 2px;
+  background: var(--primary);
+  border-radius: 2px 2px 0 0;
+  opacity: 0.85;
+  transition: opacity var(--transition);
+}
+.trend-bar:hover { opacity: 1; }
+.trend-bar-empty { background: var(--border); opacity: 0.5; }
+
+/* Ranked top-3 lists. */
+.analytics-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.analytics-rank-row { display: flex; align-items: center; gap: 12px; }
+.analytics-rank-n {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 700;
+  background: rgba(var(--primary-rgb), 0.14); color: var(--primary);
+}
+.analytics-rank-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.analytics-rank-title {
+  font-size: 0.9rem; font-weight: 600; color: var(--text);
+  text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline; }
+.analytics-rank-sub {
+  font-size: 0.75rem; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.analytics-rank-metric {
+  flex-shrink: 0; text-align: right;
+  font-size: 1.05rem; font-weight: 700; color: var(--text); line-height: 1;
+}
+.analytics-rank-metric small {
+  display: block; font-size: 0.6rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-muted); margin-top: 2px;
 }

@@ -1,0 +1,88 @@
+linkPage Enterprise Edition License
+SPDX-License-Identifier: LicenseRef-linkPage-Enterprise
+Copyright (C) 2026 Tomás Neto. All rights reserved.
+
+IMPORTANT — READ CAREFULLY. This license governs the contents of the `ee/`
+directory (the "Enterprise Software"). It does NOT apply to the rest of this
+repository, which is licensed separately under the GNU Affero General Public
+License, version 3 or later (see the top-level LICENSE and NOTICE files).
+
+By downloading, copying, accessing, or using the Enterprise Software you agree
+to be bound by the terms below. If you do not agree, you may not use the
+Enterprise Software.
+
+1. DEFINITIONS
+   "Licensor" means Tomás Neto, the copyright holder.
+   "Enterprise Software" means the source code, object code, and associated
+   materials contained in the `ee/` directory of this repository, and any
+   updates or modifications thereto provided by the Licensor.
+   "Subscription" means a current, paid, and valid commercial subscription or
+   license agreement granted in writing by the Licensor.
+   "You" means the individual or legal entity exercising rights under this
+   license.
+
+2. SOURCE-AVAILABLE FOR EVALUATION AND SECURITY REVIEW
+   Subject to the restrictions below, the Licensor grants You a limited,
+   non-exclusive, non-transferable, revocable license to view, download, and
+   internally evaluate the Enterprise Software's source code solely for the
+   purposes of (a) evaluating whether to purchase a Subscription and
+   (b) conducting security review and audit. This grant does NOT permit
+   production use.
+
+3. PRODUCTION USE REQUIRES A SUBSCRIPTION
+   Any use of the Enterprise Software in production, or for any commercial or
+   revenue-generating purpose, requires a valid Subscription. Absent a valid
+   Subscription, You may not deploy, run, or otherwise use the Enterprise
+   Software beyond the evaluation and security-review purposes in Section 2.
+
+4. LICENSE-KEY VERIFICATION
+   You may not remove, disable, bypass, circumvent, interfere with, or
+   otherwise defeat any license-key verification, entitlement check, usage
+   metering, or similar enforcement mechanism in the Enterprise Software.
+
+5. NO REDISTRIBUTION OR RESALE
+   You may not distribute, publish, sublicense, sell, rent, lease, lend, or
+   otherwise make the Enterprise Software (in source or binary form) available
+   to any third party, whether or not for a fee.
+
+6. NO HOSTING AS A SERVICE
+   You may not host, operate, or make the Enterprise Software (in whole or in
+   part) available to third parties as a hosted, managed, or software-as-a-
+   service offering.
+
+7. NO COMPETING PRODUCT
+   You may not use the Enterprise Software, or any of its concepts, code, or
+   materials, to design, develop, or offer a product or service that competes
+   with the Enterprise Software or with the Licensor's commercial offerings.
+
+8. RESERVATION OF RIGHTS
+   The Enterprise Software is licensed, not sold. The Licensor retains all
+   right, title, and interest in and to the Enterprise Software. No rights are
+   granted other than those expressly stated herein. All rights not expressly
+   granted are reserved.
+
+9. NO WARRANTY
+   THE ENTERPRISE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+   NON-INFRINGEMENT. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE
+   ENTERPRISE SOFTWARE IS WITH YOU.
+
+10. LIMITATION OF LIABILITY
+    TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE
+    LICENSOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+    EXEMPLARY, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION WITH
+    THE ENTERPRISE SOFTWARE OR THIS LICENSE, HOWEVER CAUSED AND UNDER ANY
+    THEORY OF LIABILITY.
+
+11. TERMINATION
+    This license terminates automatically if You breach any of its terms. Upon
+    termination You must cease all use of the Enterprise Software and destroy
+    all copies in Your possession or control.
+
+12. COMMERCIAL LICENSING
+    To obtain a Subscription or discuss commercial terms, contact:
+    tomasneto26@gmail.com
+
+This is a proprietary license. It is intentionally NOT an open-source license
+and is NOT approved by the Open Source Initiative.

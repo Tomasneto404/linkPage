@@ -1,5 +1,7 @@
 # LinkPage
 
+An Enterprise ready link sharing platform.
+
 A modern, self-hosted WebUI designed for enterprises to centralize and publish internal or external links/URLs for employees, collaborators, and clients.
 
 Instead of scattering important resources across emails, chats, and shared drives, LinkPage provides a single branded landing page (e.g. `linkpage.company.com`) where teams can quickly access everything they need — from internal tools and documentation to public-facing resources.
@@ -14,7 +16,7 @@ Instead of scattering important resources across emails, chats, and shared drive
 |:---:|:---:|
 | ![Public page – light mode](linkPagePrints/linkPage-userSide-lightMode.png) | ![Public page – dark mode](linkPagePrints/linkPage-userSide-darkMode.png) |
 
-The public page greets end users with a clean card grid, sticky group tabs for filtering, a live search bar, and auto-fetched favicons — no sign-in required.
+The public page greets end users with a clean card grid, sticky group tabs for filtering, a live search bar, and auto-fetched favicons — no sign-in required. When there are more groups than fit the bar, the tab strip scrolls sideways with faded edges and nudge arrows (mouse wheel, trackpad and touch all work), and can optionally wrap around endlessly.
 
 ---
 
@@ -24,33 +26,44 @@ The public page greets end users with a clean card grid, sticky group tabs for f
 |:---:|:---:|
 | ![Admin panel – light mode](linkPagePrints/linkPage-adminSide-lightMode.png) | ![Admin panel – dark mode](linkPagePrints/linkPage-adminSide-darkMode.png) |
 
-The admin panel is protected by a secret token. The left sidebar lists all groups; the main area shows link cards with drag-to-reorder, bulk selection, import/export, and one-click link creation.
+The admin panel is protected by a secret token. The left sidebar lists all groups with their sections and subsections; the main area shows link cards with drag-to-reorder, bulk selection, import/export, per-card click counts, and one-click link creation. The top bar badges pending link requests.
 
 ---
 
 ### Click Analytics
 
+| Per-link stats | Dashboard over any period |
+|:---:|:---:|
+| ![Per-link click stats](linkPagePrints/linkPage-statistics.png) | ![Analytics dashboard](linkPagePrints/linkPage-analytics.png) |
+
+Per-link analytics show total clicks, unique visitors, today and this-week counts, a recent-click log with IP and device type, and a bar chart of top visitor IPs. The dashboard aggregates any period: daily click volume, most valuable links and most active visitors — the latter labelled with their IP attribution tag where one exists.
+
+---
+
+### Audit Log
+
 <p align="center">
-  <img src="linkPagePrints/linkPage-statistics.png" width="480" alt="Click analytics modal" />
+  <img src="linkPagePrints/linkPage-auditLog.png" width="560" alt="Admin audit log" />
 </p>
 
-Per-link analytics show total clicks, unique visitors, today and this-week counts, a recent-click log with IP and device type, and a bar chart of top visitor IPs.
+Every admin change and every public click lands in the audit log, with the entity name, action id, IP (attribution tag included) and device. It auto-refreshes live, filters by search text and entry type, and exports to CSV or JSON.
 
 ---
 
 ### Settings
 
-<p align="center">
-  <img src="linkPagePrints/linkPage-settings.png" width="480" alt="Settings modal" />
-</p>
+| Branding | Public Page |
+|:---:|:---:|
+| ![Settings – branding](linkPagePrints/linkPage-settings.png) | ![Settings – public page](linkPagePrints/linkPage-settings-publicPage.png) |
 
-The settings modal covers branding (custom site title, separate logos for light and dark mode), an icon library (manage reusable icons, opt-in to saving fetched favicons), public access (optional password gate, default group), security (one-click admin token rotation), and an About section with an on-demand "Check for updates" button.
+Settings are split into tabs: **Branding** (site title, header icon, light/dark logos, favicon, developer footer), **Themes / Design** (accent colour, palette variants, default theme), **Public Page** (default group, phone navbar position, group-coloured tabs, looping group tabs), **Icons** (reusable library), **Public Access** (optional password gate), **Link Requests**, **IP Attribution**, **Security** (one-click admin token rotation) and **About** with an on-demand "Check for updates" button.
 
 ---
 
 ## Features
 
 - **Public page** — clean, searchable landing page for end users with group tabs and multi-keyword search
+- **Scrollable group tabs** — with more groups than fit the bar, the tab strip becomes a horizontal scroller driven by the mouse wheel, trackpad, touch or its two edge arrows; the edges fade and each arrow retracts at the end it reaches. Turn on *Looping Group Tabs* and the strip wraps around endlessly instead of stopping
 - **Admin panel** — full link and group management behind a secure token gate
 - **Multiple groups per link** — assign a link to as many groups as needed via a checkbox multi-select
 - **Sections & subsections** — organize cards under named section headings, and nest one level of subsections inside them; drag to reorder in the sidebar (reflected on the public page), or drag a link straight onto a group/section/subsection
@@ -59,15 +72,21 @@ The settings modal covers branding (custom site title, separate logos for light 
 - **Stock icon picker** — choose from a built-in line-icon set and a colour, instead of uploading; file links get a coloured file-type icon, and links with no icon fall back to the Settings favicon
 - **In-place file editor** — edit attached text files (HTML, XML, JSON, TXT, CSV, MD, SVG) in the admin with an expand view, line numbers, syntax highlighting, and a find bar; saves go live instantly
 - **File attachments** — link cards can point to an uploaded file (PDF, Office docs, archives, images, text, HTML/XML/JSON) instead of a URL, with a 100 MB cap and an extension whitelist
+- **Link requests** — let visitors propose links (name, URL, description, icon, target group/section), optionally behind their own password; requests queue up in the admin with a pending badge, and approving one opens the Add-Link form pre-filled
+- **Duplicate-aware approvals** — a request whose URL already exists is flagged with an "Already added" chip (matching ignores http/https, `www.`, trailing slashes and fragments), and approving offers to add that link to the requested group instead of creating a second copy
 - **Password-protected groups** — gate sensitive groups with a password; per-group unlock behaviour: auto-lock after 30 s (kiosk-safe) or stay unlocked for the browser session
 - **Admin audit log** — every admin change and every link click is recorded with the entity name, time, IP and device; live auto-refresh, search/type filters, and CSV/JSON export
 - **Hide links from the public page** — keep a link in the admin without exposing it publicly (eye-toggle on every card)
 - **Custom group colors** — pick any color via the native picker swatch
 - **Pinned default group** — choose which group the public page opens on (new visitors only — returning visitors keep the tab they were last viewing)
 - **Copy link** — one-click copy button on every public card, with a toast confirmation
-- **Click analytics** — per-link stats: total clicks, unique visitors, today/week counts, top IPs
+- **Click analytics** — per-link stats (total clicks, unique visitors, today/week counts, top IPs) plus a dashboard over any period: busiest days and hours, top links and top visitors
+- **IP attribution tags** — name a known IP once and that name appears wherever the IP shows up: click stats, audit log, and link requests
 - **Broken link checker** — automatic health check every 6 hours, flags dead links in the admin
-- **Custom branding** — upload separate logos for light and dark mode, a custom browser tab favicon, and set a custom site title
+- **Custom branding** — set the site title (shown in the browser tab *and* the page header), pick a header icon from the library / stock set / your own upload, upload separate logos for light and dark mode, and a custom browser-tab favicon; header title and icon step aside automatically when a logo is set
+- **Themes & appearance** — accent colour with optional dark-mode brightening and glow, light/dark palette variants, and which theme new visitors land on
+- **Public-page controls** — a Settings tab of its own for everything visitors see: default group, phone navbar at the top or bottom, group-coloured active tabs, and looping group tabs
+- **Hidden starter link on first install** — a fresh install comes with a single hidden "Buy me a coffee" link: visible in the admin only, never on the public page; its icon is fetched on first boot (with a built-in fallback when offline). Delete it and it stays deleted
 - **Smart favicon fetching** — three-tier strategy (parse the page for `<link rel="icon">`, then `/favicon.ico`, then Google as fallback) so favicons work for intranet sites too; fetched in the background so saving a link is never blocked, and cached server-side
 - **Drag-to-reorder** — reorder links, groups, sections, and subsections by dragging
 - **Bulk actions** — multi-select (shift-click for ranges, Select all, Esc to clear) to delete, move into a section, hide, or show multiple links at once
@@ -88,18 +107,30 @@ The settings modal covers branding (custom site title, separate logos for light 
 ```
 linkPage/
 ├── src/
-│   ├── server.js      # Express API + static file serving
-│   └── database.js    # SQLite setup and all data access functions
+│   ├── server.js       # Startup: banner, health check, listen
+│   ├── app.js          # Express app: middleware order, static files, routes
+│   ├── config/         # env vars, constants, SQLite connection + migrations, secrets
+│   ├── routes/         # One router per resource; index.js mounts them all
+│   ├── controllers/    # Request handling and validation per resource
+│   ├── models/         # SQL data access (parameterized statements only)
+│   ├── services/       # Uploads, favicons, SSE, audit, version check, health
+│   ├── middleware/     # Auth, audit+broadcast, rate limits, security headers, errors
+│   └── utils/          # HTTP/URL helpers, CSV, group crypto, body parsers
 ├── public/
-│   ├── index.html     # Public page (end users)
-│   ├── app.js         # Public page logic
-│   ├── style.css      # Shared Apple-style theme (CSS variables)
+│   ├── index.html      # Public page (end users)
+│   ├── app.js          # Public page logic
+│   ├── style.css       # Shared Apple-style theme (CSS variables)
 │   └── admin/
-│       ├── index.html # Admin panel
-│       ├── admin.js   # Admin panel logic
-│       └── admin.css  # Admin-specific styles
+│       ├── index.html  # Admin panel
+│       ├── admin.js    # Admin panel logic
+│       ├── admin.css   # Admin-specific styles
+│       └── icon-presets.js  # Curated stock icon set
+├── ee/                 # Reserved for enterprise-licensed modules (see ee/LICENSE)
+├── CHANGELOG.md        # Release notes — read at runtime by /api/changelog
+├── scripts/            # Maintenance scripts (license headers)
 ├── Dockerfile
-└── docker-compose.yml
+├── docker-compose.yml       # Build from source
+└── docker-compose.prod.yml  # Run the published image
 ```
 
 ### Data Storage
@@ -108,8 +139,9 @@ All persistent data lives in `/app/data` inside the container, mapped to `./link
 
 | Path | Purpose |
 |------|---------|
-| `data/links.db` | SQLite database — links, groups, sections & subsections, link↔group mappings, icon library, settings, click analytics, and the admin audit log. The schema is auto-migrated on startup. |
+| `data/links.db` | SQLite database — links, groups, sections & subsections, link↔group mappings, icon library, settings, click analytics, link requests, IP tags, and the admin audit log. The schema is auto-migrated on startup. |
 | `data/admin-token.txt` | Admin token generated on first startup |
+| `data/group-secret.txt` | Key used to sign group-unlock cookies and hash group passwords |
 | `data/uploads/` | Uploaded images, logos, favicons, and link file attachments |
 
 ### Authentication
@@ -176,7 +208,7 @@ docker compose -f docker-compose.prod.yml logs linkpage
 Look for a line like:
 
 ```
-│  🔑 Admin Token: 5c5665cfeaf662e95f98e832e2cdbaa3c2ab5d0b...
+│  Admin Token: 5c5665cfeaf662e95f98e832e2cdbaa3c2ab5d0b...
 ```
 
 Copy the full token. It is saved to `linkpage_data/admin-token.txt` and reused across restarts.
@@ -196,6 +228,15 @@ Paste the token into the admin panel to unlock link management.
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
+
+> **Upgrading from 1.0.3 or earlier:** the container now runs as the
+> unprivileged `node` user (uid 1000) instead of root, and reports a Docker
+> health check. A data directory created by an older image is still owned by
+> root, so hand it over once — the container cannot write to it otherwise:
+>
+> ```bash
+> sudo chown -R 1000:1000 ./linkpage_data
+> ```
 
 ---
 
@@ -288,6 +329,58 @@ npm run dev
 
 ---
 
+## Tests
+
+The API test suite runs on Node's built-in test runner — no dev dependencies to install:
+
+```bash
+npm test                          # whole suite (~5 s)
+npm run test:watch                # re-run on change
+node --test tests/links.test.js   # one file
+```
+
+Each file under [`tests/`](tests/) covers one resource (`auth`, `settings`, `links`, `groups`,
+`linkRequests`, `icons`, `redirect`, `analytics`, `audit`, `ipTags`, `security`, `events`,
+`seed`, `migrations`, `version`, `changelog`) and drives the real Express app over HTTP.
+[`tests/helpers/harness.js`](tests/helpers/harness.js) boots it on an ephemeral port against a
+throwaway SQLite database in the system temp directory — your own `data/` is never touched —
+and stubs the favicon fetcher so the suite never reaches the network.
+
+CI runs the same command on every push to `main`, every `v*` tag and every pull request; the
+Docker image is only built and pushed when the suite is green.
+
+---
+
+## Releasing (maintainers)
+
+The version lives in exactly one place — `version` in [package.json](package.json) — and is
+read at runtime by `/api/version`, shown in the admin sidebar and the About row, and compared
+against GitHub Releases by the update checker. Nothing else needs editing.
+
+1. Bump `version` in `package.json`.
+2. Add a `## vX.Y.Z` section at the top of [CHANGELOG.md](CHANGELOG.md), one `### Title` +
+   paragraph per entry. This single file feeds the in-app changelog (via `/api/changelog`),
+   the GitHub release notes, and the CI guard below.
+3. Commit, then push the tag:
+
+   ```bash
+   git tag v1.0.4 && git push origin v1.0.4
+   ```
+
+[The workflow](.github/workflows/docker-publish.yml) takes it from there:
+
+| Job | What it does |
+|-----|-------------|
+| `test` | Runs the whole suite. Red suite ⇒ nothing else runs. |
+| `verify-tag` | Fails unless the tag, `package.json` and a `CHANGELOG.md` section all agree — a mistyped tag stops here instead of publishing a mislabelled image. |
+| `build` | Builds and pushes for amd64 + arm64: `:X.Y.Z` and `:X.Y` from the tag, `:latest` from the push to `main`. |
+| `release` | Creates (or updates) the GitHub Release, with the notes lifted straight out of `CHANGELOG.md` plus the `docker pull` line. Re-running the workflow on the same tag is safe. |
+
+Because the release notes and the in-app changelog come from the same file, the "Update
+available" banner shows users exactly what the admin panel documents.
+
+---
+
 ## Configuration
 
 All configuration is done via environment variables:
@@ -311,15 +404,24 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/auth/verify` | — | Verify admin token |
 | POST | `/api/auth/verify-public` | — | Verify public password |
 | POST | `/api/auth/rotate-token` | Admin | Generate a new admin token |
-| GET | `/api/settings` | — | Get site title, logos, favicon, pinned group, password status |
-| POST | `/api/settings/site-title` | Admin | Set the site title |
+| GET | `/api/settings` | — | Get branding, theme, feature flags, pinned group, password status |
+| POST | `/api/settings/site-title` | Admin | Set the site title (browser tab + header) |
+| POST | `/api/settings/brand-icon` | Admin | Set the header icon (image upload or library `icon_id`) |
+| DELETE | `/api/settings/brand-icon` | Admin | Remove the header icon |
 | POST | `/api/settings/logo/:variant` | Admin | Upload logo (`light` or `dark`) |
 | DELETE | `/api/settings/logo/:variant` | Admin | Remove logo |
 | POST | `/api/settings/favicon` | Admin | Upload custom browser-tab favicon |
 | DELETE | `/api/settings/favicon` | Admin | Remove custom favicon |
+| POST | `/api/settings/theme` | Admin | Update accent colour, palette variants, default theme, mobile nav position |
+| POST | `/api/settings/group-tab-color` | Admin | Toggle group-coloured active tabs on the public page |
+| POST | `/api/settings/group-tabs-loop` | Admin | Toggle endless wrap-around scrolling of the public group tab strip |
+| POST | `/api/settings/footer-enabled` | Admin | Show/hide the developer credit footer |
 | POST | `/api/settings/pinned-group` | Admin | Pin a default group for the public page |
 | POST | `/api/settings/public-password` | Admin | Set public password |
 | DELETE | `/api/settings/public-password` | Admin | Remove public password |
+| POST | `/api/settings/requests-enabled` | Admin | Enable/disable the public "Request link" feature |
+| POST | `/api/settings/request-password` | Admin | Set the password required to submit a request |
+| DELETE | `/api/settings/request-password` | Admin | Remove the request password |
 | POST | `/api/settings/save-favicons` | Admin | Toggle auto-save of fetched favicons into the icon library |
 | GET | `/api/icons` | Admin | List every icon in the reusable library with usage counts |
 | POST | `/api/icons` | Admin | Upload a new icon directly into the library |
@@ -329,6 +431,7 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/icons/import` | Admin | Import an icon-library bundle (idempotent, de-duped by content) |
 | GET | `/api/favicon-preview` | Admin | Server-side favicon fetch used by the link form's live preview |
 | GET | `/api/version` | Admin | Check current build against the latest GitHub release |
+| GET | `/api/changelog` | Admin | Release notes parsed from `CHANGELOG.md` (what the admin sidebar renders) |
 | GET | `/api/audit` | Admin | List audit-log entries (search, type filter, pagination) |
 | DELETE | `/api/audit` | Admin | Clear the audit log (or prune with `?days=N`) |
 | GET | `/api/audit/export` | Admin | Export the audit log as CSV or JSON |
@@ -357,4 +460,45 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | DELETE | `/api/sections/:id` | Admin | Delete a section (and its subsections) |
 | POST | `/api/sections/reorder` | Admin | Save new section/subsection order |
 | GET | `/api/stats` | Admin | Aggregate click stats for all links |
+| GET | `/api/analytics` | Admin | Dashboard aggregates for a period (`?period=30d`) |
+| POST | `/api/link-requests` | — | Submit a link request (rate-limited; honors the request password) |
+| GET | `/api/link-requests` | Admin | List requests (`?status=pending\|approved\|rejected\|all`), flagged with any existing link at the same URL |
+| POST | `/api/link-requests/:id/approve` | Admin | Mark a request approved and record the published link |
+| POST | `/api/link-requests/:id/attach` | Admin | Approve without duplicating — add the existing link to the requested group |
+| POST | `/api/link-requests/:id/reject` | Admin | Reject a request |
+| DELETE | `/api/link-requests/:id` | Admin | Delete a request |
+| GET | `/api/ip-tags` | Admin | List every IP seen, with its attribution tag |
+| POST | `/api/ip-tags` | Admin | Tag an IP with a human-readable name |
+| DELETE | `/api/ip-tags/:ip` | Admin | Remove an IP tag |
 | GET | `/r/:id` | — | Redirect (or stream a file attachment) and record the click |
+
+## Licensing
+
+linkPage uses a **dual-licensing / open-core** model. See [LICENSE](LICENSE),
+[NOTICE](NOTICE), and [ee/LICENSE](ee/LICENSE) for the authoritative terms.
+
+Every feature described in this README is core, under the AGPL. `ee/` currently
+holds only its licence — the terms below are what will govern enterprise modules
+when they ship, so nothing here is gated today.
+
+| | Core | Enterprise (`ee/`) |
+|---|---|---|
+| **Licence** | GNU AGPL-3.0-or-later | Proprietary (`LicenseRef-linkPage-Enterprise`) |
+| **SPDX id** | `AGPL-3.0-or-later` | `LicenseRef-linkPage-Enterprise` |
+| **Scope** | Everything outside `ee/` | The `ee/` directory only |
+| **Source available** | Yes (free software) | Yes — evaluation & security review only |
+| **Production use** | Free, under the AGPL | Requires a paid subscription |
+| **Redistribution / resale** | Allowed under the AGPL | Not permitted |
+| **Host as a service** | Allowed (AGPL source-disclosure applies) | Not permitted |
+| **Key obligation** | Network use ⇒ offer your modified source to users | Keep licence-key verification intact |
+
+> **AGPL note:** if you run a modified version of the core to provide a network
+> service, the AGPL requires you to make your modified source available to that
+> service's users.
+
+**Need terms other than the AGPL?** A separate **commercial licence** for the
+core is available for users who cannot comply with the AGPL. Contact
+**tomasneto26@gmail.com**.
+
+Contributions require signing the [Contributor License Agreement](CLA.md) — see
+[CONTRIBUTING.md](CONTRIBUTING.md).
