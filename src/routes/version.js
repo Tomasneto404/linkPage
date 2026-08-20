@@ -3,9 +3,12 @@
 const express = require('express');
 const { requireAdminToken } = require('../middleware/auth');
 const c = require('../controllers/versionController');
+const changelog = require('../controllers/changelogController');
 
 const router = express.Router();
 
 router.get('/api/version', requireAdminToken, c.getVersion);
+// Release notes shown in the admin sidebar, parsed from CHANGELOG.md.
+router.get('/api/changelog', requireAdminToken, changelog.getChangelog);
 
 module.exports = router;

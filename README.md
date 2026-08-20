@@ -125,7 +125,8 @@ linkPage/
 │       ├── admin.js    # Admin panel logic
 │       ├── admin.css   # Admin-specific styles
 │       └── icon-presets.js  # Curated stock icon set
-├── ee/                 # Enterprise-licensed additions (see ee/LICENSE)
+├── ee/                 # Reserved for enterprise-licensed modules (see ee/LICENSE)
+├── CHANGELOG.md        # Release notes — read at runtime by /api/changelog
 ├── scripts/            # Maintenance scripts (license headers)
 ├── Dockerfile
 ├── docker-compose.yml       # Build from source
@@ -227,6 +228,15 @@ Paste the token into the admin panel to unlock link management.
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
+
+> **Upgrading from 1.0.3 or earlier:** the container now runs as the
+> unprivileged `node` user (uid 1000) instead of root, and reports a Docker
+> health check. A data directory created by an older image is still owned by
+> root, so hand it over once — the container cannot write to it otherwise:
+>
+> ```bash
+> sudo chown -R 1000:1000 ./linkpage_data
+> ```
 
 ---
 
@@ -331,13 +341,43 @@ node --test tests/links.test.js   # one file
 
 Each file under [`tests/`](tests/) covers one resource (`auth`, `settings`, `links`, `groups`,
 `linkRequests`, `icons`, `redirect`, `analytics`, `audit`, `ipTags`, `security`, `events`,
-`seed`, `migrations`, `version`) and drives the real Express app over HTTP.
+`seed`, `migrations`, `version`, `changelog`) and drives the real Express app over HTTP.
 [`tests/helpers/harness.js`](tests/helpers/harness.js) boots it on an ephemeral port against a
 throwaway SQLite database in the system temp directory — your own `data/` is never touched —
 and stubs the favicon fetcher so the suite never reaches the network.
 
 CI runs the same command on every push to `main`, every `v*` tag and every pull request; the
 Docker image is only built and pushed when the suite is green.
+
+---
+
+## Releasing (maintainers)
+
+The version lives in exactly one place — `version` in [package.json](package.json) — and is
+read at runtime by `/api/version`, shown in the admin sidebar and the About row, and compared
+against GitHub Releases by the update checker. Nothing else needs editing.
+
+1. Bump `version` in `package.json`.
+2. Add a `## vX.Y.Z` section at the top of [CHANGELOG.md](CHANGELOG.md), one `### Title` +
+   paragraph per entry. This single file feeds the in-app changelog (via `/api/changelog`),
+   the GitHub release notes, and the CI guard below.
+3. Commit, then push the tag:
+
+   ```bash
+   git tag v1.0.4 && git push origin v1.0.4
+   ```
+
+[The workflow](.github/workflows/docker-publish.yml) takes it from there:
+
+| Job | What it does |
+|-----|-------------|
+| `test` | Runs the whole suite. Red suite ⇒ nothing else runs. |
+| `verify-tag` | Fails unless the tag, `package.json` and a `CHANGELOG.md` section all agree — a mistyped tag stops here instead of publishing a mislabelled image. |
+| `build` | Builds and pushes for amd64 + arm64: `:X.Y.Z` and `:X.Y` from the tag, `:latest` from the push to `main`. |
+| `release` | Creates (or updates) the GitHub Release, with the notes lifted straight out of `CHANGELOG.md` plus the `docker pull` line. Re-running the workflow on the same tag is safe. |
+
+Because the release notes and the in-app changelog come from the same file, the "Update
+available" banner shows users exactly what the admin panel documents.
 
 ---
 
@@ -391,6 +431,7 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/icons/import` | Admin | Import an icon-library bundle (idempotent, de-duped by content) |
 | GET | `/api/favicon-preview` | Admin | Server-side favicon fetch used by the link form's live preview |
 | GET | `/api/version` | Admin | Check current build against the latest GitHub release |
+| GET | `/api/changelog` | Admin | Release notes parsed from `CHANGELOG.md` (what the admin sidebar renders) |
 | GET | `/api/audit` | Admin | List audit-log entries (search, type filter, pagination) |
 | DELETE | `/api/audit` | Admin | Clear the audit log (or prune with `?days=N`) |
 | GET | `/api/audit/export` | Admin | Export the audit log as CSV or JSON |
@@ -435,6 +476,10 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 
 linkPage uses a **dual-licensing / open-core** model. See [LICENSE](LICENSE),
 [NOTICE](NOTICE), and [ee/LICENSE](ee/LICENSE) for the authoritative terms.
+
+Every feature described in this README is core, under the AGPL. `ee/` currently
+holds only its licence — the terms below are what will govern enterprise modules
+when they ship, so nothing here is gated today.
 
 | | Core | Enterprise (`ee/`) |
 |---|---|---|

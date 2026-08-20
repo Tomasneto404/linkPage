@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Tomás Neto
-name: Test, Build & Push Docker Image
+name: Test, Build & Release
 
 on:
   push:
@@ -14,8 +14,13 @@ on:
     branches:
       - main
 
+# Needed by the release job to create the GitHub Release for a v* tag.
+permissions:
+  contents: write
+
 jobs:
-  # API test suite. The build job depends on this, so a red test never ships.
+  # API test suite. Everything downstream depends on this, so a red test never
+  # ships an image and never cuts a release.
   test:
     runs-on: ubuntu-latest
 
@@ -37,11 +42,48 @@ jobs:
       - name: Run API tests
         run: npm test
 
+  # A release is nothing but a tag: everything else is derived. This job proves
+  # the three sources agree before anything is published, so a mistyped tag
+  # fails in seconds instead of shipping a mislabelled image.
+  verify-tag:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Tag, package.json and CHANGELOG.md must agree
+        id: check
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          echo "tag=$TAG package.json=$PKG"
+
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG does not match package.json version $PKG. Bump the version and re-tag."
+            exit 1
+          fi
+          TAG_RE="$(printf '%s' "$TAG" | sed 's/\./\\./g')"
+          if ! grep -qE "^## v?${TAG_RE}([[:space:]]|$)" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## v$TAG' section. Write the release notes before tagging."
+            exit 1
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
   build:
-    # No green tests → no image.
-    needs: test
-    # Only publish for pushes to main and v* tags; a PR run stops after `test`.
-    if: github.event_name == 'push'
+    needs: [test, verify-tag]
+    # No green tests → no image, and on a tag the version guard has to pass too
+    # so a mistyped tag can never publish a mislabelled image. verify-tag is
+    # skipped on branch pushes, which must not block them — hence the explicit
+    # result checks. A PR run stops after `test`.
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      needs.test.result == 'success' &&
+      (needs.verify-tag.result == 'success' || needs.verify-tag.result == 'skipped')
     runs-on: ubuntu-latest
 
     steps:
@@ -63,7 +105,9 @@ jobs:
 
       # Derives tags automatically:
       #   push to main      → tomasneto26/linkpage:latest
-      #   push tag v1.2.3   → tomasneto26/linkpage:1.2.3 + tomasneto26/linkpage:latest
+      #   push tag v1.2.3   → tomasneto26/linkpage:1.2.3 + tomasneto26/linkpage:1.2
+      # `latest` tracks main only (is_default_branch), so a release means pushing
+      # the merge to main *and* the tag — see "Releasing" in the README.
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -85,3 +129,61 @@ jobs:
           # Cache layers between runs using the GitHub Actions cache
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Publishes the GitHub Release for a v* tag. The notes come straight out of
+  # CHANGELOG.md — the same file the admin sidebar renders — so the in-app
+  # update checker (which polls GitHub Releases) shows exactly what the admin
+  # panel does. Runs last: no release without green tests and a pushed image.
+  release:
+    needs: [test, verify-tag, build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract this version's section from CHANGELOG.md
+        env:
+          VERSION: ${{ needs.verify-tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("fs");
+            const version = process.env.VERSION;
+            const md = fs.readFileSync("CHANGELOG.md", "utf8");
+            const lines = md.split(/\r?\n/);
+            const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const start = lines.findIndex(l => new RegExp(`^## v?${escaped}\\b`).test(l));
+            if (start < 0) { console.error(`no section for ${version}`); process.exit(1); }
+            const rest = lines.slice(start + 1);
+            const end = rest.findIndex(l => /^## /.test(l));
+            const body = (end < 0 ? rest : rest.slice(0, end)).join("\n").trim();
+            fs.writeFileSync("RELEASE_NOTES.md", body + "\n");
+          '
+          {
+            echo ""
+            echo "---"
+            echo ""
+            echo "### Docker"
+            echo ""
+            echo '```bash'
+            echo "docker pull tomasneto26/linkpage:${VERSION}"
+            echo '```'
+          } >> RELEASE_NOTES.md
+          echo "--- release notes ---"
+          cat RELEASE_NOTES.md
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.verify-tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Idempotent: re-running the workflow for an existing tag updates the
+          # release instead of failing.
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            gh release edit "v${VERSION}" --title "v${VERSION}" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "v${VERSION}" --title "v${VERSION}" --notes-file RELEASE_NOTES.md
+          fi

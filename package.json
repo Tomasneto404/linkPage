@@ -10,6 +10,7 @@
     "scripts/",
     "LICENSE",
     "NOTICE",
+    "CHANGELOG.md",
     "README.md"
   ],
   "scripts": {
@@ -19,7 +20,7 @@
     "test:watch": "node --test --watch"
   },
   "engines": {
-    "node": ">=22.5"
+    "node": ">=24"
   },
   "dependencies": {
     "express": "^4.18.3",

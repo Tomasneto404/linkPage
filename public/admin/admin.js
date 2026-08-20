@@ -133,6 +133,7 @@ async function showAdminUI() {
   document.getElementById('adminWrap').classList.remove('hidden');
   await loadSettings();
   await loadAllData();
+  renderChangelog().catch(() => {});
   // Fire-and-forget: a missing/slow GitHub response shouldn't block the UI.
   checkForUpdates().catch(() => {});
 }
@@ -3210,6 +3211,41 @@ document.getElementById('searchInput').addEventListener('input', e => {
 });
 
 
+// ─── 20.3b. CHANGELOG ────────────────────────────────────────────────────────
+//
+// The sidebar list is rendered from /api/changelog, which parses CHANGELOG.md.
+// That file is also what the release workflow turns into the GitHub release
+// notes, so the two can never drift apart.
+
+/** Renders one release section per entry group, newest first. */
+async function renderChangelog() {
+  const host = document.getElementById('changelogBody');
+  if (!host) return;
+
+  const data = await apiJson('/api/changelog').catch(() => null);
+  if (!data?.releases?.length) {
+    host.innerHTML = '<div class="changelog-entry-desc">Release notes are unavailable.</div>';
+    return;
+  }
+
+  host.innerHTML = data.releases.map(release => `
+    <div class="changelog-release-label">v${escapeHtml(release.version)}</div>
+    <ul class="changelog-list">
+      ${release.entries.map(entry => `
+        <li>
+          <div class="changelog-entry-title">${escapeHtml(entry.title)}</div>
+          <div class="changelog-entry-desc">${renderChangelogText(entry.description)}</div>
+        </li>`).join('')}
+    </ul>`).join('');
+}
+
+/** Inline markdown the changelog actually uses: `code` and **bold**. */
+function renderChangelogText(text) {
+  return escapeHtml(text || '')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
 // ─── 20.4. UPDATE CHECK ──────────────────────────────────────────────────────
 //
 // Surfaces newer releases from GitHub. The server caches the response so the
@@ -3241,8 +3277,8 @@ async function checkForUpdates() {
  * About row, etc.) in sync with the canonical value from the server.
  */
 function syncCurrentVersionLabels(current) {
-  const pill = document.getElementById('changelogVersion');
-  if (pill?.firstChild) pill.firstChild.nodeValue = ` v${current} `;
+  const label = document.getElementById('changelogVersionLabel');
+  if (label) label.textContent = `v${current}`;
   const inline = document.getElementById('settingsCurrentVersion');
   if (inline) inline.textContent = `v${current}`;
 }
@@ -3253,10 +3289,8 @@ function applyVersionInfo(info) {
   const banner = document.getElementById('changelogUpdate');
   if (!pill || !banner) return;
 
-  // Keep the static pill text in sync with package.json, regardless of update
-  // status. (If a user edits the HTML and the version bumps, this still reads
-  // correctly.)
-  pill.firstChild && (pill.firstChild.nodeValue = ` v${info.current} `);
+  // Keep the pill in sync with package.json regardless of update status.
+  syncCurrentVersionLabels(info.current);
 
   if (!info.update_available || !Array.isArray(info.newer_releases) || !info.newer_releases.length) {
     banner.classList.add('hidden');
