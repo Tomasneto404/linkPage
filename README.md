@@ -129,6 +129,7 @@ linkPage/
 ├── CHANGELOG.md        # Release notes — read at runtime by /api/changelog
 ├── scripts/            # Maintenance scripts (license headers)
 ├── Dockerfile
+├── docker-entrypoint.sh      # Prepares /app/data, then drops to the `node` user
 ├── docker-compose.yml       # Build from source
 └── docker-compose.prod.yml  # Run the published image
 ```
@@ -229,14 +230,15 @@ docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-> **Upgrading from 1.0.3 or earlier:** the container now runs as the
-> unprivileged `node` user (uid 1000) instead of root, and reports a Docker
-> health check. A data directory created by an older image is still owned by
-> root, so hand it over once — the container cannot write to it otherwise:
+> **Upgrading from 1.0.3 or earlier:** the server process now runs as the
+> unprivileged `node` user (uid 1000) instead of root, and the container reports
+> a Docker health check. Nothing to do on your side — the entrypoint takes
+> ownership of the data directory on first start, whoever created it.
 >
-> ```bash
-> sudo chown -R 1000:1000 ./linkpage_data
-> ```
+> The one exception is pinning the uid yourself (`user:` in compose, `--user` on
+> the CLI): then the entrypoint has no privileges to hand the volume over, so it
+> must already be writable by that uid. It says so explicitly and exits instead
+> of half-starting.
 
 ---
 

@@ -32,7 +32,7 @@ Everything visitors see now lives in one place: default group, phone navbar posi
 209 tests over the real Express app — one file per resource, driven over HTTP against a throwaway database, with no dev dependencies to install. CI runs them on every push and pull request, and a red suite blocks the Docker image from shipping.
 
 ### Hardened container
-The image now runs as an unprivileged user and ships a Docker health check. Upgrading an existing install may need one `chown` of the data directory — see the README.
+The server process now runs as an unprivileged user instead of root, and the image ships a Docker health check. The entrypoint takes ownership of the data volume before dropping privileges, so existing installs and fresh hosts both come up with no manual `chown`.
 
 ### Changelog as a single source
 This file drives the in-app changelog, the GitHub release notes and the version guard in CI, so a release only needs the version bumped in package.json and a section added here.
