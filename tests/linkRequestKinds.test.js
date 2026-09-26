@@ -37,6 +37,22 @@ function submitForm(fields, { file, image, headers = {} } = {}) {
   });
 }
 
+/**
+ * Deleting an upload goes through safeDeleteFile, which unlinks
+ * asynchronously and does not report back — so a test that looks the instant
+ * the response lands is racing it. Wait for the condition instead.
+ */
+async function waitFor(predicate, what, tries = 60) {
+  for (let i = 0; i < tries; i++) {
+    if (predicate()) return;
+    await new Promise(r => setTimeout(r, 25));
+  }
+  assert.fail(what);
+}
+
+const gone      = (file, what) => waitFor(() => !fs.existsSync(file), what || `${file} is still on disk`);
+const fileCount = () => fs.readdirSync(uploadsDir()).length;
+
 const listAll  = () => c.api('/api/link-requests?status=all');
 const findReq  = async id => (await listAll()).body.requests.find(r => r.id === id);
 const uploadsDir = () => path.join(c.dataDir, 'uploads');
@@ -149,7 +165,7 @@ describe('reviewing a file request', () => {
 
     await c.api(`/api/link-requests/${row.id}/reject`, { method: 'POST', json: {} });
     assert.equal((await findReq(row.id)).status, 'rejected');
-    assert.ok(!fs.existsSync(onDisk), 'the bytes are gone');
+    await gone(onDisk, 'the bytes should be gone');
   });
 
   test('deleting a pending request deletes the upload too', async () => {
@@ -157,7 +173,7 @@ describe('reviewing a file request', () => {
     const onDisk = path.join(uploadsDir(), path.basename(row.file_path));
 
     await c.api(`/api/link-requests/${row.id}`, { method: 'DELETE' });
-    assert.ok(!fs.existsSync(onDisk));
+    await gone(onDisk);
   });
 });
 
@@ -392,12 +408,12 @@ describe('active content cannot be uploaded by a visitor', () => {
   });
 
   test('a refused upload leaves nothing on disk', async () => {
-    const before = fs.readdirSync(uploadsDir()).length;
+    const before = fileCount();
     await submitForm(
       { kind: 'file', name: 'Rejected payload', group_id: group.id },
       { file: { name: 'evil.html', type: 'text/html', bytes: Buffer.from('<script>1</script>') } },
     );
-    assert.equal(fs.readdirSync(uploadsDir()).length, before, 'no orphan was written');
+    await waitFor(() => fileCount() === before, 'the refused upload left an orphan behind');
   });
 
   test('the admin keeps the full whitelist', async () => {
@@ -471,7 +487,7 @@ describe('a change request can carry a replacement file', () => {
     assert.equal(after.file_path, row.file_path, 'the link now points at the proposed file');
     assert.equal(after.url, row.file_path, 'file-backed links mirror the path into url');
 
-    assert.ok(!fs.existsSync(oldOnDisk), 'the replaced file is gone');
+    await gone(oldOnDisk, 'the replaced file should be gone');
     assert.ok(fs.existsSync(path.join(uploadsDir(), path.basename(row.file_path))), 'the new one is live');
   });
 
@@ -498,7 +514,7 @@ describe('a change request can carry a replacement file', () => {
 
     await c.api(`/api/link-requests/${row.id}/reject`, { method: 'POST', json: {} });
 
-    assert.ok(!fs.existsSync(proposedOnDisk), 'the rejected upload is gone');
+    await gone(proposedOnDisk, 'the rejected upload should be gone');
     const after = (await c.api('/api/links')).body.find(l => l.id === link.id);
     assert.equal(after.name, 'Untouched by rejection');
     assert.equal(after.file_name, 'keep-me.pdf');
@@ -512,19 +528,18 @@ describe('a change request can carry a replacement file', () => {
     const row  = await findReq(res.body.id);
 
     await c.api(`/api/link-requests/${row.id}`, { method: 'DELETE' });
-    assert.ok(!fs.existsSync(path.join(uploadsDir(), path.basename(row.file_path))));
+    await gone(path.join(uploadsDir(), path.basename(row.file_path)));
   });
 
   test('a URL-backed link cannot be handed a file', async () => {
     const link = await c.makeLink({ name: 'Just a URL', url: 'https://justaurl.invalid/x', groups: [group.id] });
-    const before = fs.readdirSync(uploadsDir()).length;
+    const before = fileCount();
 
     const res = await submitForm({ kind: 'change', target_link_id: link.id }, replacement());
 
     assert.equal(res.status, 400);
     assert.match(res.body.error, /file/i);
-    assert.equal(fs.readdirSync(uploadsDir()).length, before,
-      'the refused upload left nothing behind');
+    await waitFor(() => fileCount() === before, 'the refused upload left something behind');
   });
 
   test('the inert-type rule still applies to a replacement', async () => {
