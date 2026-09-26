@@ -402,7 +402,11 @@ function layoutTabScroller(keep = null) {
 
   const gap  = parseFloat(getComputedStyle(t.track).columnGap) || 0;
   const one  = t.track.scrollWidth;
-  const vpW  = t.vp.clientWidth;
+  // clientWidth counts the viewport's own padding, which is only there to give
+  // the end pills' glow room to spill (see .tabs-viewport). Measuring with it
+  // would overstate how much strip actually fits and throw the centring off by
+  // half the padding, so take it back out.
+  const vpW  = t.vp.clientWidth - horizontalPadding(t.vp);
 
   t.overflowing = groups.length > 0 && one > vpW + 1;
   t.loop        = t.overflowing && tabsLoopEnabled;
@@ -427,8 +431,17 @@ function layoutTabScroller(keep = null) {
     // Out-of-range values are clamped by the browser.
     t.vp.scrollLeft = keep ?? activeTabScrollLeft(vpW);
   }
-  t.maxScroll = t.vp.scrollWidth - vpW;
+  // The browser's own ceiling, which counts the padding — unlike vpW above,
+  // which deliberately does not. Using vpW here would put maxScroll past the
+  // real end, and the strip would never report itself as parked there.
+  t.maxScroll = t.vp.scrollWidth - t.vp.clientWidth;
   updateTabEdges();
+}
+
+/** Left + right padding of an element, in pixels. */
+function horizontalPadding(el) {
+  const cs = getComputedStyle(el);
+  return (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
 }
 
 /** Puts the active group's pill in the middle of the viewport. */
@@ -532,6 +545,52 @@ function bindTabScroller() {
     e.preventDefault();
     t.vp.scrollLeft += delta;
   }, { passive: false });
+
+  // Touch panning, done by hand for the same reason the wheel is: the viewport
+  // is pointer-events:none so its padding cannot steal clicks from the header
+  // and the grid it overhangs, and a scroller the browser will not hit-test is
+  // a scroller the browser will not pan either. Events still bubble up here
+  // from the pills and the track, which are the only part of the bar a finger
+  // can land on, so that is where a swipe is picked up.
+  let panX = 0, panY = 0, panning = null;   // null until the axis is decided
+
+  t.vp.addEventListener('touchstart', e => {
+    if (!t.overflowing || e.touches.length !== 1) return;
+    panX = e.touches[0].clientX;
+    panY = e.touches[0].clientY;
+    panning = null;
+  }, { passive: true });
+
+  t.vp.addEventListener('touchmove', e => {
+    if (!t.overflowing || e.touches.length !== 1) return;
+
+    const dx = panX - e.touches[0].clientX;
+    const dy = panY - e.touches[0].clientY;
+
+    // Decide once per gesture which way it is going, so a mostly-vertical
+    // swipe scrolls the page and never stutters the strip sideways.
+    if (panning === null) {
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+      panning = Math.abs(dx) > Math.abs(dy);
+    }
+    if (!panning) return;
+
+    // At either end of a strip that does not loop, hand the gesture back so
+    // the page can take over rather than the finger sticking.
+    if (!t.loop) {
+      if (dx < 0 && t.vp.scrollLeft <= 0)               return;
+      if (dx > 0 && t.vp.scrollLeft >= t.maxScroll - 1) return;
+    }
+
+    e.preventDefault();
+    t.vp.scrollLeft += dx;
+    panX = e.touches[0].clientX;
+    panY = e.touches[0].clientY;
+  }, { passive: false });
+
+  for (const ev of ['touchend', 'touchcancel']) {
+    t.vp.addEventListener(ev, () => { panning = null; }, { passive: true });
+  }
 
   // Edge arrows: one nudge per click, and keep nudging while held down.
   for (const [id, dir] of [['tabsPrev', -1], ['tabsNext', 1]]) {

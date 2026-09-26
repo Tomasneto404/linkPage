@@ -45,14 +45,18 @@
        a thumb would jump on every teleport, and either way the edge fades plus
        the arrows below are what signal "there is more this way".
 
-       A scroll container always clips both axes, so the vertical padding (undone
-       by an equal negative margin, leaving the row height untouched) is what
-       keeps the active tab's accent glow from being sliced into a rectangle. */
+       A scroll container always clips both axes, so the padding (undone by an
+       equal negative margin, leaving the row's footprint untouched) is what
+       keeps the active tab's accent glow from being sliced into a rectangle.
+       It has to be there on all four sides: without the horizontal half, the
+       pill parked at either end of the strip gets its glow cut off flat
+       against the scroller's edge. layoutTabScroller() subtracts the
+       horizontal padding back out when it measures the usable width. */
     .tabs-viewport {
       overflow-x: auto;
       overflow-y: hidden;
-      padding: 24px 0 30px;
-      margin: -24px 0 -30px;
+      padding: 24px 26px 30px;
+      margin: -24px -26px -30px;
       scrollbar-width: none;
       overscroll-behavior-x: contain;
       /* That padding hangs over the header and the grid below, so the box must
