@@ -160,30 +160,32 @@ describe('admin preview', () => {
 
 // ─── Theme and framing ───────────────────────────────────────────────────────
 
+/** The opening <html …> tag, so assertions do not depend on attribute order. */
+const htmlTag = text => text.match(/<html[^>]*>/)[0];
+
 describe('the rendered page follows the site theme', () => {
   test('?theme=dark pins the document to dark', async () => {
     await makeMarkdownLink({ name: 'Dark doc', slug: 'dark-doc' });
 
     const res = await visit('/f/dark-doc?theme=dark');
     assert.equal(res.status, 200);
-    assert.match(res.text, /<html lang="en" data-theme="dark">/);
+    assert.match(htmlTag(res.text), /data-theme="dark"/);
   });
 
   test('?theme=light pins it to light', async () => {
     await makeMarkdownLink({ name: 'Light doc', slug: 'light-doc' });
 
     const res = await visit('/f/light-doc?theme=light');
-    assert.match(res.text, /<html lang="en" data-theme="light">/);
+    assert.match(htmlTag(res.text), /data-theme="light"/);
   });
 
   test('no parameter leaves it to the reader\'s system setting', async () => {
     await makeMarkdownLink({ name: 'System doc', slug: 'system-doc' });
 
     const res = await visit('/f/system-doc');
-    // The stylesheet still mentions data-theme in its selectors; what matters
-    // is that the <html> tag carries no attribute pinning the theme.
-    assert.match(res.text, /<html lang="en">/);
-    assert.match(res.text, /prefers-color-scheme: dark/, 'the media query still carries it');
+    // What matters is that the <html> tag carries no attribute pinning the
+    // theme, leaving color-scheme and the tokens to the reader's setting.
+    assert.doesNotMatch(htmlTag(res.text), /data-theme=/);
   });
 
   test('a junk theme is ignored rather than reflected', async () => {
@@ -192,7 +194,7 @@ describe('the rendered page follows the site theme', () => {
     for (const bad of ['purple', '"><script>alert(1)</script>', 'dark evil', '']) {
       const res = await visit(`/f/junk-theme?theme=${encodeURIComponent(bad)}`);
       assert.equal(res.status, 200);
-      assert.match(res.text, /<html lang="en">/, `reflected into the tag: ${bad}`);
+      assert.doesNotMatch(htmlTag(res.text), /data-theme=/, `reflected into the tag: ${bad}`);
       assert.doesNotMatch(res.text, /<script>alert/);
     }
   });
@@ -202,6 +204,86 @@ describe('the rendered page follows the site theme', () => {
 
     const res = await visit(`/r/${link.id}?theme=dark`);
     assert.match(res.text, /data-theme="dark"/);
+  });
+});
+
+describe('the rendered page wears the site palette', () => {
+  const setTheme = json => c.api('/api/settings/theme', { method: 'POST', json });
+
+  after(async () => {
+    await setTheme({ light_variant: 'default', dark_variant: 'default', accent_color: '' });
+  });
+
+  test('it links the same tokens the site does, rather than its own copy', async () => {
+    await makeMarkdownLink({ name: 'Palette', slug: 'palette' });
+
+    const res = await visit('/f/palette');
+    assert.match(res.text, /<link rel="stylesheet" href="\/theme-tokens\.css"/);
+
+    const tokens = await c.pub('/theme-tokens.css');
+    assert.equal(tokens.status, 200, 'and that file is served');
+    assert.match(tokens.text, /--surface:/);
+    assert.match(tokens.text, /data-light-variant="snow"/, 'variants live there too');
+  });
+
+  test('both variant names ride along, whichever theme is showing', async () => {
+    await setTheme({ light_variant: 'warm', dark_variant: 'slate' });
+    await makeMarkdownLink({ name: 'Variants', slug: 'variants' });
+
+    const tag = htmlTag((await visit('/f/variants?theme=dark')).text);
+    assert.match(tag, /data-light-variant="warm"/);
+    assert.match(tag, /data-dark-variant="slate"/);
+  });
+
+  test('an unset variant says so rather than being left off', async () => {
+    await setTheme({ light_variant: 'default', dark_variant: 'default' });
+    await makeMarkdownLink({ name: 'Plain variants', slug: 'plain-variants' });
+
+    const tag = htmlTag((await visit('/f/plain-variants')).text);
+    assert.match(tag, /data-light-variant="default"/);
+    assert.match(tag, /data-dark-variant="default"/);
+  });
+
+  test('a configured accent reaches the document', async () => {
+    await setTheme({ accent_color: '#ff2d55', accent_dark_adjust: false });
+    await makeMarkdownLink({ name: 'Accent', slug: 'accent-doc' });
+
+    const tag = htmlTag((await visit('/f/accent-doc?theme=light')).text);
+    assert.match(tag, /--primary:#ff2d55/);
+    assert.match(tag, /--primary-rgb:255,45,85/);
+  });
+
+  test('the dark adjustment is applied the same way the site applies it', async () => {
+    await setTheme({ accent_color: '#0071e3', accent_dark_adjust: true });
+    await makeMarkdownLink({ name: 'Adjusted', slug: 'adjusted' });
+
+    // shadeColor('#0071e3', 18), the same lift public/app.js makes in dark.
+    const { shadeColor } = require('../src/utils/color');
+    const lifted = shadeColor('#0071e3', 18);
+
+    const dark = htmlTag((await visit('/f/adjusted?theme=dark')).text);
+    assert.match(dark, new RegExp(`--primary:${lifted}`), 'lifted in dark');
+
+    const light = htmlTag((await visit('/f/adjusted?theme=light')).text);
+    assert.match(light, /--primary:#0071e3/, 'untouched in light');
+  });
+
+  test('no accent means no inline override at all', async () => {
+    await setTheme({ accent_color: '' });
+    await makeMarkdownLink({ name: 'No accent', slug: 'no-accent' });
+
+    const tag = htmlTag((await visit('/f/no-accent')).text);
+    assert.doesNotMatch(tag, /--primary/, 'the tokens decide');
+  });
+
+  test('the policy allows the stylesheet but still no script', async () => {
+    await makeMarkdownLink({ name: 'Policy', slug: 'policy-tokens' });
+
+    const csp = (await visit('/f/policy-tokens')).headers.get('content-security-policy');
+    assert.match(csp, /style-src [^;]*'self'/, 'so /theme-tokens.css loads');
+    assert.match(csp, /default-src 'none'/);
+    assert.match(csp, /sandbox/);
+    assert.doesNotMatch(csp, /script-src/, 'nothing was opened up for scripts');
   });
 });
 
@@ -222,7 +304,7 @@ describe('embedded rendering', () => {
     await makeMarkdownLink({ name: 'Both', slug: 'both-params' });
 
     const res = await visit('/f/both-params?theme=dark&embed=1');
-    assert.match(res.text, /<html lang="en" data-theme="dark">/);
+    assert.match(htmlTag(res.text), /data-theme="dark"/);
     assert.match(res.text, /is-embedded/);
   });
 

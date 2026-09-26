@@ -10,6 +10,7 @@
  */
 
 const { escapeHtml } = require('./markdownService');
+const { shadeColor, hexToRgb } = require('../utils/color');
 
 /**
  * The policy the rendered page is served under. `default-src 'none'` means no
@@ -21,7 +22,9 @@ const { escapeHtml } = require('./markdownService');
 const MARKDOWN_CSP = [
   "default-src 'none'",
   "img-src 'self' https: data:",
-  "style-src 'unsafe-inline'",
+  // 'self' so the page can load the site's palette; still no script of any
+  // kind, which is what the sandbox below is really guarding.
+  "style-src 'self' 'unsafe-inline'",
   // The public page may show a document in an overlay, which frames this page
   // rather than injecting its HTML — that keeps the document inside its own
   // sandbox instead of running beside the admin token. Only this site may.
@@ -41,27 +44,6 @@ function normalizePageTheme(raw) {
 }
 
 const PAGE_STYLES = `
-:root {
-  --bg: #f5f5f7; --surface: #ffffff; --surface-3: #f0f0f2;
-  --border: rgba(0,0,0,0.08); --primary: #0071e3;
-  --text: #1d1d1f; --text-muted: #86868b;
-}
-/* The site passes its current theme as ?theme=, since this page carries no
-   script and cannot read where the toggle stored it. With no parameter the
-   reader's system setting decides — but an explicit light must still win over
-   a dark system, hence the :not() guard. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #000000; --surface: #1c1c1e; --surface-3: #2c2c2e;
-    --border: rgba(255,255,255,0.12); --primary: #0a84ff;
-    --text: #f5f5f7; --text-muted: #98989d;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #000000; --surface: #1c1c1e; --surface-3: #2c2c2e;
-  --border: rgba(255,255,255,0.12); --primary: #0a84ff;
-  --text: #f5f5f7; --text-muted: #98989d;
-}
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
@@ -119,21 +101,61 @@ th { background: var(--surface-3); font-weight: 600; }
  * Builds the full document. `title` is the link's name; `body` is the fragment
  * renderMarkdown produced.
  */
-function renderMarkdownPage({ title, body, theme, embed = false }) {
+/**
+ * The accent overrides the site applies on top of the palette. Mirrors
+ * applyAccent() in public/app.js, which this page cannot run: it has no
+ * script. Only --primary and --primary-rgb matter here (links, and the focus
+ * ring the tokens derive), so the hover shade is left out.
+ */
+function accentVariables({ accent, accentDarkAdjust, dark }) {
+  if (!accent) return '';
+
+  const base = (dark && accentDarkAdjust) ? shadeColor(accent, 18) : accent;
+  const rgb  = hexToRgb(base);
+  if (!base || !rgb) return '';
+
+  return `--primary:${base};--primary-rgb:${rgb.join(',')};`;
+}
+
+/** Only these appear in an attribute, so nothing else can be reflected. */
+const VARIANT_RE = /^[a-z][a-z0-9-]{0,24}$/;
+const safeVariant = v => (VARIANT_RE.test(String(v || '')) ? String(v) : 'default');
+
+/**
+ * Builds the full document.
+ *
+ * `palette` carries the site's own theme choices — the light and dark variant
+ * names and the accent — so the document wears the same colours as the page
+ * the reader came from, rather than an approximation of them.
+ */
+function renderMarkdownPage({ title, body, theme, embed = false, palette = {} }) {
   const heading   = escapeHtml(title || 'Document');
   const pageTheme = normalizePageTheme(theme);
   const themeAttr = pageTheme ? ` data-theme="${pageTheme}"` : '';
+
+  // Both variants ride along, exactly as they do on the site: which one
+  // applies is decided by data-theme, in theme-tokens.css.
+  const variantAttrs = ` data-light-variant="${safeVariant(palette.lightVariant)}"`
+                     + ` data-dark-variant="${safeVariant(palette.darkVariant)}"`;
+
+  const accent = accentVariables({
+    accent:           palette.accent,
+    accentDarkAdjust: palette.accentDarkAdjust,
+    dark:             pageTheme === 'dark',
+  });
+  const styleAttr = accent ? ` style="${accent}"` : '';
   // Embedded in the site's overlay: the modal already provides the frame and
   // a way out, so the page drops its own card and Back link.
   const shellClass = embed ? 'md-shell is-embedded' : 'md-shell';
   const backLink   = embed ? '' : '\n  <a class="md-back" href="/">&larr; Back</a>';
   return `<!DOCTYPE html>
-<html lang="en"${themeAttr}>
+<html lang="en"${themeAttr}${variantAttrs}${styleAttr}>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="referrer" content="no-referrer" />
 <title>${heading}</title>
+<link rel="stylesheet" href="/theme-tokens.css" />
 <style>${PAGE_STYLES}</style>
 </head>
 <body>

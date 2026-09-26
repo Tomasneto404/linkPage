@@ -131,6 +131,14 @@ function sendRenderedMarkdown(res, link, theme, embed = false) {
     body:  renderMarkdown(source),
     theme,
     embed,
+    // The site's own palette, so the document is not merely light or dark but
+    // the same light or dark the reader just came from.
+    palette: {
+      lightVariant:     db.readSetting('theme_light_variant') || 'default',
+      darkVariant:      db.readSetting('theme_dark_variant')  || 'default',
+      accent:           db.readSetting('accent_color') || null,
+      accentDarkAdjust: db.readSetting('accent_dark_adjust') === '1',
+    },
   }));
 }
 

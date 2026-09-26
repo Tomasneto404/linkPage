@@ -1,0 +1,128 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+   Copyright (C) 2026 Tomás Neto
+
+   The palette, on its own.
+
+   Split out of style.css so that the standalone pages a link can open — a
+   rendered markdown document, for one — can wear exactly the same colours as
+   the site without pulling in the whole application stylesheet, and without a
+   second copy of the values drifting away from this one.
+
+   Anything that loads this must load it before style.css. */
+
+:root {
+  --bg:           #f5f5f7;
+  --surface:      #ffffff;
+  --surface-2:    #fafafa;
+  --surface-3:    #f0f0f2;
+  --border:       rgba(0,0,0,0.08);
+  --border-strong:rgba(0,0,0,0.14);
+  --primary:      #0071e3;
+  --primary-rgb:  0,113,227;
+  --primary-hover:#006edb;
+  --danger:       #ff3b30;
+  --danger-hover: #e0352b;
+  --text:         #1d1d1f;
+  --text-2:       #3d3d3f;
+  --text-muted:   #86868b;
+  --text-dim:     #6e6e73;
+  --shadow-xs:    0 1px 4px rgba(0,0,0,0.06);
+  --shadow-sm:    0 2px 12px rgba(0,0,0,0.07);
+  --shadow-md:    0 8px 28px rgba(0,0,0,0.1);
+  --shadow-lg:    0 20px 60px rgba(0,0,0,0.14);
+  --header-h:     52px;
+  --sidebar-w:    232px;
+  --radius:       12px;
+  --radius-sm:    8px;
+  --radius-lg:    18px;
+  --transition:   0.18s cubic-bezier(0.4,0,0.2,1);
+  /* The three sticky bars — header, group tab strip, footer — are built from
+     a colour and an alpha the admin controls, so they run from completely
+     see-through to flat colour. --bar-alpha and --bar-blur are set by the
+     page from the settings; the values here are what a bar looks like before
+     any of that arrives. */
+  --bar-rgb:        255,255,255;
+  --bar-border-rgb: 0,0,0;
+  --bar-alpha:      0.82;
+  --bar-blur:       20px;
+  --bar-bg:         rgba(var(--bar-rgb), var(--bar-alpha));
+  /* The edge fades with the bar: a hairline over a fully transparent bar
+     would be a line ruled across the wallpaper for no reason. */
+  --bar-border:     rgba(var(--bar-border-rgb), calc(var(--bar-alpha) * 0.1));
+
+  /* The controls sitting in the bars — search field, theme toggle, admin
+     button — fade with it, but stay ahead of it so they remain the most
+     solid thing there and never dissolve into the wallpaper. The offset is
+     chosen so that at the default 82% they land on fully opaque, which is
+     exactly how they looked before any of this was adjustable. */
+  --bar-control-alpha: min(1, calc(var(--bar-alpha) + 0.18));
+  /* color-mix rather than a hardcoded rgba: --surface and --border-strong
+     are redefined by every theme variant, and this follows them. */
+  --bar-control-bg:     color-mix(in srgb, var(--surface)   calc(var(--bar-control-alpha) * 100%), transparent);
+  --bar-control-bg-alt: color-mix(in srgb, var(--surface-3) calc(var(--bar-control-alpha) * 100%), transparent);
+  --bar-control-border: color-mix(in srgb, var(--border-strong) calc(var(--bar-control-alpha) * 100%), transparent);
+}
+
+[data-theme="dark"] {
+  --bar-rgb:        28,28,30;
+  --bar-border-rgb: 255,255,255;
+  --bg:           #000000;
+  --surface:      #1c1c1e;
+  --surface-2:    #2c2c2e;
+  --surface-3:    #3a3a3c;
+  --border:       rgba(255,255,255,0.09);
+  --border-strong:rgba(255,255,255,0.16);
+  --primary:      #0a84ff;
+  --primary-rgb:  10,132,255;
+  --primary-hover:#3395ff;
+  --danger:       #ff453a;
+  --danger-hover: #ff6b63;
+  --text:         #f5f5f7;
+  --text-2:       #e5e5ea;
+  --text-muted:   #8e8e93;
+  --text-dim:     #aeaeb2;
+  --shadow-xs:    0 1px 4px rgba(0,0,0,0.4);
+  --shadow-sm:    0 2px 12px rgba(0,0,0,0.5);
+  --shadow-md:    0 8px 28px rgba(0,0,0,0.6);
+  --shadow-lg:    0 20px 60px rgba(0,0,0,0.8);
+}
+
+/* ── Curated theme variants ──────────────────────────────
+ * Admin-selectable palettes. Each only retunes surface/background/border tones;
+ * accent (--primary) is applied on top separately. "default" = no attribute
+ * (uses the base :root / [data-theme="dark"] values above).
+ *
+ * The light ones are scoped with :not([data-theme="dark"]) rather than left on
+ * :root. Both attributes sit on <html> at once — the light variant is not
+ * cleared when you switch to dark — and :root[data-light-variant] is a more
+ * specific selector than [data-theme="dark"], so without the guard a light
+ * palette would go on overriding the dark background while the dark text
+ * colour stayed put: white on white. */
+:root:not([data-theme="dark"])[data-light-variant="snow"] {
+  --bg:        #ffffff;
+  --surface:   #ffffff;
+  --surface-2: #f7f7f8;
+  --surface-3: #eef0f2;
+}
+:root:not([data-theme="dark"])[data-light-variant="warm"] {
+  --bg:        #f6f4ef;
+  --surface:   #fffdfa;
+  --surface-2: #f3f0ea;
+  --surface-3: #ebe7df;
+  --border:        rgba(60,40,10,0.09);
+  --border-strong: rgba(60,40,10,0.15);
+}
+[data-theme="dark"][data-dark-variant="midnight"] {
+  --bg:        #000000;
+  --surface:   #0c0c0e;
+  --surface-2: #161618;
+  --surface-3: #242426;
+}
+[data-theme="dark"][data-dark-variant="slate"] {
+  --bg:        #0f1219;
+  --surface:   #171b24;
+  --surface-2: #1e232e;
+  --surface-3: #2a303c;
+  --border:        rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.15);
+}
