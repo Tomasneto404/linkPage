@@ -92,6 +92,8 @@ function getInitialTheme() {
 
 function applyTheme(theme, save = true) {
   document.documentElement.setAttribute('data-theme', theme);
+  // Both the glyph and the lockup have a per-theme cut to swap to.
+  applyBrandIcon(brandIconUrl);
   // A document showing in the overlay is a separate page with its own copy of
   // the palette, so it has to be told the theme changed.
   refreshMarkdownViewerTheme();
@@ -107,16 +109,27 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   applyTheme(cur === 'light' ? 'dark' : 'light');
 });
 
+/**
+ * Shipped brand assets, used until an admin uploads their own. The icon comes
+ * in two cuts because the light one's dark half disappears against a dark
+ * header, and vice versa — same reason the logos have always had two.
+ */
+const DEFAULT_BRAND = {
+  icon: { light: '/brand/icon-light.png', dark: '/brand/icon-dark.png' },
+  logo: { light: '/brand/logo-light.png', dark: '/brand/logo-dark.png' },
+};
+
+/** Whether the admin has named this site, in which case its title is the brand. */
+let siteHasCustomTitle = false;
+/** The admin's own header glyph, if they uploaded one. */
+let brandIconUrl = null;
+
+const isDarkTheme = () =>
+  (document.documentElement.getAttribute('data-theme') || 'light') === 'dark';
+
 applyTheme(getInitialTheme(), false);
 
 // ─── Branding ─────────────────────────────────────────────────────────────────
-
-// Fallback glyph used when no custom header icon is configured.
-const DEFAULT_BRAND_ICON_SVG = `
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-  </svg>`;
 
 /** Header title text. Falls back to "LinkPage" when no site title is set. */
 function applyBrandText(title) {
@@ -124,25 +137,28 @@ function applyBrandText(title) {
   if (label) label.textContent = title || 'LinkPage';
 }
 
-/** Header glyph: a configured image, or the built-in chain-link SVG. */
+/** Header glyph: a configured image, else the shipped icon for this theme. */
 function applyBrandIcon(url) {
   const slot = document.getElementById('brandIcon');
   if (!slot) return;
-  if (url) {
-    slot.innerHTML = '';
-    const img = document.createElement('img');
-    img.className = 'brand-icon-img';
-    img.src       = url;
-    img.alt       = '';
-    slot.appendChild(img);
-  } else {
-    slot.innerHTML = DEFAULT_BRAND_ICON_SVG;
-  }
+  brandIconUrl = url || null;
+
+  slot.innerHTML = '';
+  const img = document.createElement('img');
+  img.className = 'brand-icon-img';
+  img.src       = url || DEFAULT_BRAND.icon[isDarkTheme() ? 'dark' : 'light'];
+  img.alt       = '';
+  slot.appendChild(img);
 }
 
 function getLogoForCurrentTheme() {
-  return (document.documentElement.getAttribute('data-theme') || 'light') === 'dark'
-    ? logoDarkUrl : logoLightUrl;
+  const custom = isDarkTheme() ? logoDarkUrl : logoLightUrl;
+  if (custom) return custom;
+  // The shipped lockup stands in only while the site is still unbranded. Once
+  // an admin has named it, that name is the brand and the header shows it as
+  // text beside the glyph, the way it always has.
+  if (siteHasCustomTitle) return null;
+  return DEFAULT_BRAND.logo[isDarkTheme() ? 'dark' : 'light'];
 }
 
 function updateHeaderLogo() {
@@ -1844,14 +1860,16 @@ function scheduleRelockRefresh() {
 function applyFavicon(url) {
   const link = document.getElementById('favicon');
   if (!link) return;
-  if (url) link.setAttribute('href', url);
-  else     link.removeAttribute('href');
+  // A tab strip can be light or dark and the page cannot tell which, so the
+  // light cut is the default: its blue half reads on either.
+  link.setAttribute('href', url || DEFAULT_BRAND.icon.light);
 }
 
 async function init() {
   const settings = await fetch('/api/settings').then(r => r.json());
 
   if (settings.site_title) document.title = settings.site_title;
+  siteHasCustomTitle = !!(settings.site_title && settings.site_title.trim());
   applyBrandText(settings.site_title);
   applyBrandIcon(settings.brand_icon || null);
   logoLightUrl   = settings.logo_light || null;

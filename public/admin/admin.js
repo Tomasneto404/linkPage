@@ -101,6 +101,7 @@ function applyTheme(theme, save = true) {
   document.getElementById('iconSun').classList.toggle('hidden', theme === 'light');
   applyAccent(theme);
   updateHeaderLogo();
+  applyBrandIcon(brandIconUrl);
   if (save) localStorage.setItem('linkpage_theme', theme);
 }
 
@@ -108,6 +109,16 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   const current = document.documentElement.getAttribute('data-theme') || 'light';
   applyTheme(current === 'light' ? 'dark' : 'light');
 });
+
+/**
+ * The shipped glyph, in the two cuts the public page uses. Kept in step with
+ * DEFAULT_BRAND in public/app.js so both headers wear the same face. Declared
+ * above the load-time applyTheme() below, which paints the glyph.
+ */
+const DEFAULT_BRAND_ICON = { light: '/brand/icon-light.png', dark: '/brand/icon-dark.png' };
+
+const isDarkTheme = () =>
+  (document.documentElement.getAttribute('data-theme') || 'light') === 'dark';
 
 applyTheme(getInitialTheme(), false);
 
@@ -328,8 +339,9 @@ function updateFooterUI(enabled) {
 function applyFavicon(url) {
   const link = document.getElementById('favicon');
   if (!link) return;
-  if (url) link.setAttribute('href', url);
-  else     link.removeAttribute('href');
+  // Falls back to the shipped icon rather than clearing the href, which would
+  // send the browser hunting for /favicon.ico.
+  link.setAttribute('href', url || DEFAULT_BRAND_ICON.light);
 }
 
 function updateFaviconPreview(url) {
@@ -341,14 +353,6 @@ function updateFaviconPreview(url) {
 
 // ─── Header brand (title text + glyph) ──────────────────────────────────────
 
-// Fallback glyph used when no custom header icon is configured.
-const DEFAULT_BRAND_ICON_SVG = `
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-  </svg>`;
-
 /** Header title text. Falls back to "LinkPage" when no site title is set. */
 function applyBrandText(title) {
   const label = document.querySelector('#brandText .brand-label');
@@ -359,16 +363,13 @@ function applyBrandText(title) {
 function applyBrandIcon(url) {
   const slot = document.getElementById('brandIcon');
   if (!slot) return;
-  if (url) {
-    slot.innerHTML = '';
-    const img = document.createElement('img');
-    img.className = 'brand-icon-img';
-    img.src       = url;
-    img.alt       = '';
-    slot.appendChild(img);
-  } else {
-    slot.innerHTML = DEFAULT_BRAND_ICON_SVG;
-  }
+
+  slot.innerHTML = '';
+  const img = document.createElement('img');
+  img.className = 'brand-icon-img';
+  img.src       = url || DEFAULT_BRAND_ICON[isDarkTheme() ? 'dark' : 'light'];
+  img.alt       = '';
+  slot.appendChild(img);
 }
 
 // Thumbnail only; updateBrandRowState() owns the Remove button's visibility.
