@@ -74,6 +74,23 @@ describe('seedFirstRunContent', () => {
     assert.deepEqual(publicGroups, ['Examples']);
   });
 
+  test('the URL example goes through the favicon pipeline, the file ones do not', async () => {
+    const links = (await c.api('/api/links')).body;
+    const url   = links.find(l => l.name === 'LinkPage on GitHub');
+
+    // Seeding writes straight to the model, so the fetch a normal save fires
+    // has to be kicked off by hand — without it the card sits there iconless.
+    const call = c.faviconCalls.find(f => f.linkId === url.id);
+    assert.ok(call, 'a favicon fetch was requested for the URL example');
+    assert.equal(call.url, url.url);
+
+    for (const name of ['Example Report', 'Welcome to LinkPage']) {
+      const file = links.find(l => l.name === name);
+      assert.ok(!c.faviconCalls.some(f => f.linkId === file.id),
+        `${name} is file-backed and has nothing to fetch`);
+    }
+  });
+
   test('the example files are written to disk and served', async () => {
     const links = (await c.api('/api/links')).body;
     for (const name of ['Example Report', 'Welcome to LinkPage']) {

@@ -26,7 +26,7 @@ const { UPLOADS_DIR }      = require('../config/env');
 const { ICON_EXT_BY_MIME } = require('../config/constants');
 const { db: rawDb }        = require('../config/db');
 const db                   = require('../models');
-const { fetchFaviconForUrl }  = require('./faviconService');
+const { fetchFaviconForUrl, cacheFavicon } = require('./faviconService');
 const { broadcastDataUpdate } = require('./sseService');
 
 const SEED_LINK = {
@@ -173,17 +173,22 @@ function writeExampleFile(basename, contents) {
 /**
  * Creates the Examples group and its three cards. Anything that fails to write
  * is simply left out — a missing example is not worth failing a first run over.
+ *
+ * Returns the id of the URL-backed card, whose favicon the caller fetches once
+ * the transaction is committed. Saving a link through the API does that as a
+ * matter of course; seeding one straight into the model does not, so without
+ * it the card would sit there iconless.
  */
 function seedExamples() {
   const groupId = Number(db.createGroup(EXAMPLE_GROUP).lastInsertRowid);
   const inGroup = [{ group_id: groupId, section_id: null }];
 
-  db.createLink({
+  const urlLinkId = Number(db.createLink({
     name:        EXAMPLE_URL_LINK.name,
     url:         EXAMPLE_URL_LINK.url,
     description: EXAMPLE_URL_LINK.description,
     groupIds:    inGroup,
-  });
+  }).lastInsertRowid);
 
   const pdfPath = writeExampleFile(EXAMPLE_FILE.basename, buildExamplePdf(EXAMPLE_PDF_LINES));
   if (pdfPath) {
@@ -213,6 +218,7 @@ function seedExamples() {
   }
 
   console.log('[seed] Created the "Examples" group: a link, a document and a markdown page');
+  return urlLinkId;
 }
 
 /**
@@ -293,6 +299,7 @@ function seedFirstRunContent() {
   if (db.getAllLinks().length > 0) return;
 
   let linkId;
+  let exampleUrlLinkId = null;
 
   // The models layer owns SQL, but the insert and the hide have to land
   // together — a link left visible would show up on the public page, which is
@@ -306,7 +313,7 @@ function seedFirstRunContent() {
       groupIds:    [],
     }).lastInsertRowid);
     db.updateLinkVisibility(linkId, true);
-    seedExamples();
+    exampleUrlLinkId = seedExamples();
     rawDb.exec('COMMIT');
     console.log(`[seed] Created the hidden "${SEED_LINK.name}" link (admin-only)`);
   } catch (err) {
@@ -317,6 +324,13 @@ function seedFirstRunContent() {
   }
 
   attachSeedIcon(linkId);
+
+  // Fire-and-forget, exactly as saving a link through the API does: a slow or
+  // unreachable host must not hold up startup, and the SSE broadcast inside
+  // the favicon service puts the icon on open pages when it lands.
+  if (exampleUrlLinkId) {
+    cacheFavicon(exampleUrlLinkId, EXAMPLE_URL_LINK.url).catch(() => {});
+  }
 }
 
 module.exports = { seedFirstRunContent };
