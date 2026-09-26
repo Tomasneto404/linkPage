@@ -6,7 +6,7 @@ const db = require('../models');
 const {
   LOGO_VARIANTS, THEME_LIGHT_VARIANTS, THEME_DARK_VARIANTS,
   DEFAULT_THEMES, MOBILE_NAV_POSITIONS, HEX_COLOR_RE,
-  WALLPAPER_VARIANTS, DEFAULT_WALLPAPER_FOG,
+  WALLPAPER_VARIANTS, DEFAULT_WALLPAPER_FOG, DEFAULT_BAR_BLUR, MAX_BAR_BLUR,
 } = require('../config/constants');
 const {
   safeDeleteFile, safeDeleteFileUnlessLibrary, resolveIconReference,
@@ -53,6 +53,7 @@ function getSettings(req, res) {
     wallpaper_light:           db.readSetting('wallpaper_light') ?? null,
     wallpaper_dark:            db.readSetting('wallpaper_dark')  ?? null,
     wallpaper_fog:             readWallpaperFog(),
+    bar_blur:                  readBarBlur(),
   });
 }
 
@@ -86,6 +87,15 @@ function readWallpaperFog() {
 
   const raw = Number(stored);
   return Number.isFinite(raw) ? Math.min(100, Math.max(0, Math.round(raw))) : DEFAULT_WALLPAPER_FOG;
+}
+
+/** The stored bar blur, in pixels. Same emptiness trap as the fog above. */
+function readBarBlur() {
+  const stored = db.readSetting('bar_blur');
+  if (stored === null || stored === undefined || stored === '') return DEFAULT_BAR_BLUR;
+
+  const raw = Number(stored);
+  return Number.isFinite(raw) ? Math.min(MAX_BAR_BLUR, Math.max(0, Math.round(raw))) : DEFAULT_BAR_BLUR;
 }
 
 // ─── Wallpaper ──────────────────────────────────────────────────────────────
@@ -144,6 +154,25 @@ function setWallpaperFog(req, res) {
   else                                   db.writeSetting('wallpaper_fog', String(rounded));
 
   res.json({ wallpaper_fog: rounded });
+}
+
+/**
+ * How far the sticky bars blur what passes behind them. One number for the
+ * header, the group tab strip and the footer: they share a look, and tuning
+ * them apart reads as a mistake rather than a choice.
+ */
+function setBarBlur(req, res) {
+  const raw  = req.body?.blur;
+  const blur = typeof raw === 'number' ? raw : NaN;
+  if (!Number.isFinite(blur) || blur < 0 || blur > MAX_BAR_BLUR) {
+    return res.status(400).json({ error: `Blur must be a number between 0 and ${MAX_BAR_BLUR}` });
+  }
+
+  const rounded = Math.round(blur);
+  if (rounded === DEFAULT_BAR_BLUR) db.deleteSetting('bar_blur');
+  else                              db.writeSetting('bar_blur', String(rounded));
+
+  res.json({ bar_blur: rounded });
 }
 
 // ─── Logos ──────────────────────────────────────────────────────────────────
@@ -424,6 +453,7 @@ module.exports = {
   uploadWallpaperImage,
   deleteWallpaperImage,
   setWallpaperFog,
+  setBarBlur,
   getSettings,
   uploadLogo, deleteLogo,
   setBrandIcon, deleteBrandIcon,

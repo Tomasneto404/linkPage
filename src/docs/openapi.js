@@ -644,6 +644,20 @@ const paths = {
       },
     }),
   },
+  '/api/settings/bar-blur': {
+    post: op({
+      tag: TAGS.settings,
+      summary: 'Set how far the sticky bars blur what passes behind them',
+      description: 'One number in pixels, 0 to 40, for the header, the group tab strip and '
+                 + 'the footer together. They share a look, so tuning them apart reads as a '
+                 + 'mistake rather than a choice.',
+      body: jsonBody({ blur: { type: 'integer', minimum: 0, maximum: 40, default: 20 } }, ['blur']),
+      responses: {
+        200: json({ type: 'object', properties: { bar_blur: { type: 'integer' } } }),
+        400: json(ref('Error'), 'Not a number, or outside 0–40'),
+      },
+    }),
+  },
   '/api/settings/theme': {
     post: op({
       tag: TAGS.settings,

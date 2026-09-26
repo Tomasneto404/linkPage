@@ -445,6 +445,7 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/settings/wallpaper/:variant` | Admin | Upload the public page wallpaper (`light` or `dark`) |
 | DELETE | `/api/settings/wallpaper/:variant` | Admin | Remove a wallpaper |
 | POST | `/api/settings/wallpaper-fog` | Admin | How heavily the wallpaper is veiled and blurred (0–100) |
+| POST | `/api/settings/bar-blur` | Admin | Blur behind the header, tab strip and footer (0–40 px) |
 | POST | `/api/settings/request-password` | Admin | Set the password required to submit a request |
 | DELETE | `/api/settings/request-password` | Admin | Remove the request password |
 | POST | `/api/settings/save-favicons` | Admin | Toggle auto-save of fetched favicons into the icon library |

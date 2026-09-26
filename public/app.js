@@ -130,6 +130,9 @@ let wallpaperLightUrl = null;
 let wallpaperDarkUrl  = null;
 let wallpaperFog      = 60;
 
+/** How far the sticky bars blur what passes behind them, in pixels. */
+let barBlur = 20;
+
 const isDarkTheme = () =>
   (document.documentElement.getAttribute('data-theme') || 'light') === 'dark';
 
@@ -164,6 +167,12 @@ function applyBrandIcon(url) {
  */
 function getLogoForCurrentTheme() {
   return isDarkTheme() ? logoDarkUrl : logoLightUrl;
+}
+
+/** Applies the admin's bar blur to the header, the tab strip and the footer. */
+function applyBarBlur() {
+  const px = Math.min(40, Math.max(0, Number(barBlur) || 0));
+  document.documentElement.style.setProperty('--bar-blur', `${px}px`);
 }
 
 /**
@@ -1912,7 +1921,9 @@ async function init() {
   wallpaperLightUrl = settings.wallpaper_light || null;
   wallpaperDarkUrl  = settings.wallpaper_dark  || null;
   wallpaperFog      = Number.isFinite(settings.wallpaper_fog) ? settings.wallpaper_fog : 60;
+  barBlur           = Number.isFinite(settings.bar_blur) ? settings.bar_blur : 20;
   applyWallpaper();
+  applyBarBlur();
   siteFaviconUrl = settings.favicon || null;
   pinnedGroupId  = settings.pinned_group_id ?? null;
   applyFavicon(settings.favicon || null);

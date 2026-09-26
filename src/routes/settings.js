@@ -27,6 +27,7 @@ router.post  ('/api/settings/markdown-open-mode', requireAdminToken,            
 router.post  ('/api/settings/wallpaper/:variant', requireAdminToken, uploadWallpaper, c.uploadWallpaperImage);
 router.delete('/api/settings/wallpaper/:variant', requireAdminToken,                  c.deleteWallpaperImage);
 router.post  ('/api/settings/wallpaper-fog',      requireAdminToken,                  c.setWallpaperFog);
+router.post  ('/api/settings/bar-blur',           requireAdminToken,                  c.setBarBlur);
 router.post  ('/api/settings/site-title',      requireAdminToken,                           c.setSiteTitle);
 router.post  ('/api/settings/pinned-group',    requireAdminToken,                           c.setPinnedGroup);
 router.post  ('/api/settings/public-password', requireAdminToken,                           c.setPublicPassword);

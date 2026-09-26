@@ -171,6 +171,10 @@ const Settings = {
       type: 'integer', minimum: 0, maximum: 100,
       description: 'How heavily the wallpaper is veiled and blurred.',
     },
+    bar_blur:                 {
+      type: 'integer', minimum: 0, maximum: 40,
+      description: 'Blur behind the header, tab strip and footer, in pixels.',
+    },
   },
 };
 

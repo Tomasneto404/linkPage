@@ -77,6 +77,10 @@ const LOGO_VARIANTS = ['light', 'dark'];
 // The public page can carry a background image per theme, with a "fog" over it.
 const WALLPAPER_VARIANTS = ['light', 'dark'];
 const DEFAULT_WALLPAPER_FOG = 60;
+// How far the sticky bars blur what passes behind them, in pixels. 20 is what
+// the header and tab strip have always used.
+const DEFAULT_BAR_BLUR = 20;
+const MAX_BAR_BLUR = 40;
 
 const THEME_LIGHT_VARIANTS = ['default', 'snow', 'warm'];
 const THEME_DARK_VARIANTS  = ['default', 'midnight', 'slate'];
@@ -111,6 +115,8 @@ module.exports = {
   LOGO_VARIANTS,
   WALLPAPER_VARIANTS,
   DEFAULT_WALLPAPER_FOG,
+  DEFAULT_BAR_BLUR,
+  MAX_BAR_BLUR,
   THEME_LIGHT_VARIANTS,
   THEME_DARK_VARIANTS,
   DEFAULT_THEMES,

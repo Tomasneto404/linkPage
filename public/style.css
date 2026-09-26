@@ -27,9 +27,15 @@
   --radius-sm:    8px;
   --radius-lg:    18px;
   --transition:   0.18s cubic-bezier(0.4,0,0.2,1);
+  /* The three sticky bars — header, group tab strip, footer — share a
+     translucent background so a wallpaper carries through behind them, and a
+     blur that the admin can tune (see --bar-blur, set from the settings). */
+  --bar-bg:       rgba(255,255,255,0.82);
+  --bar-blur:     20px;
 }
 
 [data-theme="dark"] {
+  --bar-bg:       rgba(28,28,30,0.85);
   --bg:           #000000;
   --surface:      #1c1c1e;
   --surface-2:    #2c2c2e;
@@ -106,17 +112,15 @@ header {
   position: sticky;
   top: 0;
   height: var(--header-h);
-  background: rgba(255,255,255,0.82);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: var(--bar-bg);
+  backdrop-filter: saturate(180%) blur(var(--bar-blur));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--bar-blur));
   border-bottom: 1px solid var(--border);
   z-index: 50;
   transition: background var(--transition), border-color var(--transition);
 }
 
-[data-theme="dark"] header {
-  background: rgba(28,28,30,0.85);
-}
+
 
 /* Mobile bars: on phones both the search header and the group-tabs bar are
    truly fixed (not sticky) so they never drift on scroll / rubber-band. The
@@ -1149,9 +1153,10 @@ select option { background: var(--surface); }
   text-align: center;
   font-size: 0.8rem;
   color: var(--text-muted);
-  background: var(--surface, var(--bg));
+  background: var(--bar-bg);
   border-top: 1px solid var(--border);
-  backdrop-filter: saturate(180%) blur(10px);
+  backdrop-filter: saturate(180%) blur(var(--bar-blur));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--bar-blur));
 }
 /* Reserve space so page content never hides behind the fixed footer. */
 body { padding-bottom: 52px; }

@@ -13,14 +13,13 @@
       --tab-gap: 6px;
       position: sticky;
       top: var(--header-h);
-      background: rgba(255,255,255,0.82);
-      backdrop-filter: saturate(180%) blur(20px);
-      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      background: var(--bar-bg);
+      backdrop-filter: saturate(180%) blur(var(--bar-blur));
+      -webkit-backdrop-filter: saturate(180%) blur(var(--bar-blur));
       border-bottom: 1px solid var(--border);
       z-index: 40;
       transition: background var(--transition);
     }
-    [data-theme="dark"] .tabs-wrap { background: rgba(28,28,30,0.85); }
 
     .tabs {
       max-width: 1120px;

@@ -255,6 +255,7 @@ async function removeWallpaper(variant) {
   return sendAuthRequest(`/api/settings/wallpaper/${variant}`, { method: 'DELETE' });
 }
 async function saveWallpaperFog(fog) { return jsonPost('/api/settings/wallpaper-fog', { fog }); }
+async function saveBarBlur(blur)      { return jsonPost('/api/settings/bar-blur', { blur }); }
 
 async function uploadBrandIcon(file) {
   const fd = new FormData(); fd.append('icon', file);
@@ -481,6 +482,9 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   const fog = Number.isFinite(s.wallpaper_fog) ? s.wallpaper_fog : 60;
   document.getElementById('wallpaperFogRange').value = String(fog);
   document.getElementById('wallpaperFogValue').textContent = `${fog}%`;
+  const blur = Number.isFinite(s.bar_blur) ? s.bar_blur : 20;
+  document.getElementById('barBlurRange').value = String(blur);
+  document.getElementById('barBlurValue').textContent = `${blur}px`;
   updateRequestPasswordStatus(s.request_password_required);
   hydrateThemeControls(s);
   resetSettingsTabs();
@@ -550,6 +554,19 @@ fogRange.addEventListener('change', async () => {
     return;
   }
   showToast(`Fog set to ${res.wallpaper_fog}%`);
+});
+
+const blurRange = document.getElementById('barBlurRange');
+const blurValue = document.getElementById('barBlurValue');
+
+blurRange.addEventListener('input', () => { blurValue.textContent = `${blurRange.value}px`; });
+blurRange.addEventListener('change', async () => {
+  const res = await saveBarBlur(Number(blurRange.value)).catch(() => null);
+  if (!res || typeof res.bar_blur !== 'number') {
+    showToast('Could not save the bar blur', 'error');
+    return;
+  }
+  showToast(`Bar blur set to ${res.bar_blur}px`);
 });
 
 document.getElementById('uploadDarkLogoBtn').addEventListener('click', () =>
