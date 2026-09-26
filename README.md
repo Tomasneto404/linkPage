@@ -442,6 +442,9 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | DELETE | `/api/settings/public-password` | Admin | Remove public password |
 | POST | `/api/settings/requests-enabled` | Admin | Enable/disable the public "Request link" feature |
 | POST | `/api/settings/markdown-open-mode` | Admin | Whether a markdown link opens in a new tab or a popup |
+| POST | `/api/settings/wallpaper/:variant` | Admin | Upload the public page wallpaper (`light` or `dark`) |
+| DELETE | `/api/settings/wallpaper/:variant` | Admin | Remove a wallpaper |
+| POST | `/api/settings/wallpaper-fog` | Admin | How heavily the wallpaper is veiled and blurred (0–100) |
 | POST | `/api/settings/request-password` | Admin | Set the password required to submit a request |
 | DELETE | `/api/settings/request-password` | Admin | Remove the request password |
 | POST | `/api/settings/save-favicons` | Admin | Toggle auto-save of fetched favicons into the icon library |

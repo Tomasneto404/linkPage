@@ -165,6 +165,12 @@ const Settings = {
       type: 'string', enum: ['tab', 'modal'],
       description: 'Where a markdown link opens on the public page.',
     },
+    wallpaper_light:          { type: 'string', nullable: true },
+    wallpaper_dark:           { type: 'string', nullable: true },
+    wallpaper_fog:            {
+      type: 'integer', minimum: 0, maximum: 100,
+      description: 'How heavily the wallpaper is veiled and blurred.',
+    },
   },
 };
 

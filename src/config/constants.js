@@ -74,6 +74,9 @@ const PUBLIC_REQUEST_FILE_EXTENSIONS =
 // ─── Settings / theme ───────────────────────────────────────────────────────
 
 const LOGO_VARIANTS = ['light', 'dark'];
+// The public page can carry a background image per theme, with a "fog" over it.
+const WALLPAPER_VARIANTS = ['light', 'dark'];
+const DEFAULT_WALLPAPER_FOG = 60;
 
 const THEME_LIGHT_VARIANTS = ['default', 'snow', 'warm'];
 const THEME_DARK_VARIANTS  = ['default', 'midnight', 'slate'];
@@ -106,6 +109,8 @@ module.exports = {
   ACTIVE_CONTENT_MIME_TYPES,
   ALLOWED_FILE_MIME_TYPES,
   LOGO_VARIANTS,
+  WALLPAPER_VARIANTS,
+  DEFAULT_WALLPAPER_FOG,
   THEME_LIGHT_VARIANTS,
   THEME_DARK_VARIANTS,
   DEFAULT_THEMES,

@@ -6,6 +6,7 @@ const db = require('../models');
 const {
   LOGO_VARIANTS, THEME_LIGHT_VARIANTS, THEME_DARK_VARIANTS,
   DEFAULT_THEMES, MOBILE_NAV_POSITIONS, HEX_COLOR_RE,
+  WALLPAPER_VARIANTS, DEFAULT_WALLPAPER_FOG,
 } = require('../config/constants');
 const {
   safeDeleteFile, safeDeleteFileUnlessLibrary, resolveIconReference,
@@ -48,6 +49,10 @@ function getSettings(req, res) {
     // Where a markdown link opens: a new tab (default) or an overlay on the
     // page. The public page needs this to decide how to handle the click.
     markdown_open_mode:        db.readSetting('markdown_open_mode') === 'modal' ? 'modal' : 'tab',
+    // Background image per theme, and how heavily it is veiled and blurred.
+    wallpaper_light:           db.readSetting('wallpaper_light') ?? null,
+    wallpaper_dark:            db.readSetting('wallpaper_dark')  ?? null,
+    wallpaper_fog:             readWallpaperFog(),
   });
 }
 
@@ -66,6 +71,79 @@ function setMarkdownOpenMode(req, res) {
   else                  db.deleteSetting('markdown_open_mode');
 
   res.json({ markdown_open_mode: mode });
+}
+
+/**
+ * The stored fog, falling back to the default when unset or corrupt.
+ *
+ * The emptiness check has to come first: Number(null) is 0, which is a
+ * perfectly finite number, so an unset row would otherwise read as "no fog"
+ * rather than as "never set".
+ */
+function readWallpaperFog() {
+  const stored = db.readSetting('wallpaper_fog');
+  if (stored === null || stored === undefined || stored === '') return DEFAULT_WALLPAPER_FOG;
+
+  const raw = Number(stored);
+  return Number.isFinite(raw) ? Math.min(100, Math.max(0, Math.round(raw))) : DEFAULT_WALLPAPER_FOG;
+}
+
+// ─── Wallpaper ──────────────────────────────────────────────────────────────
+
+/**
+ * Sets the background image for one theme. A bright photograph behind a dark
+ * page rarely works, so each theme carries its own — exactly as the logos do.
+ */
+function uploadWallpaperImage(req, res) {
+  const { variant } = req.params;
+  if (!WALLPAPER_VARIANTS.includes(variant)) {
+    return res.status(400).json({ error: 'Variant must be "light" or "dark"' });
+  }
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image file was provided' });
+  }
+
+  const settingKey   = `wallpaper_${variant}`;
+  const existingPath = db.readSetting(settingKey);
+  if (existingPath) safeDeleteFile(existingPath);
+
+  const newPath = `/uploads/${req.file.filename}`;
+  db.writeSetting(settingKey, newPath);
+  res.json({ wallpaper_url: newPath });
+}
+
+function deleteWallpaperImage(req, res) {
+  const { variant } = req.params;
+  if (!WALLPAPER_VARIANTS.includes(variant)) {
+    return res.status(400).json({ error: 'Variant must be "light" or "dark"' });
+  }
+
+  const settingKey   = `wallpaper_${variant}`;
+  const existingPath = db.readSetting(settingKey);
+  if (existingPath) {
+    safeDeleteFile(existingPath);
+    db.deleteSetting(settingKey);
+  }
+  res.json({ wallpaper_url: null });
+}
+
+/**
+ * How heavily the wallpaper is veiled and softened, 0 to 100. One number
+ * drives both: the page decides what blur and what opacity that means, so the
+ * two can never be set to a combination that looks wrong.
+ */
+function setWallpaperFog(req, res) {
+  const raw = req.body?.fog;
+  const fog = typeof raw === 'number' ? raw : NaN;
+  if (!Number.isFinite(fog) || fog < 0 || fog > 100) {
+    return res.status(400).json({ error: 'Fog must be a number between 0 and 100' });
+  }
+
+  const rounded = Math.round(fog);
+  if (rounded === DEFAULT_WALLPAPER_FOG) db.deleteSetting('wallpaper_fog');
+  else                                   db.writeSetting('wallpaper_fog', String(rounded));
+
+  res.json({ wallpaper_fog: rounded });
 }
 
 // ─── Logos ──────────────────────────────────────────────────────────────────
@@ -343,6 +421,9 @@ function setTheme(req, res) {
 
 module.exports = {
   setMarkdownOpenMode,
+  uploadWallpaperImage,
+  deleteWallpaperImage,
+  setWallpaperFog,
   getSettings,
   uploadLogo, deleteLogo,
   setBrandIcon, deleteBrandIcon,

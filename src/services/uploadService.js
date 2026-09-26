@@ -95,6 +95,19 @@ const upload = multer({
 });
 
 /**
+ * Wallpapers are photographs, which are bigger than the icons and logos the
+ * 5 MB `upload` instance was sized for. Same image-only rule, more headroom.
+ */
+const uploadWallpaper = multer({
+  storage: uploadStorage,
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (req, file, done) => {
+    if (isAllowedImage(file)) return done(null, true);
+    done(uploadRejection('A wallpaper must be an image (jpg, png, gif, webp, svg)'));
+  },
+}).single('wallpaper');
+
+/**
  * Combined multer instance used by /api/links: accepts an optional `image`
  * (custom icon, image-only) and/or an optional `file` (attachment, broader
  * type whitelist, larger size cap).
@@ -236,6 +249,7 @@ function resolveIconReference({ imageFile, iconIdField }) {
 module.exports = {
   upload,
   uploadLinkPayload,
+  uploadWallpaper,
   uploadRequestPayload,
   PUBLIC_REQUEST_FILE_LIMIT,
   isAllowedImage,

@@ -607,6 +607,43 @@ const paths = {
       responses: { 200: json({ type: 'object' }) },
     }),
   },
+  '/api/settings/wallpaper/{variant}': {
+    post: op({
+      tag: TAGS.settings,
+      summary: 'Set the public page wallpaper',
+      description: 'One image per theme, up to 15 MB. Replacing one deletes the file it '
+                 + 'replaced. How heavily it is veiled sits in `/api/settings/wallpaper-fog`.',
+      params: [pathParam('variant', 'light or dark', 'string')],
+      body: formBody({ wallpaper: { type: 'string', format: 'binary' } }, ['wallpaper']),
+      responses: {
+        200: json({ type: 'object', properties: { wallpaper_url: { type: 'string' } } }),
+        400: json(ref('Error'), 'Bad variant, no file, or not an image'),
+      },
+    }),
+    delete: op({
+      tag: TAGS.settings,
+      summary: 'Remove the wallpaper for one theme',
+      params: [pathParam('variant', 'light or dark', 'string')],
+      responses: {
+        200: json({ type: 'object', properties: { wallpaper_url: { type: 'string', nullable: true } } }),
+        400: json(ref('Error'), 'Bad variant'),
+      },
+    }),
+  },
+  '/api/settings/wallpaper-fog': {
+    post: op({
+      tag: TAGS.settings,
+      summary: 'Set how heavily the wallpaper is fogged',
+      description: '0 leaves the photograph alone; 100 is all but the plain background. '
+                 + 'One number drives both the veil and the blur, so the two cannot be set '
+                 + 'to a combination that looks wrong.',
+      body: jsonBody({ fog: { type: 'integer', minimum: 0, maximum: 100, default: 60 } }, ['fog']),
+      responses: {
+        200: json({ type: 'object', properties: { wallpaper_fog: { type: 'integer' } } }),
+        400: json(ref('Error'), 'Not a number, or outside 0–100'),
+      },
+    }),
+  },
   '/api/settings/theme': {
     post: op({
       tag: TAGS.settings,

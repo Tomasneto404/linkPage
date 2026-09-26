@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Tomás Neto
 const express = require('express');
 const { requireAdminToken } = require('../middleware/auth');
-const { upload } = require('../services/uploadService');
+const { upload, uploadWallpaper } = require('../services/uploadService');
 const c = require('../controllers/settingsController');
 
 const router = express.Router();
@@ -24,6 +24,9 @@ router.post  ('/api/settings/footer-enabled',  requireAdminToken,               
 router.post  ('/api/settings/group-tab-color', requireAdminToken,                           c.setGroupTabColor);
 router.post  ('/api/settings/group-tabs-loop', requireAdminToken,                           c.setGroupTabsLoop);
 router.post  ('/api/settings/markdown-open-mode', requireAdminToken,                       c.setMarkdownOpenMode);
+router.post  ('/api/settings/wallpaper/:variant', requireAdminToken, uploadWallpaper, c.uploadWallpaperImage);
+router.delete('/api/settings/wallpaper/:variant', requireAdminToken,                  c.deleteWallpaperImage);
+router.post  ('/api/settings/wallpaper-fog',      requireAdminToken,                  c.setWallpaperFog);
 router.post  ('/api/settings/site-title',      requireAdminToken,                           c.setSiteTitle);
 router.post  ('/api/settings/pinned-group',    requireAdminToken,                           c.setPinnedGroup);
 router.post  ('/api/settings/public-password', requireAdminToken,                           c.setPublicPassword);

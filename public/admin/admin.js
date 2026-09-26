@@ -247,6 +247,15 @@ async function uploadLogo(variant, file) {
 }
 async function removeLogo(variant)     { return sendAuthRequest(`/api/settings/logo/${variant}`, { method: 'DELETE' }); }
 
+async function uploadWallpaper(variant, file) {
+  const fd = new FormData(); fd.append('wallpaper', file);
+  return apiJson(`/api/settings/wallpaper/${variant}`, { method: 'POST', body: fd });
+}
+async function removeWallpaper(variant) {
+  return sendAuthRequest(`/api/settings/wallpaper/${variant}`, { method: 'DELETE' });
+}
+async function saveWallpaperFog(fog) { return jsonPost('/api/settings/wallpaper-fog', { fog }); }
+
 async function uploadBrandIcon(file) {
   const fd = new FormData(); fd.append('icon', file);
   return apiJson('/api/settings/brand-icon', { method: 'POST', body: fd });
@@ -422,6 +431,13 @@ function updateSettingsPreview(variant, url) {
   else      { img.classList.add('hidden'); btn.classList.add('hidden'); }
 }
 
+function updateWallpaperPreview(variant, url) {
+  const img = document.getElementById(variant === 'light' ? 'lightWallpaperPreview' : 'darkWallpaperPreview');
+  const btn = document.getElementById(variant === 'light' ? 'removeLightWallpaperBtn' : 'removeDarkWallpaperBtn');
+  if (url) { img.src = url; img.classList.remove('hidden'); btn.classList.remove('hidden'); }
+  else      { img.classList.add('hidden'); btn.classList.add('hidden'); }
+}
+
 function updatePublicPasswordStatus(isSet) {
   document.getElementById('publicPasswordDesc').textContent =
     isSet ? 'Public page requires a password' : 'Public page is open to anyone';
@@ -460,6 +476,11 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   document.getElementById('groupTabsLoopToggle').checked = !!s.group_tabs_loop;
   document.getElementById('markdownOpenModeSelect').value =
     s.markdown_open_mode === 'modal' ? 'modal' : 'tab';
+  updateWallpaperPreview('light', s.wallpaper_light || null);
+  updateWallpaperPreview('dark',  s.wallpaper_dark  || null);
+  const fog = Number.isFinite(s.wallpaper_fog) ? s.wallpaper_fog : 60;
+  document.getElementById('wallpaperFogRange').value = String(fog);
+  document.getElementById('wallpaperFogValue').textContent = `${fog}%`;
   updateRequestPasswordStatus(s.request_password_required);
   hydrateThemeControls(s);
   resetSettingsTabs();
@@ -488,6 +509,47 @@ document.getElementById('removeLightLogoBtn').addEventListener('click', async ()
   await removeLogo('light'); logoLightUrl = null;
   updateHeaderLogo(); updateSettingsPreview('light', null); updateBrandRowState();
   showToast('Light logo removed');
+});
+
+// ─── Wallpaper ──────────────────────────────────────────────────────────────
+//
+// Same shape as the logos: one image per theme, uploaded and removed on its
+// own. The fog slider is saved when the drag ends rather than on every pixel,
+// so dragging it is one request and not a hundred.
+
+for (const variant of ['light', 'dark']) {
+  const Cap = variant === 'light' ? 'Light' : 'Dark';
+
+  document.getElementById(`upload${Cap}WallpaperBtn`).addEventListener('click', () =>
+    document.getElementById(`${variant}WallpaperInput`).click());
+
+  document.getElementById(`${variant}WallpaperInput`).addEventListener('change', async e => {
+    const file = e.target.files[0]; if (!file) return;
+    const r = await uploadWallpaper(variant, file).catch(() => null);
+    e.target.value = '';
+    if (!r?.wallpaper_url) { showToast('Could not upload that image', 'error'); return; }
+    updateWallpaperPreview(variant, r.wallpaper_url);
+    showToast(`${Cap} wallpaper updated`);
+  });
+
+  document.getElementById(`remove${Cap}WallpaperBtn`).addEventListener('click', async () => {
+    await removeWallpaper(variant);
+    updateWallpaperPreview(variant, null);
+    showToast(`${Cap} wallpaper removed`);
+  });
+}
+
+const fogRange = document.getElementById('wallpaperFogRange');
+const fogValue = document.getElementById('wallpaperFogValue');
+
+fogRange.addEventListener('input', () => { fogValue.textContent = `${fogRange.value}%`; });
+fogRange.addEventListener('change', async () => {
+  const res = await saveWallpaperFog(Number(fogRange.value)).catch(() => null);
+  if (!res || typeof res.wallpaper_fog !== 'number') {
+    showToast('Could not save the fog', 'error');
+    return;
+  }
+  showToast(`Fog set to ${res.wallpaper_fog}%`);
 });
 
 document.getElementById('uploadDarkLogoBtn').addEventListener('click', () =>

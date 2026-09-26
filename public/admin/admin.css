@@ -207,6 +207,17 @@
 }
 .form-hint.protected { color: var(--primary); }
 
+/* Fog slider in the settings panel */
+.fog-control { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.fog-control input[type="range"] { width: 150px; accent-color: var(--primary); cursor: pointer; }
+.fog-value {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 38px;
+  text-align: right;
+}
+
 /* ─── Markdown preview inside the file editor ────────────────────────────── */
 
 .file-editor-view-tabs {

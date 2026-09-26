@@ -92,8 +92,9 @@ function getInitialTheme() {
 
 function applyTheme(theme, save = true) {
   document.documentElement.setAttribute('data-theme', theme);
-  // Both the glyph and the lockup have a per-theme cut to swap to.
+  // The glyph, the lockup and the wallpaper all have a per-theme version.
   applyBrandIcon(brandIconUrl);
+  applyWallpaper();
   // A document showing in the overlay is a separate page with its own copy of
   // the palette, so it has to be told the theme changed.
   refreshMarkdownViewerTheme();
@@ -123,6 +124,11 @@ const DEFAULT_BRAND = {
 
 /** The admin's own header glyph, if they uploaded one. */
 let brandIconUrl = null;
+
+/** Background image per theme, and how heavily it is fogged (0–100). */
+let wallpaperLightUrl = null;
+let wallpaperDarkUrl  = null;
+let wallpaperFog      = 60;
 
 const isDarkTheme = () =>
   (document.documentElement.getAttribute('data-theme') || 'light') === 'dark';
@@ -158,6 +164,37 @@ function applyBrandIcon(url) {
  */
 function getLogoForCurrentTheme() {
   return isDarkTheme() ? logoDarkUrl : logoLightUrl;
+}
+
+/**
+ * Paints the wallpaper for the current theme, or takes it away.
+ *
+ * One number drives both effects. Fully clear leaves the photograph as it
+ * was; turning it up blurs it and lays a veil in the page colour over it, so
+ * text stays readable over a busy image. The ceilings are chosen so that 100
+ * is "all but the plain background" rather than literally it — a hint of the
+ * picture is what makes it still look deliberate.
+ */
+function applyWallpaper() {
+  const el = document.getElementById('wallpaper');
+  if (!el) return;
+
+  const url = isDarkTheme() ? wallpaperDarkUrl : wallpaperLightUrl;
+  if (!url) {
+    el.classList.remove('is-on');
+    el.style.removeProperty('--wallpaper-image');
+    document.body.classList.remove('has-wallpaper');
+    return;
+  }
+
+  const fog = Math.min(100, Math.max(0, Number(wallpaperFog) || 0)) / 100;
+
+  // encodeURI, and quoted, so a path can never break out of the url() token.
+  el.style.setProperty('--wallpaper-image', `url("${encodeURI(url)}")`);
+  el.style.setProperty('--wallpaper-blur', `${(fog * 18).toFixed(1)}px`);
+  el.style.setProperty('--wallpaper-veil', (fog * 0.94).toFixed(3));
+  el.classList.add('is-on');
+  document.body.classList.add('has-wallpaper');
 }
 
 function updateHeaderLogo() {
@@ -1872,6 +1909,10 @@ async function init() {
   applyBrandIcon(settings.brand_icon || null);
   logoLightUrl   = settings.logo_light || null;
   logoDarkUrl    = settings.logo_dark  || null;
+  wallpaperLightUrl = settings.wallpaper_light || null;
+  wallpaperDarkUrl  = settings.wallpaper_dark  || null;
+  wallpaperFog      = Number.isFinite(settings.wallpaper_fog) ? settings.wallpaper_fog : 60;
+  applyWallpaper();
   siteFaviconUrl = settings.favicon || null;
   pinnedGroupId  = settings.pinned_group_id ?? null;
   applyFavicon(settings.favicon || null);

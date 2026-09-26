@@ -398,6 +398,39 @@
     .req-file-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .req-file-name { font-size: 0.8125rem; color: var(--text-muted); }
 
+    /* ── Wallpaper ─────────────────────────────────────────────────────────
+       Fixed behind the page. The blur lives on this element rather than on
+       the body so nothing else is softened, and the slight scale-up hides the
+       transparent fringe a blur leaves at the edges. The veil is a child
+       layer painted in the page colour, so it darkens or lightens to suit the
+       theme without a second image. */
+    .wallpaper {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      display: none;
+      overflow: hidden;
+    }
+    .wallpaper.is-on { display: block; }
+    .wallpaper::before,
+    .wallpaper::after { content: ''; position: absolute; inset: 0; }
+    /* The photograph. Only this layer is blurred. */
+    .wallpaper::before {
+      background-image: var(--wallpaper-image, none);
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      filter: blur(var(--wallpaper-blur, 0px));
+      transform: scale(1.06);
+    }
+    /* The veil. */
+    .wallpaper::after {
+      background: var(--bg);
+      opacity: var(--wallpaper-veil, 0);
+    }
+    /* With a wallpaper up, the page itself must not paint over it. */
+    body.has-wallpaper { background: transparent; }
+
     /* Markdown viewer overlay */
     .md-viewer {
       display: flex;
@@ -478,6 +511,10 @@
 </style>
 </head>
 <body>
+<!-- Background wallpaper. Two layers: the photograph, which is blurred, and a
+     veil over it in the page colour. Both are driven by one "fog" setting, and
+     the whole thing is inert until an admin uploads an image. -->
+<div class="wallpaper" id="wallpaper" aria-hidden="true"></div>
 
 <!-- Public password gate — shown by app.js if a password is configured -->
 <div class="gate hidden" id="publicGate">

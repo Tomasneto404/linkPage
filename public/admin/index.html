@@ -727,6 +727,47 @@
 
           <div class="settings-row" style="margin-top:8px">
             <div>
+              <div class="settings-row-label">Light Mode Wallpaper</div>
+              <div class="settings-row-desc">Background photo behind the public page in light mode</div>
+            </div>
+            <div class="logo-control">
+              <img id="lightWallpaperPreview" class="logo-thumb hidden" alt="Light wallpaper" />
+              <input type="file" id="lightWallpaperInput"
+                     accept="image/jpeg,image/png,image/gif,image/webp" hidden />
+              <button class="btn btn-ghost btn-sm" id="uploadLightWallpaperBtn">Upload</button>
+              <button class="btn btn-ghost-danger btn-sm hidden" id="removeLightWallpaperBtn">Remove</button>
+            </div>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Dark Mode Wallpaper</div>
+              <div class="settings-row-desc">Background photo behind the public page in dark mode</div>
+            </div>
+            <div class="logo-control">
+              <img id="darkWallpaperPreview" class="logo-thumb hidden" alt="Dark wallpaper" />
+              <input type="file" id="darkWallpaperInput"
+                     accept="image/jpeg,image/png,image/gif,image/webp" hidden />
+              <button class="btn btn-ghost btn-sm" id="uploadDarkWallpaperBtn">Upload</button>
+              <button class="btn btn-ghost-danger btn-sm hidden" id="removeDarkWallpaperBtn">Remove</button>
+            </div>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
+              <div class="settings-row-label">Fog</div>
+              <div class="settings-row-desc">
+                How much the wallpaper is veiled and softened, so the cards stay readable over it.
+              </div>
+            </div>
+            <div class="fog-control">
+              <input type="range" id="wallpaperFogRange" min="0" max="100" step="1" value="60" />
+              <span class="fog-value" id="wallpaperFogValue">60%</span>
+            </div>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px">
+            <div>
               <div class="settings-row-label">Markdown Documents Open In</div>
               <div class="settings-row-desc">
                 A <code>.md</code> attachment is rendered as a page. Choose whether clicking it
