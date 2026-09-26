@@ -127,9 +127,21 @@ function tableCells(line) {
 }
 
 /**
+ * True when a line opens a block of its own, and so ends any list above it.
+ * Anything else that is not blank and not a list item is a wrapped
+ * continuation of the item before it.
+ */
+function startsBlock(line) {
+  return HEADING_RE.test(line) || RULE_RE.test(line)
+      || FENCE_RE.test(line)   || QUOTE_RE.test(line);
+}
+
+/**
  * Renders a list starting at `start`. Items indented further than the first
- * one open a nested list, which recurses. Returns the HTML and the index of
- * the first line that was not part of the list.
+ * one open a nested list, which recurses. A plain line under an item is a
+ * wrapped continuation of it — editors and humans both break long items over
+ * several lines, and markdown folds them back together. Returns the HTML and
+ * the index of the first line that was not part of the list.
  */
 function renderList(lines, start) {
   const first = lines[start].match(LIST_RE);
@@ -140,7 +152,17 @@ function renderList(lines, start) {
   let i = start;
   while (i < lines.length) {
     const match = lines[i].match(LIST_RE);
-    if (!match) break;
+    if (!match) {
+      // Not an item: either the item above continues onto this line, or the
+      // list is over.
+      const line = lines[i];
+      if (items.length && line.trim() && !startsBlock(line)) {
+        items[items.length - 1] += ` ${renderInline(line.trim())}`;
+        i++;
+        continue;
+      }
+      break;
+    }
 
     const indent = match[1].length;
     if (indent < baseIndent) break;

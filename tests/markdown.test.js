@@ -37,6 +37,33 @@ describe('block constructs', () => {
     assert.match(ol, /<ol>\s*<li>first<\/li>\s*<li>second<\/li>\s*<\/ol>/);
   });
 
+  test('a wrapped list item stays one item', () => {
+    // Lazy continuation: a plain line under an item belongs to that item, not
+    // to a paragraph of its own after the list.
+    const html = renderMarkdown('- first line\n  continues here\n- second');
+    assert.match(html, /<li>first line continues here<\/li>/);
+    assert.match(html, /<li>second<\/li>/);
+    assert.doesNotMatch(html, /<p>continues here<\/p>/, 'it does not escape the list');
+  });
+
+  test('a continuation line needs no indentation', () => {
+    const html = renderMarkdown('- wrapped by the editor\nwith no indent at all\n- next');
+    assert.match(html, /<li>wrapped by the editor with no indent at all<\/li>/);
+  });
+
+  test('a block after a list still ends it', () => {
+    for (const [after, pattern] of [
+      ['## Heading',      /<h2>Heading<\/h2>/],
+      ['> quoted',        /<blockquote>/],
+      ['---',             /<hr \/>/],
+      ['```\ncode\n```', /<pre><code>/],
+    ]) {
+      const html = renderMarkdown(`- item\n${after}`);
+      assert.match(html, pattern, `${after} should close the list`);
+      assert.match(html, /<li>item<\/li>/, `${after} should not be swallowed into the item`);
+    }
+  });
+
   test('a nested list', () => {
     const html = renderMarkdown('- outer\n  - inner');
     assert.match(html, /<li>outer<ul>\s*<li>inner<\/li>\s*<\/ul><\/li>/);
