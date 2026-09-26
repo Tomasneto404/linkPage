@@ -6,7 +6,7 @@ const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
 const harness = require('./helpers/harness');
-const { fileForm, svgBytes } = harness;
+const { fileForm, pngBytes } = harness;
 
 let c, group;
 
@@ -94,7 +94,9 @@ describe('submission validation', () => {
   });
 
   test('an uploaded icon is stored and registered in the library', async () => {
-    const form = fileForm('image', { name: 'req.svg', type: 'image/svg+xml', bytes: svgBytes('#e0115f') }, {
+    // A raster icon: visitors may not upload SVG, which is a document that can
+    // script (see "active content cannot be uploaded by a visitor").
+    const form = fileForm('image', { name: 'req.png', type: 'image/png', bytes: pngBytes() }, {
       name: 'With icon', url: 'https://reqicon.invalid/a', group_id: String(group.id),
     });
     const res = await c.pub('/api/link-requests', { method: 'POST', form, headers: { 'X-Forwarded-For': nextIp() } });

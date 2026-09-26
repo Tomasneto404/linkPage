@@ -203,11 +203,12 @@ function fixtures(api) {
    * Creates a URL-backed link. `groups` accepts group ids or
    * { group_id, section_id } objects, matching parseGroupAssignments.
    */
-  async function makeLink({ name = 'Test link', url, groups = [], description } = {}) {
+  async function makeLink({ name = 'Test link', url, groups = [], description, slug } = {}) {
     const form = new FormData();
     form.append('name', name);
     form.append('url', url || `https://${Math.random().toString(36).slice(2, 8)}.invalid/page`);
     if (description) form.append('description', description);
+    if (slug) form.append('slug', slug);
     // `groups` (not the legacy `group_ids`) is the shape that carries sections.
     if (groups.length) form.append('groups', JSON.stringify(normaliseGroups(groups)));
     const { status, body } = await api('/api/links', { method: 'POST', form });
@@ -216,8 +217,9 @@ function fixtures(api) {
   }
 
   /** Creates a file-backed link from in-memory bytes. */
-  async function makeFileLink({ name = 'Doc', fileName = 'demo.html', type = 'text/html', bytes = Buffer.from('<h1>hi</h1>\n'), groups = [] } = {}) {
+  async function makeFileLink({ name = 'Doc', fileName = 'demo.html', type = 'text/html', bytes = Buffer.from('<h1>hi</h1>\n'), groups = [], slug } = {}) {
     const fields = { name };
+    if (slug) fields.slug = slug;
     if (groups.length) fields.groups = JSON.stringify(normaliseGroups(groups));
     const form = fileForm('file', { name: fileName, type, bytes }, fields);
     const { status, body } = await api('/api/links', { method: 'POST', form });

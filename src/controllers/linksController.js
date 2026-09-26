@@ -5,14 +5,15 @@
 const path = require('path');
 const fs   = require('fs');
 
-const { UPLOADS_DIR } = require('../config/env');
 const { EDITABLE_FILE_EXTENSIONS, FILE_EDIT_MAX_BYTES } = require('../config/constants');
 const db = require('../models');
 const { isValidHttpUrl } = require('../utils/http');
+const { normalizeSlug, isReservedSlug } = require('../utils/slug');
 const { parseGroupAssignments } = require('../utils/parsers');
 const { getUnlockedGroupIds } = require('../utils/groupCrypto');
 const { isValidAdminToken } = require('../middleware/auth');
-const { resolveIconReference, safeDeleteFile, safeDeleteFileUnlessLibrary } = require('../services/uploadService');
+const { resolveIconReference, safeDeleteFile, safeDeleteFileUnlessLibrary,
+        resolveStoredFilePath } = require('../services/uploadService');
 const { cacheFavicon } = require('../services/faviconService');
 const { ensureGroupByName, ensureSectionByName, filterVisibleLinks } = require('../services/linkService');
 
@@ -61,7 +62,8 @@ function exportLinks(req, res) {
     links: links.map(l => ({
       name:         l.name,
       url:          l.url,
-      description:  l.description || null,
+      slug:         l.slug         || null,
+      description:  l.description  || null,
       position:     l.position,
       is_hidden:    !!l.is_hidden,
       image_path:   l.image_path   || null,
@@ -210,6 +212,11 @@ function importLinks(req, res) {
     }
 
     // ─── 4. Create the link ──────────────────────────────────────────────
+    // An imported slug is dropped rather than fought over: if it is malformed,
+    // reserved, or already taken here, the link still imports — just without a
+    // custom URL — instead of failing the whole row.
+    const importedSlug = resolveSlugField(item.slug).slug ?? null;
+
     const result = db.createLink({
       name:        item.name.trim(),
       url:         isFileBacked ? item.file_path : trimmedUrl,
@@ -218,6 +225,7 @@ function importLinks(req, res) {
       groupIds:    assignments,
       filePath:    isFileBacked ? item.file_path : null,
       fileName:    isFileBacked ? (item.file_name || null) : null,
+      slug:        importedSlug,
     });
     const newId = result.lastInsertRowid;
 
@@ -255,6 +263,49 @@ function reorder(req, res) {
 
 // ─── Create / update ────────────────────────────────────────────────────────
 
+/**
+ * Validates the optional `slug` field of a link payload.
+ *
+ * Tri-state by design, so PUT can tell three intents apart:
+ *   field absent  → { slug: undefined }  leave whatever is stored alone
+ *   field empty   → { slug: null }       clear it (back to /r/<id> only)
+ *   field set     → { slug: '<clean>' }  normalised, checked for collisions
+ *
+ * Returns { error } instead when the slug can't be used. `excludeId` lets a
+ * link keep its own slug across an edit without colliding with itself.
+ */
+function resolveSlugField(raw, excludeId = null) {
+  if (raw === undefined || raw === null) return { slug: undefined };
+
+  const typed = String(raw).trim();
+  if (!typed) return { slug: null };
+
+  const slug = normalizeSlug(typed);
+  if (!slug) {
+    return { error: 'Custom URL must contain at least one letter or number' };
+  }
+  if (isReservedSlug(slug)) {
+    return { error: `Custom URL "${slug}" is reserved — pick another one` };
+  }
+  const taken = db.findLinkBySlug(slug, excludeId);
+  if (taken) {
+    return { error: `Custom URL "${slug}" is already in use by "${taken.name}"` };
+  }
+  return { slug };
+}
+
+/**
+ * Removes files multer already wrote to disk when the request is about to be
+ * rejected. Without this a bounced save (a taken slug, a missing name) would
+ * leave an orphan upload behind — up to 100 MB of it.
+ */
+function discardUploads(req) {
+  for (const file of [...(req.files?.image || []), ...(req.files?.file || [])]) {
+    safeDeleteFile(`/uploads/${file.filename}`);
+  }
+}
+
+
 async function create(req, res) {
   const { name, url, description, icon_id } = req.body;
 
@@ -264,14 +315,23 @@ async function create(req, res) {
   const trimmedUrl = typeof url === 'string' ? url.trim() : '';
 
   if (!name?.trim()) {
+    discardUploads(req);
     return res.status(400).json({ error: 'Name is required' });
   }
   // Either a URL or a file is required — never both required, never neither.
   if (!trimmedUrl && !attached) {
+    discardUploads(req);
     return res.status(400).json({ error: 'Provide a URL or upload a file' });
   }
   if (trimmedUrl && !isValidHttpUrl(trimmedUrl)) {
+    discardUploads(req);
     return res.status(400).json({ error: 'URL must start with http:// or https://' });
+  }
+
+  const slugResult = resolveSlugField(req.body.slug);
+  if (slugResult.error) {
+    discardUploads(req);
+    return res.status(400).json({ error: slugResult.error });
   }
 
   const imagePath   = resolveIconReference({ imageFile, iconIdField: icon_id });
@@ -291,6 +351,7 @@ async function create(req, res) {
     groupIds:    assignments,
     filePath,
     fileName,
+    slug:        slugResult.slug ?? null,
   });
 
   const linkId = result.lastInsertRowid;
@@ -317,7 +378,16 @@ async function update(req, res) {
   const shouldRemoveFile  = remove_file  === 'true';
 
   if (!name?.trim()) {
+    discardUploads(req);
     return res.status(400).json({ error: 'Name is required' });
+  }
+
+  // Validated before anything is written, so a rejected slug leaves the link
+  // exactly as it was.
+  const slugResult = resolveSlugField(req.body.slug, Number.parseInt(req.params.id, 10));
+  if (slugResult.error) {
+    discardUploads(req);
+    return res.status(400).json({ error: slugResult.error });
   }
 
   // After this update the link must still have either a URL or a file attached.
@@ -325,9 +395,11 @@ async function update(req, res) {
   if (!willHaveFile) {
     // URL-only path: validate normally.
     if (!trimmedUrl) {
+      discardUploads(req);
       return res.status(400).json({ error: 'Provide a URL or upload a file' });
     }
     if (!isValidHttpUrl(trimmedUrl)) {
+      discardUploads(req);
       return res.status(400).json({ error: 'URL must start with http:// or https://' });
     }
   }
@@ -362,6 +434,7 @@ async function update(req, res) {
     filePath:    newFilePath ?? undefined,
     fileName:    attached?.originalname ?? undefined,
     clearFile:   shouldRemoveFile && !newFilePath,
+    slug:        slugResult.slug,
   });
 
   // Re-cache favicon only if we're now URL-backed and the URL changed.
@@ -410,16 +483,11 @@ function isEditableFile(filename) {
 }
 
 /**
- * Resolves the on-disk path for a link's attached file, defensively scoped
- * to UPLOADS_DIR so a tampered file_path can't escape (path-traversal guard).
+ * Resolves the on-disk path for a link's attached file, traversal-guarded.
  * Returns null when the link is missing, file-less, or wandering outside.
  */
 function resolveLinkFilePath(link) {
-  if (!link || !link.file_path) return null;
-  const filename = path.basename(link.file_path);
-  const fullPath = path.join(UPLOADS_DIR, filename);
-  if (path.relative(UPLOADS_DIR, fullPath).startsWith('..')) return null;
-  return fullPath;
+  return resolveStoredFilePath(link?.file_path);
 }
 
 function getFile(req, res) {

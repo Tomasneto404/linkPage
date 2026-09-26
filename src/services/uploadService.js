@@ -14,6 +14,8 @@ const { UPLOADS_DIR } = require('../config/env');
 const {
   ALLOWED_IMAGE_EXTENSIONS, ALLOWED_IMAGE_MIME_TYPES,
   ALLOWED_FILE_EXTENSIONS,  ALLOWED_FILE_MIME_TYPES,
+  PUBLIC_REQUEST_FILE_EXTENSIONS,
+  ACTIVE_CONTENT_EXTENSIONS, ACTIVE_CONTENT_MIME_TYPES,
 } = require('../config/constants');
 const db = require('../models');
 
@@ -27,6 +29,46 @@ function isAllowedImage(file) {
 function isAllowedAttachment(file) {
   const ext = path.extname(file.originalname).toLowerCase();
   return ALLOWED_FILE_EXTENSIONS.includes(ext) && ALLOWED_FILE_MIME_TYPES.has(file.mimetype);
+}
+
+/**
+ * The attachment rule for public link requests, which is stricter than the
+ * admin's: nothing that a browser executes when the URL is opened.
+ *
+ * Uploads are served inline from the same origin as the admin panel, and the
+ * admin's token sits in that origin's localStorage — so a stored .html or .svg
+ * submitted by a stranger would run with the reviewer's privileges the moment
+ * they clicked it to see what had been sent. Extension and declared type are
+ * both checked: express.static picks the Content-Type off the extension, while
+ * the browser's declared type is what multer sees.
+ */
+function isAllowedPublicAttachment(file) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (ACTIVE_CONTENT_EXTENSIONS.has(ext))            return false;
+  if (ACTIVE_CONTENT_MIME_TYPES.has(file.mimetype))  return false;
+  return PUBLIC_REQUEST_FILE_EXTENSIONS.includes(ext) && ALLOWED_FILE_MIME_TYPES.has(file.mimetype);
+}
+
+/**
+ * Same reasoning for the icon a public request may carry: an SVG is a document
+ * that can script, so visitors get raster images only. Admins keep SVG icons.
+ */
+function isAllowedPublicImage(file) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (ACTIVE_CONTENT_EXTENSIONS.has(ext))           return false;
+  if (ACTIVE_CONTENT_MIME_TYPES.has(file.mimetype)) return false;
+  return isAllowedImage(file);
+}
+
+/**
+ * A rejection from a multer fileFilter. Carries its own status so the error
+ * handler doesn't have to recognise the wording — the message is for the user,
+ * not for routing.
+ */
+function uploadRejection(message) {
+  const error = new Error(message);
+  error.status = 400;
+  return error;
 }
 
 // ─── Multer instances ─────────────────────────────────────────────────────────
@@ -47,7 +89,7 @@ const upload = multer({
     if (isAllowedImage(file)) {
       done(null, true);
     } else {
-      done(new Error('Only image files are allowed (jpg, png, gif, webp, svg)'));
+      done(uploadRejection('Only image files are allowed (jpg, png, gif, webp, svg)'));
     }
   },
 });
@@ -64,19 +106,66 @@ const uploadLinkPayload = multer({
     if (file.fieldname === 'image') {
       return isAllowedImage(file)
         ? done(null, true)
-        : done(new Error('Custom icon must be an image (jpg, png, gif, webp, svg)'));
+        : done(uploadRejection('Custom icon must be an image (jpg, png, gif, webp, svg)'));
     }
     if (file.fieldname === 'file') {
       return isAllowedAttachment(file)
         ? done(null, true)
-        : done(new Error('File type not allowed'));
+        : done(uploadRejection('File type not allowed'));
     }
-    done(new Error(`Unexpected field "${file.fieldname}"`));
+    done(uploadRejection(`Unexpected field "${file.fieldname}"`));
   },
 }).fields([
   { name: 'image', maxCount: 1 },
   { name: 'file',  maxCount: 1 },
 ]);
+
+/**
+ * Public request submissions: an optional `image` (the icon they picked) and an
+ * optional `file` (the document they want published).
+ *
+ * Deliberately capped well below the admin's 100 MB: this is the only route
+ * that lets an unauthenticated visitor write bytes to the uploads directory,
+ * so it accepts the same file types but a quarter of the size.
+ */
+const PUBLIC_REQUEST_FILE_LIMIT = 25 * 1024 * 1024;
+
+const uploadRequestPayload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: PUBLIC_REQUEST_FILE_LIMIT },
+  fileFilter: (req, file, done) => {
+    if (file.fieldname === 'image') {
+      return isAllowedPublicImage(file)
+        ? done(null, true)
+        : done(uploadRejection('Icon must be a jpg, png, gif or webp image'));
+    }
+    if (file.fieldname === 'file') {
+      return isAllowedPublicAttachment(file)
+        ? done(null, true)
+        : done(uploadRejection('File type not allowed'));
+    }
+    done(uploadRejection(`Unexpected field "${file.fieldname}"`));
+  },
+}).fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'file',  maxCount: 1 },
+]);
+
+// ─── Stored-path resolution ───────────────────────────────────────────────────
+
+/**
+ * Resolves a stored `/uploads/...` path to its absolute on-disk location,
+ * defensively scoped to UPLOADS_DIR so a tampered path can't escape
+ * (path-traversal guard). Returns null when there is nothing to resolve or the
+ * result would land outside the uploads directory.
+ */
+function resolveStoredFilePath(storedPath) {
+  if (!storedPath) return null;
+  const filename = path.basename(storedPath);
+  const fullPath = path.join(UPLOADS_DIR, filename);
+  if (path.relative(UPLOADS_DIR, fullPath).startsWith('..')) return null;
+  return fullPath;
+}
 
 // ─── Safe file deletion ─────────────────────────────────────────────────────
 
@@ -147,9 +236,15 @@ function resolveIconReference({ imageFile, iconIdField }) {
 module.exports = {
   upload,
   uploadLinkPayload,
+  uploadRequestPayload,
+  PUBLIC_REQUEST_FILE_LIMIT,
   isAllowedImage,
   isAllowedAttachment,
+  uploadRejection,
+  isAllowedPublicAttachment,
+  isAllowedPublicImage,
   safeDeleteFile,
   safeDeleteFileUnlessLibrary,
+  resolveStoredFilePath,
   resolveIconReference,
 };

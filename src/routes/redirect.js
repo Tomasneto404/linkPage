@@ -12,4 +12,8 @@ router.get('/admin', c.adminPage);
 // Click-tracking redirect.
 router.get('/r/:id', clickRateLimit, c.redirect);
 
+// Same thing under a link's custom slug. File-backed links are served here
+// rather than redirected, so the pretty URL survives in the address bar.
+router.get('/f/:slug', clickRateLimit, c.serveBySlug);
+
 module.exports = router;

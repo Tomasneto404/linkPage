@@ -4,19 +4,36 @@
 
 const { db } = require('../config/db');
 
-/** Inserts a new pending link request. Returns the run result. */
-function createLinkRequest({ name, url, description, imagePath, groupId, sectionId, ipAddress }) {
+/**
+ * Inserts a new pending request. Returns the run result.
+ *
+ * `kind` decides which of the optional columns carry meaning:
+ *   'link'   — url is the proposed target (the original behaviour)
+ *   'file'   — filePath/fileName hold the visitor's upload; url is ''
+ *   'change' — targetLinkId names the link to change and name/url/description
+ *              are the proposed values, with `note` explaining why
+ */
+function createLinkRequest({ kind = 'link', name, url, description, imagePath,
+                             groupId, sectionId, ipAddress,
+                             filePath, fileName, targetLinkId, note }) {
   return db.prepare(`
-    INSERT INTO link_requests (name, url, description, image_path, group_id, section_id, ip_address)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO link_requests
+      (kind, name, url, description, image_path, group_id, section_id, ip_address,
+       file_path, file_name, target_link_id, note)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
+    kind,
     name,
-    url,
+    url ?? '',
     description ?? null,
     imagePath ?? null,
     Number.isFinite(groupId) ? groupId : null,
     Number.isFinite(sectionId) ? sectionId : null,
     ipAddress ?? null,
+    filePath ?? null,
+    fileName ?? null,
+    Number.isFinite(targetLinkId) ? targetLinkId : null,
+    note ?? null,
   );
 }
 
@@ -36,11 +53,16 @@ function getLinkRequests({ status } = {}) {
            g.color AS group_color,
            s.name  AS section_name,
            s.parent_section_id AS parent_section_id,
-           p.name  AS parent_section_name
+           p.name  AS parent_section_name,
+           t.name        AS target_name,
+           t.url         AS target_url,
+           t.description AS target_description,
+           t.file_name   AS target_file_name
     FROM link_requests r
     LEFT JOIN groups   g ON g.id = r.group_id
     LEFT JOIN sections s ON s.id = r.section_id
     LEFT JOIN sections p ON p.id = s.parent_section_id
+    LEFT JOIN links    t ON t.id = r.target_link_id
     ${clause}
     ORDER BY r.id DESC
   `).all(...params);

@@ -992,6 +992,9 @@ select option { background: var(--surface); }
 
 /* ── Utility ─────────────────────────────── */
 .hidden { display: none !important; }
+/* The hidden attribute has to beat the display rules our own components set
+   (.req-upload-label is inline-flex, which would otherwise win on specificity). */
+[hidden] { display: none !important; }
 
 /* ── Gate (public password + admin token) ── */
 .gate {

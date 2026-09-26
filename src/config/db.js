@@ -34,7 +34,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 10;
+const CURRENT_SCHEMA_VERSION = 12;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -255,6 +255,42 @@ const MIGRATIONS = [
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
+    },
+  },
+  {
+    version: 11,
+    name:    'Custom link slugs',
+    apply: () => {
+      // Optional human-readable id used by /f/<slug>. Nullable: a link without
+      // a slug keeps working at /r/<id> exactly as before, so this migration
+      // changes nothing for existing rows.
+      addColumnIfMissing('links', 'slug', 'TEXT');
+      // Partial index: uniqueness applies only to links that actually have a
+      // slug, so any number of rows may leave it NULL.
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_links_slug
+        ON links(slug) WHERE slug IS NOT NULL
+      `);
+    },
+  },
+  {
+    version: 12,
+    name:    'File and change link requests',
+    apply: () => {
+      // A request used to be one thing: "please publish this URL". It now also
+      // covers "here is a file, please publish it" and "please change this
+      // existing link", told apart by `kind`. Existing rows are plain link
+      // requests, which is what the default gives them.
+      addColumnIfMissing('link_requests', 'kind', "TEXT NOT NULL DEFAULT 'link'");
+      // kind='file': the visitor's upload. The `url` column stays NOT NULL and
+      // holds '' for these, exactly as a file-backed link's url does.
+      addColumnIfMissing('link_requests', 'file_path', 'TEXT');
+      addColumnIfMissing('link_requests', 'file_name', 'TEXT');
+      // kind='change': which link is being changed, and why. The name/url/
+      // description columns carry the *proposed* values.
+      addColumnIfMissing('link_requests', 'target_link_id', 'INTEGER');
+      addColumnIfMissing('link_requests', 'note', 'TEXT');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_link_requests_kind ON link_requests(kind)');
     },
   },
 ];

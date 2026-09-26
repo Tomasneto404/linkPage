@@ -207,6 +207,98 @@
 }
 .form-hint.protected { color: var(--primary); }
 
+/* ─── Markdown preview inside the file editor ────────────────────────────── */
+
+.file-editor-view-tabs {
+  display: inline-flex;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+  margin-right: 8px;
+}
+.file-editor-view-tab {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 3px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.file-editor-view-tab.active { background: var(--surface); color: var(--text); font-weight: 600; }
+
+/* The rendered document, styled to match the standalone page readers get. */
+.file-editor-preview {
+  flex: 1;
+  overflow-y: auto;
+  padding: 26px 30px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.file-editor-preview > :first-child { margin-top: 0; }
+.file-editor-preview h1,
+.file-editor-preview h2,
+.file-editor-preview h3 { line-height: 1.25; margin: 1.6em 0 0.5em; font-weight: 650; }
+.file-editor-preview h1 { font-size: 1.6rem; }
+.file-editor-preview h2 { font-size: 1.3rem; }
+.file-editor-preview h3 { font-size: 1.1rem; }
+.file-editor-preview h1,
+.file-editor-preview h2 { padding-bottom: 0.28em; border-bottom: 1px solid var(--border); }
+.file-editor-preview p,
+.file-editor-preview ul,
+.file-editor-preview ol,
+.file-editor-preview blockquote,
+.file-editor-preview table,
+.file-editor-preview pre { margin: 0 0 1em; }
+.file-editor-preview a { color: var(--primary); }
+.file-editor-preview ul, .file-editor-preview ol { padding-left: 1.6em; }
+.file-editor-preview blockquote {
+  margin-left: 0;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+}
+.file-editor-preview code {
+  background: var(--surface-3);
+  padding: 0.15em 0.4em;
+  border-radius: 5px;
+  font: 0.875em ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.file-editor-preview pre {
+  background: var(--surface-3);
+  padding: 13px 15px;
+  border-radius: 9px;
+  overflow-x: auto;
+}
+.file-editor-preview pre code { background: none; padding: 0; font-size: 0.8125rem; }
+.file-editor-preview hr { border: 0; border-top: 1px solid var(--border); margin: 1.8em 0; }
+.file-editor-preview img { max-width: 100%; height: auto; border-radius: 8px; }
+.file-editor-preview table { border-collapse: collapse; width: 100%; font-size: 0.9375rem; }
+.file-editor-preview th,
+.file-editor-preview td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+.file-editor-preview th { background: var(--surface-3); font-weight: 600; }
+.file-editor-preview-error { color: var(--text-muted); }
+
+/* ─── Custom slug row inside the link modal ──────────────────────────────── */
+
+.slug-input-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.slug-input-wrap input { flex: 1; }
+.slug-prefix {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  flex-shrink: 0;
+}
+/* The slug preview reads as an address, so show it monospaced. */
+#inputSlug { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
 /* ─── Link/File mode tabs inside the link modal ──────────────────────────── */
 
 .link-mode-tabs {
@@ -3200,6 +3292,56 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 }
 .request-row-group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .request-row-desc { margin-top: 5px; font-size: 0.8rem; color: var(--text-dim); }
+
+/* ─── File and change requests ───────────────────────────────────────────── */
+
+/* Badge in front of the name, naming what kind of request this row is. */
+.request-kind {
+  display: inline-block;
+  margin-right: 7px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.request-kind-file   { background: rgba(0, 113, 227, 0.14); color: #0071e3; }
+.request-kind-change { background: rgba(255, 149, 0, 0.16); color: #b26b00; }
+[data-theme="dark"] .request-kind-change { color: #ffb340; }
+
+/* One line per field the visitor wants changed. */
+.request-diff {
+  margin-top: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.request-diff-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+}
+.request-diff-label {
+  min-width: 74px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.request-diff-before {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  word-break: break-all;
+}
+.request-diff-arrow { color: var(--text-muted); }
+.request-diff-after { color: var(--text); font-weight: 600; word-break: break-all; }
+.request-diff-file  { text-decoration: none; }
+.request-diff-file:hover { text-decoration: underline; }
+.request-diff-gone  { font-size: 0.8rem; color: var(--danger, #d7263d); }
 .request-row-ip {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.7rem; padding: 1px 6px; border-radius: 5px;

@@ -50,6 +50,27 @@ const ALLOWED_FILE_MIME_TYPES = new Set([
   'application/octet-stream',
 ]);
 
+// Types that a browser runs as a document when the URL is opened directly:
+// SVG and (X)HTML can carry <script>, XML can pull in an XSLT that does, and
+// JSON renders as a document in older browsers. Uploads are served from the
+// same origin as the admin panel, whose token lives in localStorage — so an
+// unauthenticated submitter must never be able to put one of these on disk.
+// Admins keep the full list: they already hold the token these would steal.
+const ACTIVE_CONTENT_EXTENSIONS = new Set([
+  '.svg', '.htm', '.html', '.xml', '.json',
+]);
+const ACTIVE_CONTENT_MIME_TYPES = new Set([
+  'image/svg+xml',
+  'text/html', 'application/xhtml+xml',
+  'text/xml', 'application/xml',
+  'application/json', 'text/json',
+]);
+
+// What a public link request may attach: the admin list minus anything that
+// executes when opened.
+const PUBLIC_REQUEST_FILE_EXTENSIONS =
+  ALLOWED_FILE_EXTENSIONS.filter(ext => !ACTIVE_CONTENT_EXTENSIONS.has(ext));
+
 // ─── Settings / theme ───────────────────────────────────────────────────────
 
 const LOGO_VARIANTS = ['light', 'dark'];
@@ -80,6 +101,9 @@ module.exports = {
   ALLOWED_IMAGE_EXTENSIONS,
   ALLOWED_IMAGE_MIME_TYPES,
   ALLOWED_FILE_EXTENSIONS,
+  PUBLIC_REQUEST_FILE_EXTENSIONS,
+  ACTIVE_CONTENT_EXTENSIONS,
+  ACTIVE_CONTENT_MIME_TYPES,
   ALLOWED_FILE_MIME_TYPES,
   LOGO_VARIANTS,
   THEME_LIGHT_VARIANTS,

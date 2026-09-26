@@ -150,6 +150,25 @@ function getLinkById(id) {
   return decorateLink(row);
 }
 
+/** Returns a single link by its custom slug, with its groups attached. */
+function getLinkBySlug(slug) {
+  if (!slug) return null;
+  const row = db.prepare('SELECT * FROM links WHERE slug = ?').get(slug);
+  return decorateLink(row);
+}
+
+/**
+ * Returns the link already using this slug, or undefined when it is free.
+ * Pass excludeId to skip the current link when editing it.
+ */
+function findLinkBySlug(slug, excludeId = null) {
+  if (!slug) return undefined;
+  if (excludeId) {
+    return db.prepare('SELECT id, name FROM links WHERE slug = ? AND id != ?').get(slug, excludeId);
+  }
+  return db.prepare('SELECT id, name FROM links WHERE slug = ?').get(slug);
+}
+
 /**
  * Returns the first link that has the same URL, or null if none exists.
  * Pass excludeId to skip the current link when editing.
@@ -189,16 +208,17 @@ function getLinkUrlIndex() {
  * Inserts a new link placed at the end of the position list.
  * For URL-backed links pass `url`; for file-backed links pass `filePath` (and
  * optionally `fileName` for display) — in that case `url` may be an empty string.
+ * `slug` is optional; null leaves the link reachable only at /r/<id>.
  */
-function createLink({ name, url, description, imagePath, groupIds, filePath, fileName }) {
+function createLink({ name, url, description, imagePath, groupIds, filePath, fileName, slug }) {
   const maxPos = db.prepare('SELECT COALESCE(MAX(position), -1) AS max FROM links').get().max;
   const result = db
     .prepare(`
-      INSERT INTO links (name, url, description, image_path, position, file_path, file_name)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO links (name, url, description, image_path, position, file_path, file_name, slug)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(name, url ?? '', description ?? null, imagePath ?? null, maxPos + 1,
-         filePath ?? null, fileName ?? null);
+         filePath ?? null, fileName ?? null, slug || null);
 
   setLinkGroups(result.lastInsertRowid, groupIds);
   return result;
@@ -210,9 +230,10 @@ function createLink({ name, url, description, imagePath, groupIds, filePath, fil
  *   filePath supplied   → replaces the existing file (caller deletes the old file on disk).
  *   clearFile  = true   → clears file_path and file_name (link reverts to URL-only).
  * Pass groupIds=undefined to leave memberships untouched, [] to clear them.
+ * Pass slug=undefined to leave the slug untouched, null to clear it.
  */
 function updateLink(id, { name, url, description, imagePath, groupIds, removeImage,
-                          filePath, fileName, clearFile }) {
+                          filePath, fileName, clearFile, slug }) {
   if (removeImage) {
     db.prepare(`
       UPDATE links
@@ -232,6 +253,11 @@ function updateLink(id, { name, url, description, imagePath, groupIds, removeIma
   } else if (filePath !== undefined) {
     db.prepare('UPDATE links SET file_path = ?, file_name = ? WHERE id = ?')
       .run(filePath, fileName ?? null, id);
+  }
+
+  // Tri-state: undefined leaves the slug alone, null clears it, a string sets it.
+  if (slug !== undefined) {
+    db.prepare('UPDATE links SET slug = ? WHERE id = ?').run(slug || null, id);
   }
 
   if (groupIds !== undefined) setLinkGroups(id, groupIds);
@@ -281,7 +307,8 @@ function reorderLinks(orderedIds) {
 }
 
 module.exports = {
-  getAllLinks, getLinkById, checkDuplicateUrl, getLinkUrlIndex, addLinkGroup,
+  getAllLinks, getLinkById, getLinkBySlug, findLinkBySlug,
+  checkDuplicateUrl, getLinkUrlIndex, addLinkGroup,
   createLink, updateLink, deleteLink,
   updateLinkFavicon, updateLinkImage, updateLinkBrokenStatus, updateLinkVisibility,
   getAllLinksForHealthCheck, reorderLinks,

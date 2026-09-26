@@ -271,6 +271,8 @@ async function fetchLinkRequests(status = 'pending') { return apiJson(`/api/link
 async function approveRequestApi(id, linkId) { return jsonPost(`/api/link-requests/${id}/approve`, { link_id: linkId }); }
 // Approves without duplicating: the existing link joins the requested group.
 async function attachRequestApi(id)          { return jsonPost(`/api/link-requests/${id}/attach`, {}); }
+// Approves a change request by writing its proposed values onto the target link.
+async function applyRequestApi(id)           { return jsonPost(`/api/link-requests/${id}/apply`, {}); }
 async function rejectRequestApi(id)          { return jsonPost(`/api/link-requests/${id}/reject`, {}); }
 async function deleteRequestApi(id)          { return sendAuthRequest(`/api/link-requests/${id}`, { method: 'DELETE' }); }
 
@@ -1956,6 +1958,77 @@ function setLinkModalMode(mode) {
   document.getElementById('inputUrl').required = (linkModalMode === 'link');
 }
 
+/**
+ * Mirrors src/utils/slug.js so the admin sees the slug they will actually get
+ * while typing. The server normalises again on save — this is preview only.
+ */
+function slugify(raw) {
+  return String(raw || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+    .replace(/-+$/, '');
+}
+
+/** Words the server refuses, mirrored so the warning appears as you type. */
+const RESERVED_SLUGS = new Set([
+  'admin', 'api', 'uploads', 'r', 'f', 'health', 'login', 'logout', 'static',
+]);
+
+/**
+ * Validates the slug box against the links already loaded and updates the hint,
+ * the warning line and the Copy button. Purely advisory: the server is the one
+ * that decides, this just avoids a pointless round trip.
+ */
+function refreshSlugUi() {
+  const input     = document.getElementById('inputSlug');
+  const hint      = document.getElementById('slugHint');
+  const warn      = document.getElementById('slugWarning');
+  const copyBtn   = document.getElementById('copySlugUrlBtn');
+  const editingId = parseInt(document.getElementById('editingLinkId').value) || null;
+
+  const typed = input.value.trim();
+  const slug  = slugify(typed);
+
+  let problem = null;
+  if (typed && !slug)                      problem = 'Needs at least one letter or number.';
+  else if (slug && RESERVED_SLUGS.has(slug)) problem = `"${slug}" is reserved — pick another one.`;
+  else if (slug) {
+    const clash = links.find(l => l.slug === slug && l.id !== editingId);
+    if (clash) problem = `Already used by "${clash.name}".`;
+  }
+
+  if (problem) {
+    warn.textContent = problem;
+    warn.classList.remove('hidden');
+  } else {
+    warn.classList.add('hidden');
+  }
+
+  // Only promise an address the server would actually accept.
+  hint.textContent = (slug && !problem)
+    ? `Will be saved as ${location.origin}/f/${slug}`
+    : 'Letters, numbers and hyphens. The original address keeps working either way.';
+
+  copyBtn.disabled = !slug || !!problem;
+}
+
+document.getElementById('inputSlug').addEventListener('input', refreshSlugUi);
+
+document.getElementById('copySlugUrlBtn').addEventListener('click', async () => {
+  const slug = slugify(document.getElementById('inputSlug').value);
+  if (!slug) return;
+  try {
+    await navigator.clipboard.writeText(`${location.origin}/f/${slug}`);
+    showToast('Custom URL copied');
+  } catch {
+    showToast('Could not copy the URL', 'error');
+  }
+});
+
 function refreshAttachedFileUi() {
   const trigger = document.getElementById('attachFileBtn');
   const label   = document.getElementById('attachedFileLabel');
@@ -2177,6 +2250,7 @@ function openAddLinkModal() {
   closeGroupMulti();
   resetLinkModalAttachmentState();
   setLinkModalMode('link');
+  refreshSlugUi();
   // Preselect the currently-active group/section so the new link lands there.
   const preselect = (typeof activeGroup === 'number')
     ? [{ id: activeGroup, section_id: activeSection ?? null }]
@@ -2198,7 +2272,9 @@ function openEditLinkModal(link) {
   document.getElementById('editingLinkId').value  = link.id;
   document.getElementById('inputName').value      = link.name;
   document.getElementById('inputDesc').value      = link.description || '';
+  document.getElementById('inputSlug').value      = link.slug || '';
   document.getElementById('urlDuplicateWarning').classList.add('hidden');
+  refreshSlugUi();
   closeGroupMulti();
   // Hydrate the multi-select with each group plus its section assignment.
   const currentAssignments = Array.isArray(link.groups) && link.groups.length
@@ -2338,6 +2414,9 @@ document.getElementById('linkForm').addEventListener('submit', async e => {
   fd.append('description',  document.getElementById('inputDesc').value.trim());
   fd.append('groups',       JSON.stringify(getSelectedAssignments()));
   fd.append('remove_image', shouldRemoveIcon ? 'true' : 'false');
+  // Always sent: an empty value is how the admin drops a slug and goes back to
+  // the generated address.
+  fd.append('slug',         document.getElementById('inputSlug').value.trim());
 
   if (linkModalMode === 'file') {
     // File mode: no URL is sent. If user picked a new file, attach it.
@@ -3892,6 +3971,67 @@ function toggleFileEditorExpanded() {
   setTimeout(syncFileEditorScroll, 220);
 }
 
+// ─── Markdown preview inside the file editor ────────────────────────────────
+//
+// The preview renders server-side, through the very endpoint that serves
+// readers, so what the admin approves here is what a visitor will see. A
+// second renderer in the browser would be free to drift from it.
+
+let fileEditorView        = 'source';   // 'source' | 'preview'
+let fileEditorPreviewTimer;
+let fileEditorPreviewedText = null;     // what the pane currently shows
+let fileEditorPreviewSeq    = 0;        // increments per request; see below
+
+/** True when the open file is a markdown document. */
+function fileEditorIsMarkdown() {
+  return fileExtension(fileEditorLink?.file_name || '') === '.md';
+}
+
+function setFileEditorView(view) {
+  fileEditorView = view === 'preview' ? 'preview' : 'source';
+
+  document.querySelectorAll('.file-editor-view-tab').forEach(tab =>
+    tab.classList.toggle('active', tab.dataset.editorView === fileEditorView));
+  document.getElementById('fileEditorPane')
+          .classList.toggle('hidden', fileEditorView === 'preview');
+  document.getElementById('fileEditorPreview')
+          .classList.toggle('hidden', fileEditorView === 'source');
+
+  if (fileEditorView === 'preview') refreshFileEditorPreview();
+  else document.getElementById('fileEditorTextarea').focus({ preventScroll: true });
+}
+
+/**
+ * Re-renders the preview, skipping the round trip when nothing has changed.
+ *
+ * Requests are numbered because two can be in flight at once — opening the
+ * pane fires one, and typing straight away fires another. Without the check a
+ * slow first response would land after the fast second one and paint stale
+ * content over the newer render.
+ */
+async function refreshFileEditorPreview() {
+  const host = document.getElementById('fileEditorPreview');
+  const text = document.getElementById('fileEditorTextarea').value;
+  if (text === fileEditorPreviewedText) return;
+
+  const seq    = ++fileEditorPreviewSeq;
+  const result = await jsonPost('/api/markdown/preview', { text }).catch(() => null);
+
+  if (seq !== fileEditorPreviewSeq) return;      // a newer render has overtaken this one
+  if (fileEditorView !== 'preview') return;      // toggled away while in flight
+
+  if (typeof result?.html !== 'string') {
+    host.innerHTML = '<p class="file-editor-preview-error">Could not render this document.</p>';
+    return;
+  }
+  // Safe to insert: the server escapes first and emits only its own tags.
+  host.innerHTML = result.html;
+  fileEditorPreviewedText = text;
+}
+
+document.querySelectorAll('.file-editor-view-tab').forEach(tab =>
+  tab.addEventListener('click', () => setFileEditorView(tab.dataset.editorView)));
+
 async function openFileEditor(link) {
   if (!link?.file_path) return;
   fileEditorLink     = link;
@@ -3920,6 +4060,14 @@ async function openFileEditor(link) {
   ta.value             = '';
   loading.classList.remove('hidden');
 
+  // Every open starts on the source, and the toggle only appears for markdown.
+  fileEditorPreviewedText = null;
+  fileEditorPreviewSeq    = 0;
+  document.getElementById('fileEditorPreview').innerHTML = '';
+  document.getElementById('fileEditorViewTabs')
+          .classList.toggle('hidden', fileExtension(link.file_name) !== '.md');
+  setFileEditorView('source');
+
   overlay.classList.remove('hidden');
 
   try {
@@ -3932,7 +4080,7 @@ async function openFileEditor(link) {
     ta.value           = fileEditorOriginal;
     meta.textContent   = `${formatBytes(data.size)} · ${badge.textContent.toUpperCase()}`;
     loading.classList.add('hidden');
-    pane.classList.remove('hidden');
+    if (fileEditorView === 'source') pane.classList.remove('hidden');
     refreshFileEditorLayers();
     setTimeout(() => {
       ta.focus({ preventScroll: true });
@@ -4028,6 +4176,12 @@ function formatBytes(n) {
 document.getElementById('fileEditorTextarea').addEventListener('input', () => {
   refreshFileEditorLayers();
   updateFileEditorDirtyState();
+  // A live preview follows the typing, debounced so it is one request per
+  // pause rather than one per keystroke.
+  if (fileEditorView === 'preview') {
+    clearTimeout(fileEditorPreviewTimer);
+    fileEditorPreviewTimer = setTimeout(refreshFileEditorPreview, 300);
+  }
   // Keep the find bar accurate if the user types while it's open.
   if (!document.getElementById('fileEditorSearch').classList.contains('hidden')) {
     recomputeFileEditorSearch();
@@ -5022,6 +5176,64 @@ function requestDupeChip(r) {
     </button>`;
 }
 
+/** Small badge naming what kind of request a row is. */
+function requestKindBadge(kind) {
+  if (kind === 'file')   return '<span class="request-kind request-kind-file">File</span>';
+  if (kind === 'change') return '<span class="request-kind request-kind-change">Change</span>';
+  return '';
+}
+
+/**
+ * The body of a change request: one line per field the visitor wants different,
+ * old value struck through beside the new one, plus their note.
+ */
+function requestChangeBody(r) {
+  const rows = [
+    ['Name',        r.target_name,        r.name],
+    ['URL',         r.target_url,         r.url],
+    ['Description', r.target_description, r.description],
+  ];
+
+  const diff = rows
+    // A blank proposal means "leave this alone", so it never shows as a change.
+    .filter(([, before, after]) => after && after !== (before || ''))
+    .map(([label, before, after]) => `
+      <div class="request-diff-row">
+        <span class="request-diff-label">${label}</span>
+        <span class="request-diff-before">${escapeHtml(before || '—')}</span>
+        <span class="request-diff-arrow">→</span>
+        <span class="request-diff-after">${escapeHtml(after)}</span>
+      </div>`).join('');
+
+  // A proposed replacement file gets its own row, with the new file linked so
+  // it can be opened before the change is applied.
+  const size = Number.isFinite(r.file_size) ? ` · ${formatBytes(r.file_size)}` : '';
+  const fileDiff = r.file_path ? `
+      <div class="request-diff-row">
+        <span class="request-diff-label">File</span>
+        <span class="request-diff-before">${escapeHtml(r.target_file_name || '—')}</span>
+        <span class="request-diff-arrow">→</span>
+        <a class="request-diff-after request-diff-file" href="${escapeHtml(r.file_path)}"
+           target="_blank" rel="noopener noreferrer">${escapeHtml(r.file_name || 'new file')}${size}</a>
+      </div>` : '';
+
+  const missing = r.target_name == null
+    ? '<div class="request-diff-gone">The link this targets has been deleted.</div>'
+    : '';
+
+  return `<div class="request-diff">${missing}${diff}${fileDiff}</div>` +
+         (r.note ? `<div class="request-row-desc">“${escapeHtml(r.note)}”</div>` : '');
+}
+
+/** The body of a file request: what was uploaded, and how big it is. */
+function requestFileBody(r) {
+  const size = Number.isFinite(r.file_size) ? ` · ${formatBytes(r.file_size)}` : '';
+  return `
+    <a class="request-row-url" href="${escapeHtml(r.file_path)}" target="_blank" rel="noopener noreferrer">
+      ${escapeHtml(r.file_name || 'attached file')}${size}
+    </a>`;
+}
+
 function renderRequestsList(requests) {
   loadedRequests = requests;
   const list  = document.getElementById('requestsList');
@@ -5042,28 +5254,40 @@ function renderRequestsList(requests) {
     const statusBadge = r.status !== 'pending'
       ? `<span class="request-row-status request-status-${escapeHtml(r.status)}">${escapeHtml(r.status)}</span>`
       : '';
+    // A change request is applied, not published — everything else approves.
+    const approveLabel = r.kind === 'change' ? 'Apply change' : 'Approve';
+    const approveAttr  = r.kind === 'change' ? 'data-req-apply' : 'data-req-approve';
     const actions = r.status === 'pending'
-      ? `<button class="btn btn-primary btn-sm" data-req-approve="${r.id}">Approve</button>
+      ? `<button class="btn btn-primary btn-sm" ${approveAttr}="${r.id}">${approveLabel}</button>
          <button class="btn btn-ghost btn-sm" data-req-reject="${r.id}">Reject</button>
          <button class="btn btn-ghost-danger btn-sm" data-req-delete="${r.id}">Delete</button>`
       : `<button class="btn btn-ghost-danger btn-sm" data-req-delete="${r.id}">Delete</button>`;
+    // What sits under the name: the proposed URL, the upload, or the diff.
+    const body = r.kind === 'file'   ? requestFileBody(r)
+               : r.kind === 'change' ? requestChangeBody(r)
+               : `<a class="request-row-url" href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.url)}</a>`;
+
+    // A change request belongs to the link it targets, not to a group.
+    const groupMeta = r.kind === 'change' ? '' : `
+            <span class="request-row-group">
+              <span class="request-row-group-dot" style="background:${escapeHtml(r.group_color || '#888')}"></span>
+              ${escapeHtml(r.group_name || 'Unknown group')}${sectionLabel ? ' · ' + escapeHtml(sectionLabel) : ''}
+            </span>`;
+
     return `
       <div class="request-row">
         <div class="request-row-icon">${icon}</div>
         <div class="request-row-main">
-          <div class="request-row-name">${escapeHtml(r.name)}</div>
-          <a class="request-row-url" href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.url)}</a>
+          <div class="request-row-name">${requestKindBadge(r.kind)}${escapeHtml(r.kind === 'change' ? (r.target_name || r.name) : r.name)}</div>
+          ${body}
           <div class="request-row-meta">
-            <span class="request-row-group">
-              <span class="request-row-group-dot" style="background:${escapeHtml(r.group_color || '#888')}"></span>
-              ${escapeHtml(r.group_name || 'Unknown group')}${sectionLabel ? ' · ' + escapeHtml(sectionLabel) : ''}
-            </span>
+            ${groupMeta}
             <span>${formatRequestDate(r.created_at)}</span>
             ${r.ip_address ? `<span class="request-row-ip" title="Submitter IP">${escapeHtml(r.ip_address)}</span>${ipTagChip(r.ip_address)}` : ''}
             ${statusBadge}
             ${requestDupeChip(r)}
           </div>
-          ${r.description ? `<div class="request-row-desc">${escapeHtml(r.description)}</div>` : ''}
+          ${r.description && r.kind !== 'change' ? `<div class="request-row-desc">${escapeHtml(r.description)}</div>` : ''}
         </div>
         <div class="request-row-actions">${actions}</div>
       </div>`;
@@ -5125,6 +5349,7 @@ document.getElementById('requestsStatusFilter').addEventListener('change', e => 
 
 document.getElementById('requestsList').addEventListener('click', async e => {
   const approveBtn  = e.target.closest('[data-req-approve]');
+  const applyBtn    = e.target.closest('[data-req-apply]');
   const rejectBtn   = e.target.closest('[data-req-reject]');
   const deleteBtn   = e.target.closest('[data-req-delete]');
   const existingBtn = e.target.closest('[data-req-existing]');
@@ -5139,10 +5364,43 @@ document.getElementById('requestsList').addEventListener('click', async e => {
     return;
   }
 
+  // A change request is applied straight onto the link it targets.
+  if (applyBtn) {
+    const id  = Number(applyBtn.dataset.reqApply);
+    const req = loadedRequests.find(r => r.id === id);
+    if (!req) return;
+
+    const result = await applyRequestApi(id);
+    if (result?.ok !== true) {
+      showToast(result?.error || 'Could not apply the change', 'error');
+      return;
+    }
+    showToast(`Change applied to "${result.link?.name || 'the link'}"`);
+    await loadRequests();
+    refreshRequestsBadge();
+    await loadAllData();
+    return;
+  }
+
   if (approveBtn) {
     const id  = Number(approveBtn.dataset.reqApprove);
     const req = loadedRequests.find(r => r.id === id);
     if (!req) return;
+
+    // A file request already carries the file, so approving it publishes the
+    // link outright — there is nothing left for the admin to fill in.
+    if (req.kind === 'file') {
+      const result = await approveRequestApi(id);
+      if (result?.ok !== true) {
+        showToast(result?.error || 'Could not publish the file', 'error');
+        return;
+      }
+      showToast(`Published "${result.link?.name || req.name}"`);
+      await loadRequests();
+      refreshRequestsBadge();
+      await loadAllData();
+      return;
+    }
     // The URL is already published: offer to add that link to the requested
     // group instead of creating a second copy of it.
     if (requestHasExistingLink(req)) {
@@ -5181,7 +5439,20 @@ document.getElementById('requestsList').addEventListener('click', async e => {
     return;
   }
   if (rejectBtn) {
-    const id = Number(rejectBtn.dataset.reqReject);
+    const id  = Number(rejectBtn.dataset.reqReject);
+    const req = loadedRequests.find(r => r.id === id);
+
+    // Rejecting a file request deletes the uploaded file. That cannot be undone,
+    // so ask before doing it.
+    if (req?.kind === 'file') {
+      const ok = await showConfirm({
+        title:   'Reject this file?',
+        message: `"${req.file_name || 'The uploaded file'}" will be deleted from the server. This cannot be undone.`,
+        confirmText: 'Reject and delete',
+      });
+      if (!ok) return;
+    }
+
     await rejectRequestApi(id);
     showToast('Request rejected');
     await loadRequests();
@@ -5189,7 +5460,19 @@ document.getElementById('requestsList').addEventListener('click', async e => {
     return;
   }
   if (deleteBtn) {
-    const id = Number(deleteBtn.dataset.reqDelete);
+    const id  = Number(deleteBtn.dataset.reqDelete);
+    const req = loadedRequests.find(r => r.id === id);
+
+    // Same as rejecting: an unpublished upload goes with the row.
+    if (req?.kind === 'file' && !req.created_link_id) {
+      const ok = await showConfirm({
+        title:   'Delete this request?',
+        message: `"${req.file_name || 'The uploaded file'}" will be deleted from the server. This cannot be undone.`,
+        confirmText: 'Delete',
+      });
+      if (!ok) return;
+    }
+
     await deleteRequestApi(id);
     showToast('Request deleted');
     await loadRequests();

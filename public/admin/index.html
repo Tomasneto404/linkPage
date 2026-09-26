@@ -1173,6 +1173,24 @@
         </div>
 
         <div class="form-group">
+          <label for="inputSlug">
+            Custom URL
+            <span class="label-opt">(optional — blank keeps the generated address)</span>
+          </label>
+          <div class="slug-input-wrap">
+            <span class="slug-prefix">/f/</span>
+            <input type="text" id="inputSlug" placeholder="annual-report"
+                   autocomplete="off" spellcheck="false" maxlength="64" />
+            <button type="button" class="btn btn-secondary btn-sm" id="copySlugUrlBtn"
+                    title="Copy the full address" disabled>Copy</button>
+          </div>
+          <div class="form-hint" id="slugHint">
+            Letters, numbers and hyphens. The original address keeps working either way.
+          </div>
+          <div id="slugWarning" class="form-warning hidden"></div>
+        </div>
+
+        <div class="form-group">
           <label for="inputDesc">Description</label>
           <textarea id="inputDesc" placeholder="Optional description…" rows="2"></textarea>
         </div>
@@ -1351,6 +1369,12 @@
         <span class="file-editor-meta" id="fileEditorMeta">—</span>
         <span class="file-editor-toolbar-spacer"></span>
         <span class="file-editor-status" id="fileEditorStatus"></span>
+        <!-- Markdown only: renders the current buffer through the same server
+             path readers get, so the preview cannot drift from the real page. -->
+        <div class="file-editor-view-tabs hidden" id="fileEditorViewTabs" role="tablist">
+          <button type="button" class="file-editor-view-tab active" data-editor-view="source" role="tab">Source</button>
+          <button type="button" class="file-editor-view-tab" data-editor-view="preview" role="tab">Preview</button>
+        </div>
         <button type="button" class="btn btn-ghost btn-sm" id="fileEditorRevertBtn" disabled>Revert</button>
         <button type="button" class="icon-btn file-editor-expand-btn" id="fileEditorExpandBtn"
                 title="Expand editor (Esc collapses)">
@@ -1420,6 +1444,8 @@
                       wrap="off"></textarea>
           </div>
         </div>
+
+        <div class="file-editor-preview hidden" id="fileEditorPreview"></div>
       </div>
 
       <div class="form-actions" style="padding: 6px 22px 22px">

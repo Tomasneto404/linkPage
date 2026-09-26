@@ -369,6 +369,31 @@
     .request-btn:hover { background: var(--primary-hover); }
 
     /* ── Request modal: scrollable body + icon picker ──────────────────────── */
+    /* Request-kind tabs: Link / File / Change */
+    .req-mode-tabs {
+      display: inline-flex;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 2px;
+      margin: 8px 0 4px;
+      gap: 2px;
+    }
+    .req-mode-tab {
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.8125rem;
+      padding: 5px 13px;
+      border-radius: 7px;
+      cursor: pointer;
+    }
+    .req-mode-tab.active { background: var(--surface); color: var(--text); font-weight: 600; }
+
+    .req-file-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .req-file-name { font-size: 0.8125rem; color: var(--text-muted); }
+
     #requestOverlay .modal { display: flex; flex-direction: column; max-height: min(90vh, 760px); }
     #requestForm { overflow-y: auto; }
 
@@ -559,7 +584,7 @@
 <div class="modal-overlay hidden" id="requestOverlay">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h2>Request a link</h2>
+      <h2 id="reqModalTitle">Request a link</h2>
       <button type="button" class="modal-close" id="closeRequestBtn" aria-label="Close">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.5" stroke-linecap="round">
@@ -569,21 +594,49 @@
       </button>
     </div>
     <form id="requestForm" style="padding: 4px 22px 22px">
-      <p style="color: var(--text-muted); font-size: 0.85rem; margin: 6px 0 12px">
+      <div class="req-mode-tabs" role="tablist">
+        <button type="button" class="req-mode-tab active" data-req-mode="link" role="tab">Link</button>
+        <button type="button" class="req-mode-tab" data-req-mode="file" role="tab">File</button>
+        <button type="button" class="req-mode-tab" data-req-mode="change" role="tab">Change</button>
+      </div>
+
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin: 6px 0 12px" id="reqIntro">
         Suggest a link for the admin to review. They’ll publish it if approved.
       </p>
+
+      <!-- Change mode picks the link being changed before anything else. -->
+      <div class="form-group hidden" id="reqTargetGroup">
+        <label for="reqTarget">Link to change <span class="req">*</span></label>
+        <select id="reqTarget"></select>
+      </div>
 
       <div class="form-group">
         <label for="reqName">Name <span class="req">*</span></label>
         <input type="text" id="reqName" placeholder="My favourite site" required />
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="reqUrlGroup">
         <label for="reqUrl">URL <span class="req">*</span></label>
         <input type="url" id="reqUrl" placeholder="https://example.com" required />
       </div>
 
-      <div class="form-row">
+      <div class="form-group hidden" id="reqFileGroup">
+        <label>File <span class="req">*</span></label>
+        <!-- No .svg/.html/.xml/.json: uploads are served from this origin, so a
+             visitor must not be able to store a document that runs here. -->
+        <input type="file" id="reqFileUpload" hidden
+               accept=".pdf,.doc,.docx,.odt,.rtf,.xls,.xlsx,.ods,.csv,.ppt,.pptx,.odp,.txt,.md,.log,.zip,.7z,.tar,.gz,.jpg,.jpeg,.png,.gif,.webp" />
+        <div class="req-file-row">
+          <button type="button" class="req-upload-label" id="reqFileBtn">Choose a file…</button>
+          <span class="req-file-name" id="reqFileName"></span>
+          <button type="button" class="req-upload-label" id="reqFileClear"
+                  style="color: var(--text-muted)" hidden>Clear</button>
+        </div>
+        <div class="req-icon-hint" id="reqFileHint">PDF, Office docs, text, archives and images up to 25&nbsp;MB.</div>
+        <div class="req-icon-hint hidden" id="reqFileCurrent"></div>
+      </div>
+
+      <div class="form-row" id="reqGroupRow">
         <div class="form-group" style="flex:1">
           <label for="reqGroup">Group <span class="req">*</span></label>
           <select id="reqGroup" required></select>
@@ -599,7 +652,12 @@
         <textarea id="reqDesc" rows="2" placeholder="What is this link?"></textarea>
       </div>
 
-      <div class="form-group">
+      <div class="form-group hidden" id="reqNoteGroup">
+        <label for="reqNote">Why the change? <span class="label-opt">optional</span></label>
+        <textarea id="reqNote" rows="2" placeholder="The old address 404s since Monday…"></textarea>
+      </div>
+
+      <div class="form-group" id="reqIconGroup">
         <label>Icon <span class="label-opt">optional</span></label>
         <div class="req-icon-row">
           <div class="req-icon-preview" id="reqIconPreview"></div>
@@ -608,7 +666,8 @@
               <button type="button" class="req-upload-label" id="reqOpenPresets">Choose icon</button>
               <label class="req-upload-label">
                 Upload
-                <input type="file" id="reqImageUpload" accept="image/*" hidden />
+                <input type="file" id="reqImageUpload"
+                       accept="image/jpeg,image/png,image/gif,image/webp" hidden />
               </label>
               <button type="button" class="req-upload-label" id="reqClearIcon"
                       style="color: var(--text-muted)" hidden>Clear</button>

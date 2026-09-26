@@ -17,10 +17,6 @@ function errorHandler(err, req, res, next) {
     return res.status(400).json({ error: err.message });
   }
 
-  if (err && err.message && /^(Only image files|Custom icon must|File type not allowed|Unexpected field)/.test(err.message)) {
-    return res.status(400).json({ error: err.message });
-  }
-
   // express.json() rejections: a truncated payload or one over the size limit is
   // the caller's mistake, not a server fault, and must not be reported as a 500.
   if (err && err.type === 'entity.too.large') {
@@ -28,6 +24,13 @@ function errorHandler(err, req, res, next) {
   }
   if (err && err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'Malformed JSON body' });
+  }
+
+  // Upload filters mark their own rejections, so the wording of the message is
+  // free to change without silently turning a 400 into a 500. Checked last: it
+  // is the broadest of these tests, and body-parser errors carry a 400 too.
+  if (err && err.status === 400 && err.message) {
+    return res.status(400).json({ error: err.message });
   }
 
   console.error('Unhandled error:', err);
