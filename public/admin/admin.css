@@ -293,6 +293,23 @@
 .file-editor-preview th { background: var(--surface-3); font-weight: 600; }
 .file-editor-preview-error { color: var(--text-muted); }
 
+/* The auto-open checkbox in the link modal: a checkbox and its explanation
+   sitting on one line, the label wrapping both so either is clickable. */
+.auto-open-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  cursor: pointer;
+}
+.auto-open-row input[type="checkbox"] {
+  margin-top: 2px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.auto-open-row .auto-open-label { display: block; font-size: 0.875rem; color: var(--text); }
+.auto-open-row .form-hint { margin-top: 2px; }
+
 /* ─── Custom slug row inside the link modal ──────────────────────────────── */
 
 .slug-input-wrap {

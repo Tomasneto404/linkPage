@@ -2128,7 +2128,28 @@ document.getElementById('copySlugUrlBtn').addEventListener('click', async () => 
   }
 });
 
+/**
+ * The auto-open checkbox belongs to markdown and nothing else, since nothing
+ * else renders as a page. Kept in step with whatever file is currently
+ * attached — picked but not yet uploaded, or already saved — and unticked
+ * when the row goes away, so a link cannot keep the flag after losing the
+ * markdown that earned it.
+ */
+function refreshAutoOpenRow() {
+  const row = document.getElementById('autoOpenRow');
+  const box = document.getElementById('inputAutoOpen');
+
+  const name = pendingAttachedFile ? pendingAttachedFile.name
+             : (!shouldRemoveAttachedFile && existingAttachedName) ? existingAttachedName
+             : '';
+  const isMarkdown = /\.md$/i.test(name);
+
+  row.classList.toggle('hidden', !isMarkdown);
+  if (!isMarkdown) box.checked = false;
+}
+
 function refreshAttachedFileUi() {
+  refreshAutoOpenRow();
   const trigger = document.getElementById('attachFileBtn');
   const label   = document.getElementById('attachedFileLabel');
   const clear   = document.getElementById('clearAttachedFileBtn');
@@ -2347,6 +2368,7 @@ function openAddLinkModal() {
   document.getElementById('urlDuplicateWarning').classList.add('hidden');
   clearCustomIconPreview(); hideFormError('linkFormError');
   closeGroupMulti();
+  document.getElementById('inputAutoOpen').checked = false;
   resetLinkModalAttachmentState();
   setLinkModalMode('link');
   refreshSlugUi();
@@ -2393,6 +2415,11 @@ function openEditLinkModal(link) {
     document.getElementById('inputUrl').value = link.url;
     setLinkModalMode('link');
   }
+
+  // After the attachment state, not before: refreshAutoOpenRow() unticks the
+  // box whenever the row does not apply, and until the filename above is in
+  // place it does not yet know this is a markdown link.
+  document.getElementById('inputAutoOpen').checked = !!link.auto_open;
 
   const fi = document.getElementById('faviconImg');
   const fu = link.file_path ? null : getFaviconUrl(link.url);
@@ -2516,6 +2543,9 @@ document.getElementById('linkForm').addEventListener('submit', async e => {
   // Always sent: an empty value is how the admin drops a slug and goes back to
   // the generated address.
   fd.append('slug',         document.getElementById('inputSlug').value.trim());
+  // Only meaningful for markdown, and the row is hidden otherwise — but send
+  // it either way so switching a link away from markdown clears the flag.
+  fd.append('auto_open',    document.getElementById('inputAutoOpen').checked ? 'true' : 'false');
 
   if (linkModalMode === 'file') {
     // File mode: no URL is sent. If user picked a new file, attach it.

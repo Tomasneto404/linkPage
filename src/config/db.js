@@ -34,7 +34,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 12;
+const CURRENT_SCHEMA_VERSION = 13;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -291,6 +291,16 @@ const MIGRATIONS = [
       addColumnIfMissing('link_requests', 'target_link_id', 'INTEGER');
       addColumnIfMissing('link_requests', 'note', 'TEXT');
       db.exec('CREATE INDEX IF NOT EXISTS idx_link_requests_kind ON link_requests(kind)');
+    },
+  },
+  {
+    version: 13,
+    name:    'Auto-open markdown links',
+    apply: () => {
+      // A markdown link can ask to open itself when its group is opened, so a
+      // group can lead with a document. Off for everything that already
+      // exists, which is what the default gives them.
+      addColumnIfMissing('links', 'auto_open', 'INTEGER NOT NULL DEFAULT 0');
     },
   },
 ];

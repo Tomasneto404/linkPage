@@ -1253,6 +1253,21 @@
           </div>
         </div>
 
+        <!-- Markdown only: shown by refreshAutoOpenRow() once the attached file
+             turns out to be a .md, since nothing else renders as a page. -->
+        <div class="form-group hidden" id="autoOpenRow">
+          <label class="auto-open-row" for="inputAutoOpen">
+            <input type="checkbox" id="inputAutoOpen" />
+            <span>
+              <span class="auto-open-label">Open automatically with its group</span>
+              <span class="form-hint">
+                When a visitor opens this link's group, the document opens over the cards.
+                Once per visit — dismissing it keeps it shut until they come back.
+              </span>
+            </span>
+          </label>
+        </div>
+
         <div class="form-group">
           <label for="inputSlug">
             Custom URL

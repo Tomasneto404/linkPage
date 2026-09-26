@@ -118,6 +118,11 @@ const paths = {
         url:         { type: 'string', description: 'Required unless a file is attached.' },
         description: { type: 'string' },
         slug:        { type: 'string', description: 'Optional custom URL; must be unique.' },
+        auto_open:   {
+          type: 'boolean',
+          description: 'Open this document automatically when its group is opened. '
+                     + 'Markdown links only; anything else is a 400.',
+        },
         groups:      ref('GroupAssignment'),
         icon_id:     { type: 'integer', description: 'Use an icon already in the library.' },
         image:       { type: 'string', format: 'binary', description: 'Custom icon.' },
@@ -140,6 +145,7 @@ const paths = {
         url:          { type: 'string' },
         description:  { type: 'string' },
         slug:         { type: 'string' },
+        auto_open:    { type: 'boolean', description: 'Markdown links only.' },
         groups:       ref('GroupAssignment'),
         icon_id:      { type: 'integer' },
         image:        { type: 'string', format: 'binary' },

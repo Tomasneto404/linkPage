@@ -1418,6 +1418,55 @@ function refreshMarkdownViewerTheme() {
   tab.href  = `${base}?theme=${currentThemeName()}`;
 }
 
+/**
+ * A markdown link may ask to open itself when its group is opened, so a group
+ * can lead with a document rather than a grid of cards.
+ *
+ * Always the overlay, never a new tab: a browser blocks a tab opened without
+ * a click, and taking one over because somebody changed group would be
+ * hostile. Once per visit, remembered in sessionStorage — dismiss it and it
+ * stays dismissed until the next visit, so returning to the group does not
+ * reopen it in your face.
+ */
+const AUTO_OPENED_KEY = 'linkpage_autoopened';
+
+function autoOpenedThisVisit() {
+  try {
+    return new Set(JSON.parse(sessionStorage.getItem(AUTO_OPENED_KEY) || '[]'));
+  } catch {
+    return new Set();          // private window, or someone edited it by hand
+  }
+}
+
+function rememberAutoOpened(group) {
+  try {
+    const seen = autoOpenedThisVisit();
+    seen.add(String(group));
+    sessionStorage.setItem(AUTO_OPENED_KEY, JSON.stringify([...seen]));
+  } catch { /* nothing to remember it with; it will simply open again */ }
+}
+
+/** Opens the group's leading document, if it has one and has not yet. */
+function maybeAutoOpenGroupDoc() {
+  // "All" is not a group; there is nothing to lead.
+  if (activeGroup === 'all' || activeGroup == null) return;
+
+  // Never stack one on top of a document the reader already has open.
+  const overlay = document.getElementById('mdViewerOverlay');
+  if (!overlay || !overlay.classList.contains('hidden')) return;
+
+  if (autoOpenedThisVisit().has(String(activeGroup))) return;
+
+  // `links` holds only what this visitor may see, and is already in the
+  // admin's order — so the first match is the one they put first.
+  const doc = links.find(l =>
+    l.auto_open && isMarkdownLink(l) && (l.group_ids || []).includes(activeGroup));
+  if (!doc) return;
+
+  rememberAutoOpened(activeGroup);
+  openMarkdownViewer(doc);
+}
+
 function closeMarkdownViewer() {
   document.getElementById('mdViewerOverlay').classList.add('hidden');
   document.getElementById('mdViewerFrame').src = 'about:blank';
@@ -1749,9 +1798,11 @@ function renderLinks(transition = false) {
       doRender();
       grid.style.opacity       = '';
       emptyState.style.opacity = '';
+      maybeAutoOpenGroupDoc();
     }, 100);
   } else {
     doRender();
+    maybeAutoOpenGroupDoc();
   }
 }
 

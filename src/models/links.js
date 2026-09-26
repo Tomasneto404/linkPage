@@ -210,15 +210,17 @@ function getLinkUrlIndex() {
  * optionally `fileName` for display) — in that case `url` may be an empty string.
  * `slug` is optional; null leaves the link reachable only at /r/<id>.
  */
-function createLink({ name, url, description, imagePath, groupIds, filePath, fileName, slug }) {
+function createLink({ name, url, description, imagePath, groupIds, filePath, fileName, slug,
+                      autoOpen }) {
   const maxPos = db.prepare('SELECT COALESCE(MAX(position), -1) AS max FROM links').get().max;
   const result = db
     .prepare(`
-      INSERT INTO links (name, url, description, image_path, position, file_path, file_name, slug)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO links
+        (name, url, description, image_path, position, file_path, file_name, slug, auto_open)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(name, url ?? '', description ?? null, imagePath ?? null, maxPos + 1,
-         filePath ?? null, fileName ?? null, slug || null);
+         filePath ?? null, fileName ?? null, slug || null, autoOpen ? 1 : 0);
 
   setLinkGroups(result.lastInsertRowid, groupIds);
   return result;
@@ -231,9 +233,10 @@ function createLink({ name, url, description, imagePath, groupIds, filePath, fil
  *   clearFile  = true   → clears file_path and file_name (link reverts to URL-only).
  * Pass groupIds=undefined to leave memberships untouched, [] to clear them.
  * Pass slug=undefined to leave the slug untouched, null to clear it.
+ * Pass autoOpen=undefined to leave it untouched.
  */
 function updateLink(id, { name, url, description, imagePath, groupIds, removeImage,
-                          filePath, fileName, clearFile, slug }) {
+                          filePath, fileName, clearFile, slug, autoOpen }) {
   if (removeImage) {
     db.prepare(`
       UPDATE links
@@ -258,6 +261,11 @@ function updateLink(id, { name, url, description, imagePath, groupIds, removeIma
   // Tri-state: undefined leaves the slug alone, null clears it, a string sets it.
   if (slug !== undefined) {
     db.prepare('UPDATE links SET slug = ? WHERE id = ?').run(slug || null, id);
+  }
+
+  // Same tri-state: undefined leaves it alone, anything else sets it.
+  if (autoOpen !== undefined) {
+    db.prepare('UPDATE links SET auto_open = ? WHERE id = ?').run(autoOpen ? 1 : 0, id);
   }
 
   if (groupIds !== undefined) setLinkGroups(id, groupIds);

@@ -70,6 +70,7 @@ function exportLinks(req, res) {
       favicon_path: l.favicon_path || null,
       file_path:    l.file_path    || null,
       file_name:    l.file_name    || null,
+      auto_open:    !!l.auto_open,
       // v4: preserves the full section_name → subsection_name path so a link
       // assigned to a subsection round-trips correctly.
       groups: (l.groups || []).map(g => {
@@ -226,6 +227,9 @@ function importLinks(req, res) {
       filePath:    isFileBacked ? item.file_path : null,
       fileName:    isFileBacked ? (item.file_name || null) : null,
       slug:        importedSlug,
+      // Dropped rather than fought over, like the slug: only a markdown link
+      // can carry it, and a row is not worth failing over a flag.
+      autoOpen:    !!item.auto_open && isMarkdownFile(item.file_name),
     });
     const newId = result.lastInsertRowid;
 
@@ -262,6 +266,33 @@ function reorder(req, res) {
 }
 
 // ─── Create / update ────────────────────────────────────────────────────────
+
+/** True when this filename is a markdown document. */
+function isMarkdownFile(fileName) {
+  return path.extname(fileName || '').toLowerCase() === '.md';
+}
+
+/**
+ * Reads the optional `auto_open` field: whether this document should open
+ * itself when its group is opened on the public page.
+ *
+ * Only a markdown link can, since it is the only kind that renders as a page
+ * rather than downloading or navigating away. Asking for it on anything else
+ * is refused rather than quietly ignored, so a caller is never left thinking
+ * it took. Multipart sends everything as text, hence the string forms.
+ *
+ * Returns { autoOpen } — undefined when the field was absent, meaning leave
+ * whatever is stored alone — or { error }.
+ */
+function resolveAutoOpenField(raw, { isMarkdown }) {
+  if (raw === undefined || raw === null || raw === '') return { autoOpen: undefined };
+
+  const wanted = raw === true || raw === 'true' || raw === '1' || raw === 1;
+  if (wanted && !isMarkdown) {
+    return { error: 'Only a markdown link can open itself when its group is opened' };
+  }
+  return { autoOpen: wanted };
+}
 
 /**
  * Validates the optional `slug` field of a link payload.
@@ -334,6 +365,14 @@ async function create(req, res) {
     return res.status(400).json({ error: slugResult.error });
   }
 
+  const autoOpenResult = resolveAutoOpenField(req.body.auto_open, {
+    isMarkdown: isMarkdownFile(attached?.originalname),
+  });
+  if (autoOpenResult.error) {
+    discardUploads(req);
+    return res.status(400).json({ error: autoOpenResult.error });
+  }
+
   const imagePath   = resolveIconReference({ imageFile, iconIdField: icon_id });
   const filePath    = attached  ? `/uploads/${attached.filename}`  : null;
   const fileName    = attached  ? attached.originalname            : null;
@@ -352,6 +391,7 @@ async function create(req, res) {
     filePath,
     fileName,
     slug:        slugResult.slug ?? null,
+    autoOpen:    autoOpenResult.autoOpen ?? false,
   });
 
   const linkId = result.lastInsertRowid;
@@ -409,6 +449,22 @@ async function update(req, res) {
   const newImagePath = resolveIconReference({ imageFile, iconIdField: icon_id });
   const newFilePath  = attached  ? `/uploads/${attached.filename}`  : null;
 
+  // Judged against what the link will be once this save lands, not what it
+  // was: attaching a PDF over a markdown file has to take the flag with it.
+  const keepsOldFile   = !attached && existingLink.file_path && !shouldRemoveFile;
+  const willBeMarkdown = attached ? isMarkdownFile(attached.originalname)
+                       : keepsOldFile ? isMarkdownFile(existingLink.file_name)
+                       : false;
+
+  const autoOpenResult = resolveAutoOpenField(req.body.auto_open, { isMarkdown: willBeMarkdown });
+  if (autoOpenResult.error) {
+    discardUploads(req);
+    return res.status(400).json({ error: autoOpenResult.error });
+  }
+  // Nothing but a markdown link may carry it, so a link that stops being one
+  // loses it whether the caller mentioned it or not.
+  const autoOpen = willBeMarkdown ? autoOpenResult.autoOpen : false;
+
   // Image files belong to the shared icon library — never delete them on update.
   // The library endpoints own that lifecycle. Attached files are still per-link.
   if ((newFilePath || shouldRemoveFile) && existingLink.file_path) {
@@ -435,6 +491,7 @@ async function update(req, res) {
     fileName:    attached?.originalname ?? undefined,
     clearFile:   shouldRemoveFile && !newFilePath,
     slug:        slugResult.slug,
+    autoOpen,
   });
 
   // Re-cache favicon only if we're now URL-backed and the URL changed.

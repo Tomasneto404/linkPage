@@ -34,6 +34,11 @@ const Link = {
     file_name:   { type: 'string', nullable: true, example: 'handbook.pdf' },
     position:    { type: 'integer' },
     is_hidden:   { type: 'integer', enum: [0, 1], description: 'Hidden links are admin-only.' },
+    auto_open:   {
+      type: 'integer', enum: [0, 1],
+      description: 'A markdown link that opens itself when its group is opened '
+                 + 'on the public page. Only markdown links may carry it.',
+    },
     is_broken:   { type: 'integer', enum: [0, 1], description: 'Last health check failed.' },
     created_at:  { type: 'string', format: 'date-time' },
     group_ids:   { type: 'array', items: { type: 'integer' } },
