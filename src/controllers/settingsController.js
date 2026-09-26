@@ -45,7 +45,27 @@ function getSettings(req, res) {
     // Group tab strip wraps around endlessly instead of stopping at the last
     // group. Off by default.
     group_tabs_loop:           db.readSetting('group_tabs_loop') === '1',
+    // Where a markdown link opens: a new tab (default) or an overlay on the
+    // page. The public page needs this to decide how to handle the click.
+    markdown_open_mode:        db.readSetting('markdown_open_mode') === 'modal' ? 'modal' : 'tab',
   });
+}
+
+/**
+ * Chooses how a markdown link opens: 'tab' (a new browser tab, the default)
+ * or 'modal' (an overlay on the public page). Stored only when it differs
+ * from the default, so the settings table stays free of no-op rows.
+ */
+function setMarkdownOpenMode(req, res) {
+  const mode = req.body?.mode;
+  if (mode !== 'tab' && mode !== 'modal') {
+    return res.status(400).json({ error: 'Mode must be "tab" or "modal"' });
+  }
+
+  if (mode === 'modal') db.writeSetting('markdown_open_mode', 'modal');
+  else                  db.deleteSetting('markdown_open_mode');
+
+  res.json({ markdown_open_mode: mode });
 }
 
 // ─── Logos ──────────────────────────────────────────────────────────────────
@@ -322,6 +342,7 @@ function setTheme(req, res) {
 }
 
 module.exports = {
+  setMarkdownOpenMode,
   getSettings,
   uploadLogo, deleteLogo,
   setBrandIcon, deleteBrandIcon,

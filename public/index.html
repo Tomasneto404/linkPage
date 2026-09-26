@@ -394,6 +394,35 @@
     .req-file-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .req-file-name { font-size: 0.8125rem; color: var(--text-muted); }
 
+    /* Markdown viewer overlay */
+    .md-viewer {
+      display: flex;
+      flex-direction: column;
+      width: min(900px, 94vw);
+      max-width: 94vw;
+      height: min(86vh, 900px);
+      padding: 0;
+      overflow: hidden;
+    }
+    .md-viewer .modal-header { padding: 14px 18px; border-bottom: 1px solid var(--border); }
+    .md-viewer .modal-header h2 {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .md-viewer-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .md-viewer-open {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.8125rem; color: var(--text-muted); text-decoration: none;
+      padding: 4px 9px; border-radius: 7px; border: 1px solid var(--border);
+    }
+    .md-viewer-open:hover { color: var(--primary); border-color: var(--primary); }
+    .md-viewer-frame {
+      flex: 1; width: 100%; border: 0; background: var(--bg); display: block;
+    }
+    @media (max-width: 600px) {
+      .md-viewer { width: 100vw; max-width: 100vw; height: 100vh; border-radius: 0; }
+      .md-viewer-open span { display: none; }
+    }
+
     #requestOverlay .modal { display: flex; flex-direction: column; max-height: min(90vh, 760px); }
     #requestForm { overflow-y: auto; }
 
@@ -573,6 +602,39 @@
         <button type="submit" class="btn btn-primary" id="unlockSubmitBtn">Unlock</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     MARKDOWN VIEWER
+     Shows a .md document in an overlay when the admin has set markdown links
+     to open in a popup. The document is framed rather than inlined, so it
+     stays inside its own sandboxed CSP instead of running on this page.
+     ════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="mdViewerOverlay">
+  <div class="modal md-viewer">
+    <div class="modal-header">
+      <h2 id="mdViewerTitle">Document</h2>
+      <div class="md-viewer-actions">
+        <a class="md-viewer-open" id="mdViewerOpenTab" href="#" target="_blank" rel="noopener noreferrer">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          Open in new tab
+        </a>
+        <button type="button" class="modal-close" id="mdViewerClose" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6"  y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <iframe class="md-viewer-frame" id="mdViewerFrame" title="Document" src="about:blank"></iframe>
   </div>
 </div>
 

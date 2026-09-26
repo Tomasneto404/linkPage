@@ -22,8 +22,23 @@ const MARKDOWN_CSP = [
   "default-src 'none'",
   "img-src 'self' https: data:",
   "style-src 'unsafe-inline'",
+  // The public page may show a document in an overlay, which frames this page
+  // rather than injecting its HTML — that keeps the document inside its own
+  // sandbox instead of running beside the admin token. Only this site may.
+  "frame-ancestors 'self'",
   "sandbox allow-popups",
 ].join('; ');
+
+/** Themes the page will honour; anything else falls back to the system one. */
+const PAGE_THEMES = new Set(['light', 'dark']);
+
+/**
+ * Normalises a ?theme= value. The result is written into an attribute, so
+ * nothing but these two literals may ever come back.
+ */
+function normalizePageTheme(raw) {
+  return PAGE_THEMES.has(String(raw || '').trim()) ? String(raw).trim() : null;
+}
 
 const PAGE_STYLES = `
 :root {
@@ -31,12 +46,21 @@ const PAGE_STYLES = `
   --border: rgba(0,0,0,0.08); --primary: #0071e3;
   --text: #1d1d1f; --text-muted: #86868b;
 }
+/* The site passes its current theme as ?theme=, since this page carries no
+   script and cannot read where the toggle stored it. With no parameter the
+   reader's system setting decides — but an explicit light must still win over
+   a dark system, hence the :not() guard. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #000000; --surface: #1c1c1e; --surface-3: #2c2c2e;
     --border: rgba(255,255,255,0.12); --primary: #0a84ff;
     --text: #f5f5f7; --text-muted: #98989d;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --surface: #1c1c1e; --surface-3: #2c2c2e;
+  --border: rgba(255,255,255,0.12); --primary: #0a84ff;
+  --text: #f5f5f7; --text-muted: #98989d;
 }
 * { box-sizing: border-box; }
 body {
@@ -44,6 +68,7 @@ body {
   font: 16px/1.65 -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
   padding: 24px 16px 64px;
 }
+body:has(.is-embedded) { background: var(--surface); padding: 18px 22px 40px; }
 .md-shell { max-width: 760px; margin: 0 auto; }
 .md-back {
   display: inline-block; margin-bottom: 18px; color: var(--text-muted);
@@ -83,16 +108,27 @@ table { border-collapse: collapse; width: 100%; font-size: 0.9375rem; }
 th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; }
 th { background: var(--surface-3); font-weight: 600; }
 @media (max-width: 600px) { .md-doc { padding: 22px 18px; } }
+
+/* Inside the site's overlay the surrounding modal is the card, so this page
+   flattens itself rather than drawing a second one. */
+.is-embedded { max-width: none; }
+.is-embedded .md-doc { background: none; border: 0; border-radius: 0; padding: 4px 8px 24px; }
 `;
 
 /**
  * Builds the full document. `title` is the link's name; `body` is the fragment
  * renderMarkdown produced.
  */
-function renderMarkdownPage({ title, body }) {
-  const heading = escapeHtml(title || 'Document');
+function renderMarkdownPage({ title, body, theme, embed = false }) {
+  const heading   = escapeHtml(title || 'Document');
+  const pageTheme = normalizePageTheme(theme);
+  const themeAttr = pageTheme ? ` data-theme="${pageTheme}"` : '';
+  // Embedded in the site's overlay: the modal already provides the frame and
+  // a way out, so the page drops its own card and Back link.
+  const shellClass = embed ? 'md-shell is-embedded' : 'md-shell';
+  const backLink   = embed ? '' : '\n  <a class="md-back" href="/">&larr; Back</a>';
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en"${themeAttr}>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -101,8 +137,7 @@ function renderMarkdownPage({ title, body }) {
 <style>${PAGE_STYLES}</style>
 </head>
 <body>
-<div class="md-shell">
-  <a class="md-back" href="/">&larr; Back</a>
+<div class="${shellClass}">${backLink}
   <article class="md-doc">
 ${body || '<p><em>This document is empty.</em></p>'}
   </article>
@@ -111,4 +146,4 @@ ${body || '<p><em>This document is empty.</em></p>'}
 </html>`;
 }
 
-module.exports = { renderMarkdownPage, MARKDOWN_CSP };
+module.exports = { renderMarkdownPage, MARKDOWN_CSP, normalizePageTheme };

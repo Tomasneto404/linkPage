@@ -87,7 +87,7 @@ function redirect(req, res) {
 
   // A markdown attachment is rendered here rather than bounced to its source,
   // so the reader lands on the document itself.
-  if (isMarkdownLink(link)) return sendRenderedMarkdown(res, link);
+  if (isMarkdownLink(link)) return sendRenderedMarkdown(res, link, req.query.theme, req.query.embed === '1');
 
   res.redirect(302, link.url);
 }
@@ -109,7 +109,7 @@ function isMarkdownLink(link) {
  * under a policy that permits no script at all. The raw source stays available
  * at its /uploads/... path for anyone who wants it.
  */
-function sendRenderedMarkdown(res, link) {
+function sendRenderedMarkdown(res, link, theme, embed = false) {
   const fullPath = resolveStoredFilePath(link.file_path);
   if (!fullPath || !fs.existsSync(fullPath)) {
     return res.status(404).send('File missing on disk');
@@ -123,9 +123,14 @@ function sendRenderedMarkdown(res, link) {
   }
 
   res.setHeader('Content-Security-Policy', MARKDOWN_CSP);
+  // Relaxed from the blanket DENY for this response only, so the public page
+  // can show the document in an overlay. The CSP pins that to this origin.
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.type('html').send(renderMarkdownPage({
     title: link.name,
     body:  renderMarkdown(source),
+    theme,
+    embed,
   }));
 }
 
@@ -155,7 +160,7 @@ function serveBySlug(req, res) {
   trackVisit(req, link, isAdmin);
   setVisitHeaders(res);
 
-  if (isMarkdownLink(link)) return sendRenderedMarkdown(res, link);
+  if (isMarkdownLink(link)) return sendRenderedMarkdown(res, link, req.query.theme, req.query.embed === '1');
   if (link.file_path)       return sendAttachedFile(res, link);
   res.redirect(302, link.url);
 }

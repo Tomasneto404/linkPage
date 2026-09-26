@@ -157,3 +157,138 @@ describe('admin preview', () => {
     assert.equal(huge.status, 413);
   });
 });
+
+// ─── Theme and framing ───────────────────────────────────────────────────────
+
+describe('the rendered page follows the site theme', () => {
+  test('?theme=dark pins the document to dark', async () => {
+    await makeMarkdownLink({ name: 'Dark doc', slug: 'dark-doc' });
+
+    const res = await visit('/f/dark-doc?theme=dark');
+    assert.equal(res.status, 200);
+    assert.match(res.text, /<html lang="en" data-theme="dark">/);
+  });
+
+  test('?theme=light pins it to light', async () => {
+    await makeMarkdownLink({ name: 'Light doc', slug: 'light-doc' });
+
+    const res = await visit('/f/light-doc?theme=light');
+    assert.match(res.text, /<html lang="en" data-theme="light">/);
+  });
+
+  test('no parameter leaves it to the reader\'s system setting', async () => {
+    await makeMarkdownLink({ name: 'System doc', slug: 'system-doc' });
+
+    const res = await visit('/f/system-doc');
+    // The stylesheet still mentions data-theme in its selectors; what matters
+    // is that the <html> tag carries no attribute pinning the theme.
+    assert.match(res.text, /<html lang="en">/);
+    assert.match(res.text, /prefers-color-scheme: dark/, 'the media query still carries it');
+  });
+
+  test('a junk theme is ignored rather than reflected', async () => {
+    await makeMarkdownLink({ name: 'Junk theme', slug: 'junk-theme' });
+
+    for (const bad of ['purple', '"><script>alert(1)</script>', 'dark evil', '']) {
+      const res = await visit(`/f/junk-theme?theme=${encodeURIComponent(bad)}`);
+      assert.equal(res.status, 200);
+      assert.match(res.text, /<html lang="en">/, `reflected into the tag: ${bad}`);
+      assert.doesNotMatch(res.text, /<script>alert/);
+    }
+  });
+
+  test('/r/<id> takes the theme too', async () => {
+    const link = await makeMarkdownLink({ name: 'By id, dark' });
+
+    const res = await visit(`/r/${link.id}?theme=dark`);
+    assert.match(res.text, /data-theme="dark"/);
+  });
+});
+
+describe('embedded rendering', () => {
+  test('?embed=1 drops the page\'s own card and back link', async () => {
+    await makeMarkdownLink({ name: 'Embedded', slug: 'embedded' });
+
+    const plain = await visit('/f/embedded');
+    assert.match(plain.text, /class="md-back"/, 'the standalone page keeps its way out');
+
+    const embedded = await visit('/f/embedded?embed=1');
+    assert.doesNotMatch(embedded.text, /class="md-back"/, 'the overlay supplies its own');
+    assert.match(embedded.text, /class="md-shell is-embedded"/);
+    assert.match(embedded.text, /<h1>Quarterly Report<\/h1>/, 'the document itself is unchanged');
+  });
+
+  test('embed and theme combine', async () => {
+    await makeMarkdownLink({ name: 'Both', slug: 'both-params' });
+
+    const res = await visit('/f/both-params?theme=dark&embed=1');
+    assert.match(res.text, /<html lang="en" data-theme="dark">/);
+    assert.match(res.text, /is-embedded/);
+  });
+
+  test('anything other than embed=1 renders the full page', async () => {
+    await makeMarkdownLink({ name: 'Not embedded', slug: 'not-embedded' });
+
+    for (const value of ['0', 'true', 'yes', '']) {
+      const res = await visit(`/f/not-embedded?embed=${value}`);
+      assert.match(res.text, /class="md-back"/, `embed=${value} should not embed`);
+    }
+  });
+});
+
+describe('framing', () => {
+  test('the markdown page may be framed by this site, and only by this site', async () => {
+    await makeMarkdownLink({ name: 'Framed', slug: 'framed' });
+
+    const res = await visit('/f/framed');
+    assert.equal(res.headers.get('x-frame-options'), 'SAMEORIGIN');
+    assert.match(res.headers.get('content-security-policy'), /frame-ancestors 'self'/);
+  });
+
+  test('every other page keeps the blanket DENY', async () => {
+    const link = await c.makeLink({ name: 'Ordinary', url: 'https://ordinary.invalid/x' });
+
+    const redirect = await visit(`/r/${link.id}`);
+    assert.equal(redirect.headers.get('x-frame-options'), 'DENY');
+
+    const home = await c.pub('/');
+    assert.equal(home.headers.get('x-frame-options'), 'DENY');
+  });
+});
+
+describe('the open-mode setting', () => {
+  test('defaults to a new tab', async () => {
+    const res = await c.pub('/api/settings');
+    assert.equal(res.body.markdown_open_mode, 'tab');
+  });
+
+  test('an admin can switch it to a popup, and the public payload reports it', async () => {
+    const saved = await c.api('/api/settings/markdown-open-mode', {
+      method: 'POST', json: { mode: 'modal' },
+    });
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.markdown_open_mode, 'modal');
+
+    const settings = await c.pub('/api/settings');
+    assert.equal(settings.body.markdown_open_mode, 'modal');
+
+    // And back again.
+    await c.api('/api/settings/markdown-open-mode', { method: 'POST', json: { mode: 'tab' } });
+    assert.equal((await c.pub('/api/settings')).body.markdown_open_mode, 'tab');
+  });
+
+  test('an unknown mode is refused', async () => {
+    const res = await c.api('/api/settings/markdown-open-mode', {
+      method: 'POST', json: { mode: 'carrier-pigeon' },
+    });
+    assert.equal(res.status, 400);
+    assert.equal((await c.pub('/api/settings')).body.markdown_open_mode, 'tab', 'unchanged');
+  });
+
+  test('an anonymous caller cannot change it', async () => {
+    const res = await c.pub('/api/settings/markdown-open-mode', {
+      method: 'POST', json: { mode: 'modal' },
+    });
+    assert.equal(res.status, 401);
+  });
+});

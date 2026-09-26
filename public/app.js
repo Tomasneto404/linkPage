@@ -92,6 +92,9 @@ function getInitialTheme() {
 
 function applyTheme(theme, save = true) {
   document.documentElement.setAttribute('data-theme', theme);
+  // A document showing in the overlay is a separate page with its own copy of
+  // the palette, so it has to be told the theme changed.
+  refreshMarkdownViewerTheme();
   document.getElementById('iconMoon').classList.toggle('hidden', theme === 'dark');
   document.getElementById('iconSun').classList.toggle('hidden', theme === 'light');
   applyAccent(theme);
@@ -267,6 +270,8 @@ let tabsUseGroupColor = true;
 // Admin opt-in: when the group strip overflows, wrap it around endlessly
 // instead of stopping at the first/last group. Set from settings.
 let tabsLoopEnabled = false;
+// 'tab' (default) or 'modal' — how a markdown link opens. Set in the admin.
+let markdownOpenMode = 'tab';
 let activeSection = null;
 let searchQuery   = '';
 // Pinned keywords. Each one narrows the result set further (AND combined
@@ -1225,6 +1230,83 @@ function getLinkDisplayLabel(link) {
   return getDomainName(link.url);
 }
 
+// ─── Markdown documents ──────────────────────────────────────────────────────
+
+/** True when this link's attached file is a markdown document. */
+function isMarkdownLink(link) {
+  return /\.md$/i.test(link?.file_name || link?.file_path || '');
+}
+
+/** The current theme, passed to the renderer since it carries no script. */
+function currentThemeName() {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+/** Where a link points: its slug when it has one, otherwise /r/<id>. */
+function linkHref(link) {
+  return link.slug ? `/f/${encodeURIComponent(link.slug)}` : `/r/${link.id}`;
+}
+
+/**
+ * The same address with the theme attached, for a rendered document.
+ * `embed` drops the page's own card and Back link, for showing it in the
+ * overlay where the modal already supplies both.
+ */
+function markdownHref(link, { embed = false } = {}) {
+  return `${linkHref(link)}?theme=${currentThemeName()}${embed ? '&embed=1' : ''}`;
+}
+
+/**
+ * Opens a markdown document in the overlay.
+ *
+ * The document is framed rather than inlined: it keeps the no-script sandbox
+ * the server serves it under, so a file an untrusted visitor uploaded can
+ * never touch this page. The frame is pointed at about:blank on close so the
+ * next open never flashes the previous document.
+ */
+function openMarkdownViewer(link) {
+  document.getElementById('mdViewerTitle').textContent = link.name || 'Document';
+
+  // The frame gets the embedded rendering; the tab link gets the full page.
+  document.getElementById('mdViewerFrame').src    = markdownHref(link, { embed: true });
+  document.getElementById('mdViewerOpenTab').href = markdownHref(link);
+
+  document.getElementById('mdViewerOverlay').classList.remove('hidden');
+}
+
+/** Reloads an open document under the new theme; a no-op when none is open. */
+function refreshMarkdownViewerTheme() {
+  const overlay = document.getElementById('mdViewerOverlay');
+  if (!overlay || overlay.classList.contains('hidden')) return;
+
+  const frame = document.getElementById('mdViewerFrame');
+  const tab   = document.getElementById('mdViewerOpenTab');
+  const base  = (frame.src || '').split('?')[0];
+  if (!base || base === 'about:blank') return;
+
+  frame.src = `${base}?theme=${currentThemeName()}&embed=1`;
+  tab.href  = `${base}?theme=${currentThemeName()}`;
+}
+
+function closeMarkdownViewer() {
+  document.getElementById('mdViewerOverlay').classList.add('hidden');
+  document.getElementById('mdViewerFrame').src = 'about:blank';
+}
+
+document.getElementById('mdViewerClose')?.addEventListener('click', closeMarkdownViewer);
+// The global Escape handler only hides the overlay; the viewer also has to
+// drop the frame, or the document stays loaded behind a hidden panel.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const overlay = document.getElementById('mdViewerOverlay');
+  if (overlay && !overlay.classList.contains('hidden')) closeMarkdownViewer();
+}, true);
+document.getElementById('mdViewerOverlay')?.addEventListener('click', e => {
+  if (e.target.id === 'mdViewerOverlay') closeMarkdownViewer();
+});
+// Opening the document in a tab means the overlay has done its job.
+document.getElementById('mdViewerOpenTab')?.addEventListener('click', closeMarkdownViewer);
+
 function buildLinkCard(link) {
   const card    = document.createElement('a');
   card.className = 'link-card';
@@ -1232,7 +1314,20 @@ function buildLinkCard(link) {
   card.rel       = 'noopener noreferrer';
   // A custom slug is the nicer front door when the link has one; /r/<id> is
   // always there as the fallback. Both track the click the same way.
-  card.href      = link.slug ? `/f/${link.slug}` : `/r/${link.id}`;
+  // A markdown document carries the theme, since the rendered page has no
+  // script of its own to read which one is in use.
+  card.href      = isMarkdownLink(link) ? markdownHref(link) : linkHref(link);
+
+  // In popup mode the click is intercepted and shown in the overlay instead.
+  // The href stays real, so middle-click and "open in new tab" still work.
+  if (isMarkdownLink(link)) {
+    card.addEventListener('click', e => {
+      if (markdownOpenMode !== 'modal') return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;  // let the browser win
+      e.preventDefault();
+      openMarkdownViewer(link);
+    });
+  }
 
   // Icon source: custom upload → server-cached favicon → (nothing). We no
   // longer fall back to Google's client-side favicon service because it
@@ -1711,6 +1806,7 @@ async function init() {
   applyFooter(settings);
   tabsUseGroupColor = settings.group_tab_color !== false;
   tabsLoopEnabled   = !!settings.group_tabs_loop;
+  markdownOpenMode  = settings.markdown_open_mode === 'modal' ? 'modal' : 'tab';
 
   if (settings.public_password_required) {
     const stored = localStorage.getItem('linkpage_public_password');

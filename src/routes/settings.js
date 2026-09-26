@@ -23,6 +23,7 @@ router.post  ('/api/settings/save-favicons',   requireAdminToken,               
 router.post  ('/api/settings/footer-enabled',  requireAdminToken,                           c.setFooterEnabled);
 router.post  ('/api/settings/group-tab-color', requireAdminToken,                           c.setGroupTabColor);
 router.post  ('/api/settings/group-tabs-loop', requireAdminToken,                           c.setGroupTabsLoop);
+router.post  ('/api/settings/markdown-open-mode', requireAdminToken,                       c.setMarkdownOpenMode);
 router.post  ('/api/settings/site-title',      requireAdminToken,                           c.setSiteTitle);
 router.post  ('/api/settings/pinned-group',    requireAdminToken,                           c.setPinnedGroup);
 router.post  ('/api/settings/public-password', requireAdminToken,                           c.setPublicPassword);

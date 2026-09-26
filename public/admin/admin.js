@@ -457,6 +457,8 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   document.getElementById('footerEnabledToggle').checked = !!s.footer_enabled;
   document.getElementById('groupTabColorToggle').checked = s.group_tab_color !== false;
   document.getElementById('groupTabsLoopToggle').checked = !!s.group_tabs_loop;
+  document.getElementById('markdownOpenModeSelect').value =
+    s.markdown_open_mode === 'modal' ? 'modal' : 'tab';
   updateRequestPasswordStatus(s.request_password_required);
   hydrateThemeControls(s);
   resetSettingsTabs();
@@ -663,6 +665,23 @@ document.getElementById('groupTabColorToggle').addEventListener('change', async 
     return;
   }
   showToast(enabled ? 'Tabs use group colour' : 'Tabs use secondary colour');
+});
+
+document.getElementById('markdownOpenModeSelect').addEventListener('change', async e => {
+  const mode = e.target.value;
+  const res  = await sendAuthRequest('/api/settings/markdown-open-mode', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ mode }),
+  });
+  if (!res.ok) {
+    // Put the control back where it was rather than leaving it showing a
+    // choice the server never took.
+    e.target.value = mode === 'modal' ? 'tab' : 'modal';
+    showToast('Could not save setting');
+    return;
+  }
+  showToast(mode === 'modal' ? 'Markdown opens in a popup' : 'Markdown opens in a new tab');
 });
 
 document.getElementById('groupTabsLoopToggle').addEventListener('change', async e => {
