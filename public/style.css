@@ -27,15 +27,24 @@
   --radius-sm:    8px;
   --radius-lg:    18px;
   --transition:   0.18s cubic-bezier(0.4,0,0.2,1);
-  /* The three sticky bars — header, group tab strip, footer — share a
-     translucent background so a wallpaper carries through behind them, and a
-     blur that the admin can tune (see --bar-blur, set from the settings). */
-  --bar-bg:       rgba(255,255,255,0.82);
-  --bar-blur:     20px;
+  /* The three sticky bars — header, group tab strip, footer — are built from
+     a colour and an alpha the admin controls, so they run from completely
+     see-through to flat colour. --bar-alpha and --bar-blur are set by the
+     page from the settings; the values here are what a bar looks like before
+     any of that arrives. */
+  --bar-rgb:        255,255,255;
+  --bar-border-rgb: 0,0,0;
+  --bar-alpha:      0.82;
+  --bar-blur:       20px;
+  --bar-bg:         rgba(var(--bar-rgb), var(--bar-alpha));
+  /* The edge fades with the bar: a hairline over a fully transparent bar
+     would be a line ruled across the wallpaper for no reason. */
+  --bar-border:     rgba(var(--bar-border-rgb), calc(var(--bar-alpha) * 0.1));
 }
 
 [data-theme="dark"] {
-  --bar-bg:       rgba(28,28,30,0.85);
+  --bar-rgb:        28,28,30;
+  --bar-border-rgb: 255,255,255;
   --bg:           #000000;
   --surface:      #1c1c1e;
   --surface-2:    #2c2c2e;
@@ -115,7 +124,7 @@ header {
   background: var(--bar-bg);
   backdrop-filter: saturate(180%) blur(var(--bar-blur));
   -webkit-backdrop-filter: saturate(180%) blur(var(--bar-blur));
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--bar-border);
   z-index: 50;
   transition: background var(--transition), border-color var(--transition);
 }
@@ -1154,7 +1163,7 @@ select option { background: var(--surface); }
   font-size: 0.8rem;
   color: var(--text-muted);
   background: var(--bar-bg);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--bar-border);
   backdrop-filter: saturate(180%) blur(var(--bar-blur));
   -webkit-backdrop-filter: saturate(180%) blur(var(--bar-blur));
 }

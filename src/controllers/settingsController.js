@@ -6,7 +6,7 @@ const db = require('../models');
 const {
   LOGO_VARIANTS, THEME_LIGHT_VARIANTS, THEME_DARK_VARIANTS,
   DEFAULT_THEMES, MOBILE_NAV_POSITIONS, HEX_COLOR_RE,
-  WALLPAPER_VARIANTS, DEFAULT_WALLPAPER_FOG, DEFAULT_BAR_BLUR, MAX_BAR_BLUR,
+  WALLPAPER_VARIANTS, DEFAULT_WALLPAPER_FOG, DEFAULT_BAR_OPACITY,
 } = require('../config/constants');
 const {
   safeDeleteFile, safeDeleteFileUnlessLibrary, resolveIconReference,
@@ -53,7 +53,7 @@ function getSettings(req, res) {
     wallpaper_light:           db.readSetting('wallpaper_light') ?? null,
     wallpaper_dark:            db.readSetting('wallpaper_dark')  ?? null,
     wallpaper_fog:             readWallpaperFog(),
-    bar_blur:                  readBarBlur(),
+    bar_opacity:               readBarOpacity(),
   });
 }
 
@@ -89,13 +89,13 @@ function readWallpaperFog() {
   return Number.isFinite(raw) ? Math.min(100, Math.max(0, Math.round(raw))) : DEFAULT_WALLPAPER_FOG;
 }
 
-/** The stored bar blur, in pixels. Same emptiness trap as the fog above. */
-function readBarBlur() {
-  const stored = db.readSetting('bar_blur');
-  if (stored === null || stored === undefined || stored === '') return DEFAULT_BAR_BLUR;
+/** How solid the sticky bars are. Same emptiness trap as the fog above. */
+function readBarOpacity() {
+  const stored = db.readSetting('bar_opacity');
+  if (stored === null || stored === undefined || stored === '') return DEFAULT_BAR_OPACITY;
 
   const raw = Number(stored);
-  return Number.isFinite(raw) ? Math.min(MAX_BAR_BLUR, Math.max(0, Math.round(raw))) : DEFAULT_BAR_BLUR;
+  return Number.isFinite(raw) ? Math.min(100, Math.max(0, Math.round(raw))) : DEFAULT_BAR_OPACITY;
 }
 
 // ─── Wallpaper ──────────────────────────────────────────────────────────────
@@ -157,22 +157,26 @@ function setWallpaperFog(req, res) {
 }
 
 /**
- * How far the sticky bars blur what passes behind them. One number for the
- * header, the group tab strip and the footer: they share a look, and tuning
- * them apart reads as a mistake rather than a choice.
+ * How solid the sticky bars are, from completely see-through to flat colour.
+ * One number for the header, the group tab strip and the footer: they share a
+ * look, and tuning them apart reads as a mistake rather than a choice.
+ *
+ * The page turns this into both the background alpha and the blur, because a
+ * bar that is transparent but still blurring is not see-through at all — it
+ * is a smear. The two have to move together.
  */
-function setBarBlur(req, res) {
-  const raw  = req.body?.blur;
-  const blur = typeof raw === 'number' ? raw : NaN;
-  if (!Number.isFinite(blur) || blur < 0 || blur > MAX_BAR_BLUR) {
-    return res.status(400).json({ error: `Blur must be a number between 0 and ${MAX_BAR_BLUR}` });
+function setBarOpacity(req, res) {
+  const raw     = req.body?.opacity;
+  const opacity = typeof raw === 'number' ? raw : NaN;
+  if (!Number.isFinite(opacity) || opacity < 0 || opacity > 100) {
+    return res.status(400).json({ error: 'Opacity must be a number between 0 and 100' });
   }
 
-  const rounded = Math.round(blur);
-  if (rounded === DEFAULT_BAR_BLUR) db.deleteSetting('bar_blur');
-  else                              db.writeSetting('bar_blur', String(rounded));
+  const rounded = Math.round(opacity);
+  if (rounded === DEFAULT_BAR_OPACITY) db.deleteSetting('bar_opacity');
+  else                                 db.writeSetting('bar_opacity', String(rounded));
 
-  res.json({ bar_blur: rounded });
+  res.json({ bar_opacity: rounded });
 }
 
 // ─── Logos ──────────────────────────────────────────────────────────────────
@@ -453,7 +457,7 @@ module.exports = {
   uploadWallpaperImage,
   deleteWallpaperImage,
   setWallpaperFog,
-  setBarBlur,
+  setBarOpacity,
   getSettings,
   uploadLogo, deleteLogo,
   setBrandIcon, deleteBrandIcon,

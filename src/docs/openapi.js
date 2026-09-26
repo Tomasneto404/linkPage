@@ -644,17 +644,18 @@ const paths = {
       },
     }),
   },
-  '/api/settings/bar-blur': {
+  '/api/settings/bar-opacity': {
     post: op({
       tag: TAGS.settings,
-      summary: 'Set how far the sticky bars blur what passes behind them',
-      description: 'One number in pixels, 0 to 40, for the header, the group tab strip and '
-                 + 'the footer together. They share a look, so tuning them apart reads as a '
-                 + 'mistake rather than a choice.',
-      body: jsonBody({ blur: { type: 'integer', minimum: 0, maximum: 40, default: 20 } }, ['blur']),
+      summary: 'Set how solid the sticky bars are',
+      description: 'One number from 0 to 100 for the header, the group tab strip and the '
+                 + 'footer together. 0 is completely see-through — no tint and no blur, since '
+                 + 'a bar that blurs without tinting is a smear rather than a window. 100 is '
+                 + 'flat colour.',
+      body: jsonBody({ opacity: { type: 'integer', minimum: 0, maximum: 100, default: 82 } }, ['opacity']),
       responses: {
-        200: json({ type: 'object', properties: { bar_blur: { type: 'integer' } } }),
-        400: json(ref('Error'), 'Not a number, or outside 0–40'),
+        200: json({ type: 'object', properties: { bar_opacity: { type: 'integer' } } }),
+        400: json(ref('Error'), 'Not a number, or outside 0–100'),
       },
     }),
   },

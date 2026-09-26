@@ -163,52 +163,53 @@ describe('the fog', () => {
   });
 });
 
-describe('bar blur', () => {
-  const setBlur = blur => c.api('/api/settings/bar-blur', { method: 'POST', json: { blur } });
+describe('bar opacity', () => {
+  const setBars = opacity => c.api('/api/settings/bar-opacity', { method: 'POST', json: { opacity } });
 
   test('it reports the documented default before anyone touches it', async () => {
-    const { DEFAULT_BAR_BLUR } = require('../src/config/constants');
-    assert.equal((await settings()).bar_blur, DEFAULT_BAR_BLUR);
-    assert.equal(DEFAULT_BAR_BLUR, 20, 'what the header has always used');
+    const { DEFAULT_BAR_OPACITY } = require('../src/config/constants');
+    assert.equal((await settings()).bar_opacity, DEFAULT_BAR_OPACITY);
+    assert.equal(DEFAULT_BAR_OPACITY, 82, 'the translucency the bars shipped with');
   });
 
-  test('it can be set across its range', async () => {
-    for (const blur of [0, 12, 40]) {
-      const res = await setBlur(blur);
+  test('it spans completely see-through to flat colour', async () => {
+    for (const opacity of [0, 50, 100]) {
+      const res = await setBars(opacity);
       assert.equal(res.status, 200);
-      assert.equal(res.body.bar_blur, blur);
-      assert.equal((await settings()).bar_blur, blur);
+      assert.equal(res.body.bar_opacity, opacity);
+      assert.equal((await settings()).bar_opacity, opacity);
     }
   });
 
-  test('a value outside the range is refused', async () => {
-    for (const blur of [-1, 41, 500]) {
-      assert.equal((await setBlur(blur)).status, 400, `${blur} should be refused`);
+  test('a value outside 0\u2013100 is refused', async () => {
+    for (const opacity of [-1, 101, 500]) {
+      assert.equal((await setBars(opacity)).status, 400, `${opacity} should be refused`);
     }
   });
 
   test('something that is not a number is refused', async () => {
-    for (const blur of ['heavy', null, undefined, {}, NaN]) {
-      assert.equal((await setBlur(blur)).status, 400, `${JSON.stringify(blur)} should be refused`);
+    for (const opacity of ['solid', null, undefined, {}, NaN]) {
+      assert.equal((await setBars(opacity)).status, 400, `${JSON.stringify(opacity)} should be refused`);
     }
   });
 
   test('a fractional value is rounded', async () => {
-    const res = await setBlur(17.4);
+    const res = await setBars(63.7);
     assert.equal(res.status, 200);
-    assert.equal(res.body.bar_blur, 17);
+    assert.equal(res.body.bar_opacity, 64);
   });
 
   test('an anonymous caller cannot change it', async () => {
-    assert.equal((await c.pub('/api/settings/bar-blur', { method: 'POST', json: { blur: 5 } })).status, 401);
+    const res = await c.pub('/api/settings/bar-opacity', { method: 'POST', json: { opacity: 5 } });
+    assert.equal(res.status, 401);
   });
 
   test('it is independent of the fog', async () => {
-    await setBlur(8);
+    await setBars(30);
     await c.api('/api/settings/wallpaper-fog', { method: 'POST', json: { fog: 90 } });
 
     const s = await settings();
-    assert.equal(s.bar_blur, 8, 'setting the fog left the bar blur alone');
+    assert.equal(s.bar_opacity, 30, 'setting the fog left the bars alone');
     assert.equal(s.wallpaper_fog, 90);
   });
 });

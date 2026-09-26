@@ -77,10 +77,12 @@ const LOGO_VARIANTS = ['light', 'dark'];
 // The public page can carry a background image per theme, with a "fog" over it.
 const WALLPAPER_VARIANTS = ['light', 'dark'];
 const DEFAULT_WALLPAPER_FOG = 60;
-// How far the sticky bars blur what passes behind them, in pixels. 20 is what
-// the header and tab strip have always used.
-const DEFAULT_BAR_BLUR = 20;
-const MAX_BAR_BLUR = 40;
+// How solid the sticky bars are, 0 to 100. At 0 they are completely
+// see-through — no tint, no blur, nothing but their text floating over
+// whatever is behind. At 100 they are the flat colour they would have been
+// before any of this existed. 82 matches the translucency the header and tab
+// strip shipped with.
+const DEFAULT_BAR_OPACITY = 82;
 
 const THEME_LIGHT_VARIANTS = ['default', 'snow', 'warm'];
 const THEME_DARK_VARIANTS  = ['default', 'midnight', 'slate'];
@@ -115,8 +117,7 @@ module.exports = {
   LOGO_VARIANTS,
   WALLPAPER_VARIANTS,
   DEFAULT_WALLPAPER_FOG,
-  DEFAULT_BAR_BLUR,
-  MAX_BAR_BLUR,
+  DEFAULT_BAR_OPACITY,
   THEME_LIGHT_VARIANTS,
   THEME_DARK_VARIANTS,
   DEFAULT_THEMES,

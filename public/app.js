@@ -130,8 +130,8 @@ let wallpaperLightUrl = null;
 let wallpaperDarkUrl  = null;
 let wallpaperFog      = 60;
 
-/** How far the sticky bars blur what passes behind them, in pixels. */
-let barBlur = 20;
+/** How solid the sticky bars are, 0–100. */
+let barOpacity = 82;
 
 const isDarkTheme = () =>
   (document.documentElement.getAttribute('data-theme') || 'light') === 'dark';
@@ -169,10 +169,20 @@ function getLogoForCurrentTheme() {
   return isDarkTheme() ? logoDarkUrl : logoLightUrl;
 }
 
-/** Applies the admin's bar blur to the header, the tab strip and the footer. */
-function applyBarBlur() {
-  const px = Math.min(40, Math.max(0, Number(barBlur) || 0));
-  document.documentElement.style.setProperty('--bar-blur', `${px}px`);
+/**
+ * Applies the bar setting to the header, the tab strip and the footer.
+ *
+ * One number drives the tint and the blur together, because they only make
+ * sense together: a bar with no tint but a blur still smears what is behind
+ * it, which is not "see-through" by any reading. So at 0 both go, and the
+ * bars become their text floating over the page; at 100 the tint is flat
+ * colour and the blur no longer matters because nothing shows through.
+ */
+function applyBarOpacity() {
+  const t = Math.min(100, Math.max(0, Number(barOpacity) || 0)) / 100;
+  const root = document.documentElement.style;
+  root.setProperty('--bar-alpha', t.toFixed(3));
+  root.setProperty('--bar-blur', `${(t * 24).toFixed(1)}px`);
 }
 
 /**
@@ -1921,9 +1931,9 @@ async function init() {
   wallpaperLightUrl = settings.wallpaper_light || null;
   wallpaperDarkUrl  = settings.wallpaper_dark  || null;
   wallpaperFog      = Number.isFinite(settings.wallpaper_fog) ? settings.wallpaper_fog : 60;
-  barBlur           = Number.isFinite(settings.bar_blur) ? settings.bar_blur : 20;
+  barOpacity        = Number.isFinite(settings.bar_opacity) ? settings.bar_opacity : 82;
   applyWallpaper();
-  applyBarBlur();
+  applyBarOpacity();
   siteFaviconUrl = settings.favicon || null;
   pinnedGroupId  = settings.pinned_group_id ?? null;
   applyFavicon(settings.favicon || null);
