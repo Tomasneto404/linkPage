@@ -29,23 +29,83 @@ async function settle(predicate, tries = 40) {
 }
 
 describe('seedFirstRunContent', () => {
-  test('creates exactly one link: hidden, ungrouped, pointing at Buy Me a Coffee', async () => {
+  test('creates the hidden coffee link, ungrouped', async () => {
     seed.seedFirstRunContent();
 
     const links = (await c.api('/api/links')).body;
-    assert.equal(links.length, 1);
+    const link  = links.find(l => l.name === 'Buy me a coffee');
 
-    const [link] = links;
-    assert.equal(link.name, 'Buy me a coffee');
+    assert.ok(link, 'the coffee link is there');
     assert.equal(link.url, 'https://buymeacoffee.com/tomasneto26');
     assert.equal(link.is_hidden, 1, 'admin-only');
-    assert.deepEqual(link.group_ids, [], 'no group is created');
+    assert.deepEqual(link.group_ids, [], 'no group is created for it');
     assert.match(link.description, /open source/i);
   });
 
-  test('it never reaches the public page', async () => {
-    assert.deepEqual((await c.pub('/api/links')).body, []);
-    assert.deepEqual((await c.pub('/api/groups')).body, []);
+  test('creates one example of each kind of link, in an Examples group', async () => {
+    const links = (await c.api('/api/links')).body;
+    assert.equal(links.length, 4, 'the coffee link plus three examples');
+
+    const named = name => links.find(l => l.name === name);
+
+    const url = named('LinkPage on GitHub');
+    assert.match(url.url, /^https:\/\/github\.com\//);
+    assert.equal(url.file_path, null, 'a plain URL link');
+
+    const file = named('Example Report');
+    assert.equal(file.file_name, 'Example Report.pdf');
+    assert.equal(file.url, file.file_path, 'file-backed links mirror the path into url');
+
+    const doc = named('Welcome to LinkPage');
+    assert.equal(doc.file_name, 'Welcome to LinkPage.md');
+    assert.equal(doc.slug, 'welcome', 'and it shows off a custom URL too');
+
+    for (const l of [url, file, doc]) {
+      assert.equal(l.is_hidden, 0, `${l.name} is visible`);
+      assert.deepEqual(l.groups.map(g => g.name), ['Examples']);
+    }
+  });
+
+  test('the examples are on the public page, the coffee link is not', async () => {
+    const publicLinks = (await c.pub('/api/links')).body.map(l => l.name).sort();
+    assert.deepEqual(publicLinks, ['Example Report', 'LinkPage on GitHub', 'Welcome to LinkPage']);
+
+    const publicGroups = (await c.pub('/api/groups')).body.map(g => g.name);
+    assert.deepEqual(publicGroups, ['Examples']);
+  });
+
+  test('the example files are written to disk and served', async () => {
+    const links = (await c.api('/api/links')).body;
+    for (const name of ['Example Report', 'Welcome to LinkPage']) {
+      const link = links.find(l => l.name === name);
+      const onDisk = path.join(c.dataDir, 'uploads', path.basename(link.file_path));
+      assert.ok(fs.existsSync(onDisk), `${name} is on disk`);
+      assert.equal((await c.pub(link.file_path)).status, 200, `${name} is served`);
+    }
+  });
+
+  test('the example PDF is a valid one-page document', async () => {
+    const link = (await c.api('/api/links')).body.find(l => l.name === 'Example Report');
+    const pdf  = fs.readFileSync(path.join(c.dataDir, 'uploads', path.basename(link.file_path)), 'latin1');
+
+    assert.match(pdf, /^%PDF-1\.4/, 'header');
+    assert.match(pdf, /%%EOF\s*$/, 'trailer');
+    assert.match(pdf, /\/Type \/Page[^s]/, 'one page object');
+
+    // The xref offsets are computed while the file is assembled, so check one
+    // actually lands on the object it claims.
+    const startxref = Number(pdf.match(/startxref\n(\d+)/)[1]);
+    assert.equal(pdf.slice(startxref, startxref + 4), 'xref', 'startxref points at the table');
+    const firstOffset = Number(pdf.slice(pdf.indexOf('0000000000 65535 f \n') + 20).match(/^(\d{10})/)[1]);
+    assert.match(pdf.slice(firstOffset, firstOffset + 8), /^1 0 obj/, 'object 1 is where xref says');
+  });
+
+  test('the markdown example renders through the slug it was given', async () => {
+    const res = await c.pub('/f/welcome', { headers: { 'X-Forwarded-For': '203.0.113.200' } });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /text\/html/);
+    assert.match(res.text, /<h1>Welcome to LinkPage<\/h1>/);
+    assert.match(res.text, /<table>/, 'the table in the document rendered');
   });
 
   test('the icon is stored as the link\'s own image and registered in the library', async () => {
@@ -80,14 +140,16 @@ describe('seedFirstRunContent', () => {
   });
 
   test('it bails out when the install already has a link', async () => {
-    await c.api(`/api/links/${(await c.api('/api/links')).body[0].id}`, { method: 'DELETE' });
+    for (const l of (await c.api('/api/links')).body) {
+      await c.api(`/api/links/${l.id}`, { method: 'DELETE' });
+    }
     await c.makeLink({ name: 'A real link of my own' });
 
     seed.seedFirstRunContent();
 
     const links = (await c.api('/api/links')).body;
     assert.equal(links.length, 1);
-    assert.equal(links[0].name, 'A real link of my own', 'the example is not re-added');
+    assert.equal(links[0].name, 'A real link of my own', 'the examples are not re-added');
   });
 
 });
@@ -121,13 +183,13 @@ describe('the boot gate', () => {
     try {
       const first = boot(dir);
       assert.equal(first.isFreshInstall, true);
-      assert.equal(first.after, 1, 'the example link is created on the very first boot');
+      assert.equal(first.after, 4, 'the coffee link plus three examples, on the very first boot');
 
       const second = boot(dir);
       assert.equal(second.isFreshInstall, false, 'the database already existed');
-      assert.equal(second.after, 1, 'no duplicate');
+      assert.equal(second.after, 4, 'no duplicates');
 
-      // The user deletes the example, then restarts: it must stay deleted.
+      // The user deletes the examples, then restarts: they must stay deleted.
       const third = boot(dir, { deleteLinksFirst: true });
       assert.equal(third.isFreshInstall, false);
       assert.equal(third.after, 0, 'gone for good');

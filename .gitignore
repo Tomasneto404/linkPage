@@ -3,3 +3,4 @@ data/
 linkpage_data/
 .claude/
 publish_commands.md
+data.backup-*/
