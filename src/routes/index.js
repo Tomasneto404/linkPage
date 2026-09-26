@@ -21,6 +21,7 @@ router.use(require('./stats'));
 router.use(require('./analytics'));
 router.use(require('./ipTags'));
 router.use(require('./linkRequests'));
+router.use(require('./docs'));
 router.use(require('./markdown'));
 router.use(require('./links'));
 router.use(require('./groups'));

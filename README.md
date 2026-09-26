@@ -398,6 +398,25 @@ All configuration is done via environment variables:
 
 ## API Overview
 
+### Interactive documentation
+
+Every endpoint is described in an OpenAPI document, browsable on the running instance:
+
+| URL | What it is |
+|-----|------------|
+| `/api/docs` | Swagger UI. Paste the admin token into the bar at the top and the **Try it out** buttons send it for you. |
+| `/api/openapi.json` | The OpenAPI 3 document itself. Point Insomnia, Postman or your own generator at it. |
+
+Swagger UI is served from the instance rather than a CDN, so it works on a box with no
+route to the internet. The document is admin-gated, like the API it describes; the page
+itself is not, and asks for the token the same way `/admin` does.
+
+The document is kept honest by a test that walks the live Express router: a route with no
+entry fails the suite, an entry for a route that no longer exists fails it too, and so does
+an operation whose documented auth disagrees with the middleware actually guarding it.
+
+### At a glance
+
 Read endpoints are public. All write endpoints require the `X-Admin-Token` header.  
 If a public password is configured, read endpoints also require an `X-Public-Password` header.
 
@@ -422,6 +441,7 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/settings/public-password` | Admin | Set public password |
 | DELETE | `/api/settings/public-password` | Admin | Remove public password |
 | POST | `/api/settings/requests-enabled` | Admin | Enable/disable the public "Request link" feature |
+| POST | `/api/settings/markdown-open-mode` | Admin | Whether a markdown link opens in a new tab or a popup |
 | POST | `/api/settings/request-password` | Admin | Set the password required to submit a request |
 | DELETE | `/api/settings/request-password` | Admin | Remove the request password |
 | POST | `/api/settings/save-favicons` | Admin | Toggle auto-save of fetched favicons into the icon library |
@@ -467,7 +487,8 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | GET | `/api/link-requests` | Admin | List requests (`?status=pending\|approved\|rejected\|all`), flagged with any existing link at the same URL |
 | POST | `/api/link-requests/:id/approve` | Admin | Mark a request approved and record the published link |
 | POST | `/api/link-requests/:id/attach` | Admin | Approve without duplicating — add the existing link to the requested group |
-| POST | `/api/link-requests/:id/reject` | Admin | Reject a request |
+| POST | `/api/link-requests/:id/apply` | Admin | Apply a change request to the link it targets |
+| POST | `/api/link-requests/:id/reject` | Admin | Reject a request (an unpublished upload is deleted) |
 | DELETE | `/api/link-requests/:id` | Admin | Delete a request |
 | GET | `/api/ip-tags` | Admin | List every IP seen, with its attribution tag |
 | POST | `/api/ip-tags` | Admin | Tag an IP with a human-readable name |
