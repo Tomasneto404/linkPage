@@ -110,17 +110,17 @@ document.getElementById('themeToggle').addEventListener('click', () => {
 });
 
 /**
- * Shipped brand assets, used until an admin uploads their own. The icon comes
- * in two cuts because the light one's dark half disappears against a dark
- * header, and vice versa — same reason the logos have always had two.
+ * The shipped header glyph, used until an admin uploads their own. Two cuts,
+ * because the light one's dark half disappears against a dark header and the
+ * dark one's white half against a light one.
+ *
+ * Only the icon ships as a default. The full lockup lives in public/brand/ for
+ * an admin to upload as a logo if they want it, but nothing points at it.
  */
 const DEFAULT_BRAND = {
   icon: { light: '/brand/icon-light.png', dark: '/brand/icon-dark.png' },
-  logo: { light: '/brand/logo-light.png', dark: '/brand/logo-dark.png' },
 };
 
-/** Whether the admin has named this site, in which case its title is the brand. */
-let siteHasCustomTitle = false;
 /** The admin's own header glyph, if they uploaded one. */
 let brandIconUrl = null;
 
@@ -151,14 +151,13 @@ function applyBrandIcon(url) {
   slot.appendChild(img);
 }
 
+/**
+ * An uploaded logo replaces the whole title block; there is no default one.
+ * Left alone, the header is the glyph beside the site title — the same shape
+ * the admin header has always had.
+ */
 function getLogoForCurrentTheme() {
-  const custom = isDarkTheme() ? logoDarkUrl : logoLightUrl;
-  if (custom) return custom;
-  // The shipped lockup stands in only while the site is still unbranded. Once
-  // an admin has named it, that name is the brand and the header shows it as
-  // text beside the glyph, the way it always has.
-  if (siteHasCustomTitle) return null;
-  return DEFAULT_BRAND.logo[isDarkTheme() ? 'dark' : 'light'];
+  return isDarkTheme() ? logoDarkUrl : logoLightUrl;
 }
 
 function updateHeaderLogo() {
@@ -1869,7 +1868,6 @@ async function init() {
   const settings = await fetch('/api/settings').then(r => r.json());
 
   if (settings.site_title) document.title = settings.site_title;
-  siteHasCustomTitle = !!(settings.site_title && settings.site_title.trim());
   applyBrandText(settings.site_title);
   applyBrandIcon(settings.brand_icon || null);
   logoLightUrl   = settings.logo_light || null;
