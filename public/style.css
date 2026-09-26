@@ -40,6 +40,18 @@
   /* The edge fades with the bar: a hairline over a fully transparent bar
      would be a line ruled across the wallpaper for no reason. */
   --bar-border:     rgba(var(--bar-border-rgb), calc(var(--bar-alpha) * 0.1));
+
+  /* The controls sitting in the bars — search field, theme toggle, admin
+     button — fade with it, but stay ahead of it so they remain the most
+     solid thing there and never dissolve into the wallpaper. The offset is
+     chosen so that at the default 82% they land on fully opaque, which is
+     exactly how they looked before any of this was adjustable. */
+  --bar-control-alpha: min(1, calc(var(--bar-alpha) + 0.18));
+  /* color-mix rather than a hardcoded rgba: --surface and --border-strong
+     are redefined by every theme variant, and this follows them. */
+  --bar-control-bg:     color-mix(in srgb, var(--surface)   calc(var(--bar-control-alpha) * 100%), transparent);
+  --bar-control-bg-alt: color-mix(in srgb, var(--surface-3) calc(var(--bar-control-alpha) * 100%), transparent);
+  --bar-control-border: color-mix(in srgb, var(--border-strong) calc(var(--bar-control-alpha) * 100%), transparent);
 }
 
 [data-theme="dark"] {
@@ -228,7 +240,7 @@ header {
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-  background: var(--surface-3);
+  background: var(--bar-control-bg-alt);
   border: 1px solid transparent;
   border-radius: 10px;
   padding: 4px 8px 4px 32px;
@@ -338,8 +350,8 @@ header {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
+  border: 1px solid var(--bar-control-border);
+  background: var(--bar-control-bg);
   color: var(--text-muted);
   cursor: pointer;
   transition: all var(--transition);
