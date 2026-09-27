@@ -9,6 +9,10 @@
  * would need script to read). The palette mirrors public/style.css.
  */
 
+const fs   = require('fs');
+const path = require('path');
+
+const { PUBLIC_DIR } = require('../config/env');
 const { escapeHtml } = require('./markdownService');
 const { shadeColor, hexToRgb } = require('../utils/color');
 
@@ -22,9 +26,11 @@ const { shadeColor, hexToRgb } = require('../utils/color');
 const MARKDOWN_CSP = [
   "default-src 'none'",
   "img-src 'self' https: data:",
-  // 'self' so the page can load the site's palette; still no script of any
-  // kind, which is what the sandbox below is really guarding.
-  "style-src 'self' 'unsafe-inline'",
+  // Inline only. The sandbox below gives this document an opaque origin, and
+  // 'self' matches nothing from one — a linked stylesheet is refused, and a
+  // refused render-blocking stylesheet leaves the page blank. So the palette
+  // is inlined instead (see themeTokens).
+  "style-src 'unsafe-inline'",
   // The public page may show a document in an overlay, which frames this page
   // rather than injecting its HTML — that keeps the document inside its own
   // sandbox instead of running beside the admin token. Only this site may.
@@ -41,6 +47,29 @@ const PAGE_THEMES = new Set(['light', 'dark']);
  */
 function normalizePageTheme(raw) {
   return PAGE_THEMES.has(String(raw || '').trim()) ? String(raw).trim() : null;
+}
+
+/**
+ * The site's palette, read off disk and inlined into every rendered document.
+ *
+ * Inlined rather than linked because this page is sandboxed: an opaque origin
+ * cannot satisfy style-src 'self', so a <link> to it is refused. Reading the
+ * one file keeps a single source of truth — the same tokens the site itself
+ * loads — rather than a second copy drifting in here.
+ */
+let cachedTokens = null;
+
+function themeTokens() {
+  if (cachedTokens !== null) return cachedTokens;
+  try {
+    cachedTokens = fs.readFileSync(path.join(PUBLIC_DIR, 'theme-tokens.css'), 'utf8');
+  } catch (err) {
+    // Without them the document still reads; it simply falls back to the
+    // browser's own colours rather than the site's.
+    console.warn(`[markdown] Could not read theme-tokens.css: ${err.message}`);
+    cachedTokens = '';
+  }
+  return cachedTokens;
 }
 
 const PAGE_STYLES = `
@@ -155,8 +184,7 @@ function renderMarkdownPage({ title, body, theme, embed = false, palette = {} })
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="referrer" content="no-referrer" />
 <title>${heading}</title>
-<link rel="stylesheet" href="/theme-tokens.css" />
-<style>${PAGE_STYLES}</style>
+<style>${themeTokens()}${PAGE_STYLES}</style>
 </head>
 <body>
 <div class="${shellClass}">${backLink}

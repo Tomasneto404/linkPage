@@ -1397,14 +1397,32 @@ function markdownHref(link, { embed = false } = {}) {
 function openMarkdownViewer(link) {
   document.getElementById('mdViewerTitle').textContent = link.name || 'Document';
   document.getElementById('mdViewerOpenTab').href = markdownHref(link);
-
-  // Show the overlay *before* pointing the frame at anything. A src assigned
-  // while the container is still display:none starts a load that never paints
-  // once it becomes visible — the frame sits there blank with the right URL
-  // on it until something sets src again. Ordering it this way means the
-  // frame is laid out before it is asked to load.
   document.getElementById('mdViewerOverlay').classList.remove('hidden');
-  document.getElementById('mdViewerFrame').src = markdownHref(link, { embed: true });
+
+  swapInViewerFrame(markdownHref(link, { embed: true }));
+}
+
+/**
+ * Replaces the viewer's iframe with a fresh one already pointing at `url`.
+ *
+ * Assigning .src to the existing frame is not reliable here. The element
+ * starts on about:blank, and a navigation set while the page is still loading
+ * — which is exactly when a document that opens itself does it — can be lost:
+ * the frame keeps the new URL as its src and displays nothing, and only
+ * another assignment later brings it back. A brand new element with its src
+ * already set has no pending navigation to race with, so it simply loads.
+ */
+function swapInViewerFrame(url) {
+  const old = document.getElementById('mdViewerFrame');
+  if (!old) return;
+
+  const frame = document.createElement('iframe');
+  frame.id        = 'mdViewerFrame';
+  frame.className = old.className;
+  frame.title     = old.title || 'Document';
+  if (url) frame.src = url;
+
+  old.replaceWith(frame);
 }
 
 /** Reloads an open document under the new theme; a no-op when none is open. */
@@ -1417,8 +1435,8 @@ function refreshMarkdownViewerTheme() {
   const base  = (frame.src || '').split('?')[0];
   if (!base || base === 'about:blank') return;
 
-  frame.src = `${base}?theme=${currentThemeName()}&embed=1`;
-  tab.href  = `${base}?theme=${currentThemeName()}`;
+  swapInViewerFrame(`${base}?theme=${currentThemeName()}&embed=1`);
+  tab.href = `${base}?theme=${currentThemeName()}`;
 }
 
 /**
@@ -1472,7 +1490,9 @@ function maybeAutoOpenGroupDoc() {
 
 function closeMarkdownViewer() {
   document.getElementById('mdViewerOverlay').classList.add('hidden');
-  document.getElementById('mdViewerFrame').src = 'about:blank';
+  // A blank replacement rather than navigating this one away, so nothing is
+  // left loading behind a hidden panel and the next open starts clean.
+  swapInViewerFrame(null);
 }
 
 document.getElementById('mdViewerClose')?.addEventListener('click', closeMarkdownViewer);

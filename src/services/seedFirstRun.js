@@ -83,12 +83,28 @@ tier above this one, nothing held back for a paid version. It is
 [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html) and self-hosted: the
 instance you are reading this on is yours, and so is everything in it.
 
-## If you would like to help
+## How it works
 
-- [**Buy the developer a coffee**](https://buymeacoffee.com/tomasneto26) — entirely
-  optional, and the only thing anyone is ever asked for
-- [**LinkPage on GitHub**](https://github.com/Tomasneto404/linkPage) — stars, bug
-  reports and pull requests are all genuinely welcome
+There are two sides to it. **This page** is the public one — the cards your
+visitors see, filtered by the group tabs along the top and searchable from the
+box in the header. **The admin panel**, at [/admin](/admin), is where you add
+links, sort them into groups and sections, and change how any of this looks.
+
+Nothing here is a cloud account. Your links, uploads and settings live in this
+server's own \`data\` directory, and nowhere else.
+
+## Getting in
+
+The admin panel is behind a single token. You will find it in two places:
+
+- **In the server's console**, printed in a box the moment it starts up
+- **In \`data/admin-token.txt\`** — inside your mounted volume, if you run it
+  in Docker
+
+Paste it once at [/admin](/admin) and the browser remembers it. If it ever
+gets out, **Settings → Security → Rotate Token** issues a new one and the old
+one stops working immediately. There is no password to recover and no e-mail
+to reset — keep the token somewhere sensible.
 
 ## What you are looking at
 
@@ -105,6 +121,13 @@ arrived, which any document can be.
 Close this and you will find three example cards behind it, one of each. They
 are yours to delete — along with this document and the group holding it —
 whenever you are ready to start for real.
+
+## If you would like to help
+
+- [**Buy the developer a coffee**](https://buymeacoffee.com/tomasneto26) — entirely
+  optional, and the only thing anyone is ever asked for
+- [**LinkPage on GitHub**](https://github.com/Tomasneto404/linkPage) — stars, bug
+  reports and pull requests are all genuinely welcome
 `;
 
 /**

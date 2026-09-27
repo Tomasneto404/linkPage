@@ -136,6 +136,17 @@ describe('seedFirstRunContent', () => {
     assert.match(res.text, /href="https:\/\/github\.com\/Tomasneto404\/linkPage"/, 'and the repository');
   });
 
+  test('it explains how to get in', async () => {
+    const res = await c.pub('/f/welcome', { headers: { 'X-Forwarded-For': '203.0.113.202' } });
+
+    assert.match(res.text, /<h2>How it works<\/h2>/, 'what the two sides are');
+    assert.match(res.text, /<h2>Getting in<\/h2>/);
+    assert.match(res.text, /data\/admin-token\.txt/, 'where the token is kept');
+    assert.match(res.text, /server&#39;s console|server's console/, 'and where it is printed');
+    assert.match(res.text, /Rotate Token/, 'named exactly as the button is');
+    assert.match(res.text, /href="\/admin"/, 'with a way to get there');
+  });
+
   test('the markdown example renders through the slug it was given', async () => {
     const res = await c.pub('/f/welcome', { headers: { 'X-Forwarded-For': '203.0.113.200' } });
     assert.equal(res.status, 200);

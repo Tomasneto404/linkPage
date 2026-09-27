@@ -214,16 +214,30 @@ describe('the rendered page wears the site palette', () => {
     await setTheme({ light_variant: 'default', dark_variant: 'default', accent_color: '' });
   });
 
-  test('it links the same tokens the site does, rather than its own copy', async () => {
+  test('it carries the same tokens the site does, rather than its own copy', async () => {
     await makeMarkdownLink({ name: 'Palette', slug: 'palette' });
 
     const res = await visit('/f/palette');
-    assert.match(res.text, /<link rel="stylesheet" href="\/theme-tokens\.css"/);
-
     const tokens = await c.pub('/theme-tokens.css');
-    assert.equal(tokens.status, 200, 'and that file is served');
-    assert.match(tokens.text, /--surface:/);
+    assert.equal(tokens.status, 200, 'the site loads them from here');
     assert.match(tokens.text, /data-light-variant="snow"/, 'variants live there too');
+
+    // Inlined, not linked: this page is sandboxed, so it has an opaque origin
+    // and style-src 'self' would refuse a stylesheet of its own site.
+    assert.doesNotMatch(res.text, /<link[^>]*stylesheet/, 'nothing external to refuse');
+    assert.match(res.text, /--surface:/, 'the palette is in the page');
+    assert.match(res.text, /data-light-variant="snow"/, 'variants included');
+  });
+
+  test('a sandboxed document is never sent a stylesheet it cannot load', async () => {
+    await makeMarkdownLink({ name: 'Sandboxed', slug: 'sandboxed' });
+    const res = await visit('/f/sandboxed');
+
+    const csp = res.headers.get('content-security-policy');
+    assert.match(csp, /sandbox/, 'still sandboxed');
+    assert.doesNotMatch(csp, /style-src [^;]*'self'/,
+      "'self' means nothing to an opaque origin, so it must not be relied on");
+    assert.match(csp, /style-src [^;]*'unsafe-inline'/, 'inline styles are how the palette arrives');
   });
 
   test('both variant names ride along, whichever theme is showing', async () => {
@@ -276,11 +290,11 @@ describe('the rendered page wears the site palette', () => {
     assert.doesNotMatch(tag, /--primary/, 'the tokens decide');
   });
 
-  test('the policy allows the stylesheet but still no script', async () => {
+  test('the policy allows inline styles and still no script', async () => {
     await makeMarkdownLink({ name: 'Policy', slug: 'policy-tokens' });
 
     const csp = (await visit('/f/policy-tokens')).headers.get('content-security-policy');
-    assert.match(csp, /style-src [^;]*'self'/, 'so /theme-tokens.css loads');
+    assert.match(csp, /style-src [^;]*'unsafe-inline'/, 'so the inlined palette applies');
     assert.match(csp, /default-src 'none'/);
     assert.match(csp, /sandbox/);
     assert.doesNotMatch(csp, /script-src/, 'nothing was opened up for scripts');
