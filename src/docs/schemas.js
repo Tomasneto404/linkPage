@@ -167,8 +167,9 @@ const Settings = {
     group_tab_color:          { type: 'boolean' },
     group_tabs_loop:          { type: 'boolean' },
     markdown_open_mode:       {
-      type: 'string', enum: ['tab', 'modal'],
-      description: 'Where a markdown link opens on the public page.',
+      type: 'string', enum: ['modal', 'tab'], default: 'modal',
+      description: 'Where a markdown link opens on the public page: a popup over '
+                 + 'the grid, or a new browser tab.',
     },
     wallpaper_light:          { type: 'string', nullable: true },
     wallpaper_dark:           { type: 'string', nullable: true },

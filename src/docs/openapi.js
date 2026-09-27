@@ -720,7 +720,7 @@ const paths = {
     post: op({
       tag: TAGS.settings,
       summary: 'Choose how a markdown link opens',
-      body: jsonBody({ mode: { type: 'string', enum: ['tab', 'modal'] } }, ['mode']),
+      body: jsonBody({ mode: { type: 'string', enum: ['modal', 'tab'], default: 'modal' } }, ['mode']),
       responses: {
         200: json({ type: 'object', properties: { markdown_open_mode: { type: 'string' } } }),
         400: json(ref('Error'), 'Mode must be tab or modal'),

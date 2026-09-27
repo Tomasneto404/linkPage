@@ -476,7 +476,7 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   document.getElementById('groupTabColorToggle').checked = s.group_tab_color !== false;
   document.getElementById('groupTabsLoopToggle').checked = !!s.group_tabs_loop;
   document.getElementById('markdownOpenModeSelect').value =
-    s.markdown_open_mode === 'modal' ? 'modal' : 'tab';
+    s.markdown_open_mode === 'tab' ? 'tab' : 'modal';
   updateWallpaperPreview('light', s.wallpaper_light || null);
   updateWallpaperPreview('dark',  s.wallpaper_dark  || null);
   const fog = Number.isFinite(s.wallpaper_fog) ? s.wallpaper_fog : 60;

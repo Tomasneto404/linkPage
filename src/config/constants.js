@@ -84,6 +84,11 @@ const DEFAULT_WALLPAPER_FOG = 60;
 // strip shipped with.
 const DEFAULT_BAR_OPACITY = 82;
 
+// Where a markdown link opens. A popup keeps the reader on the page they came
+// from; a new tab was the original behaviour and stays available.
+const MARKDOWN_OPEN_MODES = ['modal', 'tab'];
+const DEFAULT_MARKDOWN_OPEN_MODE = 'modal';
+
 const THEME_LIGHT_VARIANTS = ['default', 'snow', 'warm'];
 const THEME_DARK_VARIANTS  = ['default', 'midnight', 'slate'];
 const DEFAULT_THEMES       = ['light', 'dark', 'system'];
@@ -118,6 +123,8 @@ module.exports = {
   WALLPAPER_VARIANTS,
   DEFAULT_WALLPAPER_FOG,
   DEFAULT_BAR_OPACITY,
+  MARKDOWN_OPEN_MODES,
+  DEFAULT_MARKDOWN_OPEN_MODE,
   THEME_LIGHT_VARIANTS,
   THEME_DARK_VARIANTS,
   DEFAULT_THEMES,

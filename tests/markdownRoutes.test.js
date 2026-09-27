@@ -353,24 +353,27 @@ describe('framing', () => {
 });
 
 describe('the open-mode setting', () => {
-  test('defaults to a new tab', async () => {
+  test('defaults to a popup before anyone touches it', async () => {
+    const { DEFAULT_MARKDOWN_OPEN_MODE } = require('../src/config/constants');
     const res = await c.pub('/api/settings');
-    assert.equal(res.body.markdown_open_mode, 'tab');
+    assert.equal(res.body.markdown_open_mode, DEFAULT_MARKDOWN_OPEN_MODE);
+    assert.equal(DEFAULT_MARKDOWN_OPEN_MODE, 'modal');
   });
 
-  test('an admin can switch it to a popup, and the public payload reports it', async () => {
+  test('an admin can switch it to a new tab, and the public payload reports it', async () => {
     const saved = await c.api('/api/settings/markdown-open-mode', {
-      method: 'POST', json: { mode: 'modal' },
+      method: 'POST', json: { mode: 'tab' },
     });
     assert.equal(saved.status, 200);
-    assert.equal(saved.body.markdown_open_mode, 'modal');
+    assert.equal(saved.body.markdown_open_mode, 'tab');
 
     const settings = await c.pub('/api/settings');
-    assert.equal(settings.body.markdown_open_mode, 'modal');
+    assert.equal(settings.body.markdown_open_mode, 'tab');
 
-    // And back again.
-    await c.api('/api/settings/markdown-open-mode', { method: 'POST', json: { mode: 'tab' } });
-    assert.equal((await c.pub('/api/settings')).body.markdown_open_mode, 'tab');
+    // And back again. Returning to the default forgets the row rather than
+    // storing it, so prove it still reads back as a popup.
+    await c.api('/api/settings/markdown-open-mode', { method: 'POST', json: { mode: 'modal' } });
+    assert.equal((await c.pub('/api/settings')).body.markdown_open_mode, 'modal');
   });
 
   test('an unknown mode is refused', async () => {
@@ -378,7 +381,7 @@ describe('the open-mode setting', () => {
       method: 'POST', json: { mode: 'carrier-pigeon' },
     });
     assert.equal(res.status, 400);
-    assert.equal((await c.pub('/api/settings')).body.markdown_open_mode, 'tab', 'unchanged');
+    assert.equal((await c.pub('/api/settings')).body.markdown_open_mode, 'modal', 'unchanged');
   });
 
   test('an anonymous caller cannot change it', async () => {

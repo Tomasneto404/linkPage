@@ -341,8 +341,8 @@ let tabsUseGroupColor = true;
 // Admin opt-in: when the group strip overflows, wrap it around endlessly
 // instead of stopping at the first/last group. Set from settings.
 let tabsLoopEnabled = false;
-// 'tab' (default) or 'modal' — how a markdown link opens. Set in the admin.
-let markdownOpenMode = 'tab';
+// 'modal' (default) or 'tab' — how a markdown link opens. Set in the admin.
+let markdownOpenMode = 'modal';
 let activeSection = null;
 let searchQuery   = '';
 // Pinned keywords. Each one narrows the result set further (AND combined
@@ -2017,7 +2017,7 @@ async function init() {
   applyFooter(settings);
   tabsUseGroupColor = settings.group_tab_color !== false;
   tabsLoopEnabled   = !!settings.group_tabs_loop;
-  markdownOpenMode  = settings.markdown_open_mode === 'modal' ? 'modal' : 'tab';
+  markdownOpenMode  = settings.markdown_open_mode === 'tab' ? 'tab' : 'modal';
 
   if (settings.public_password_required) {
     const stored = localStorage.getItem('linkpage_public_password');

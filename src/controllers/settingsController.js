@@ -7,6 +7,7 @@ const {
   LOGO_VARIANTS, THEME_LIGHT_VARIANTS, THEME_DARK_VARIANTS,
   DEFAULT_THEMES, MOBILE_NAV_POSITIONS, HEX_COLOR_RE,
   WALLPAPER_VARIANTS, DEFAULT_WALLPAPER_FOG, DEFAULT_BAR_OPACITY,
+  MARKDOWN_OPEN_MODES, DEFAULT_MARKDOWN_OPEN_MODE,
 } = require('../config/constants');
 const {
   safeDeleteFile, safeDeleteFileUnlessLibrary, resolveIconReference,
@@ -48,7 +49,7 @@ function getSettings(req, res) {
     group_tabs_loop:           db.readSetting('group_tabs_loop') === '1',
     // Where a markdown link opens: a new tab (default) or an overlay on the
     // page. The public page needs this to decide how to handle the click.
-    markdown_open_mode:        db.readSetting('markdown_open_mode') === 'modal' ? 'modal' : 'tab',
+    markdown_open_mode:        readMarkdownOpenMode(),
     // Background image per theme, and how heavily it is veiled and blurred.
     wallpaper_light:           db.readSetting('wallpaper_light') ?? null,
     wallpaper_dark:            db.readSetting('wallpaper_dark')  ?? null,
@@ -57,19 +58,26 @@ function getSettings(req, res) {
   });
 }
 
+/** The stored open mode, or the default when it has never been set. */
+function readMarkdownOpenMode() {
+  const stored = db.readSetting('markdown_open_mode');
+  return MARKDOWN_OPEN_MODES.includes(stored) ? stored : DEFAULT_MARKDOWN_OPEN_MODE;
+}
+
 /**
- * Chooses how a markdown link opens: 'tab' (a new browser tab, the default)
- * or 'modal' (an overlay on the public page). Stored only when it differs
- * from the default, so the settings table stays free of no-op rows.
+ * Chooses how a markdown link opens: 'modal' (an overlay over the grid, the
+ * default — it keeps the reader on the page they came from) or 'tab' (a new
+ * browser tab). Stored only when it differs from the default, so the settings
+ * table stays free of no-op rows.
  */
 function setMarkdownOpenMode(req, res) {
   const mode = req.body?.mode;
-  if (mode !== 'tab' && mode !== 'modal') {
+  if (!MARKDOWN_OPEN_MODES.includes(mode)) {
     return res.status(400).json({ error: 'Mode must be "tab" or "modal"' });
   }
 
-  if (mode === 'modal') db.writeSetting('markdown_open_mode', 'modal');
-  else                  db.deleteSetting('markdown_open_mode');
+  if (mode === DEFAULT_MARKDOWN_OPEN_MODE) db.deleteSetting('markdown_open_mode');
+  else                                     db.writeSetting('markdown_open_mode', mode);
 
   res.json({ markdown_open_mode: mode });
 }

@@ -72,7 +72,7 @@ Settings are split into tabs: **Branding** (site title, header icon, light/dark 
 - **Stock icon picker** — choose from a built-in line-icon set and a colour, instead of uploading; file links get a coloured file-type icon, and links with no icon fall back to the Settings favicon
 - **In-place file editor** — edit attached text files (HTML, XML, JSON, TXT, CSV, MD, SVG) in the admin with an expand view, line numbers, syntax highlighting, and a find bar; saves go live instantly
 - **File attachments** — link cards can point to an uploaded file (PDF, Office docs, archives, images, text, HTML/XML/JSON) instead of a URL, with a 100 MB cap and an extension whitelist
-- **Markdown documents** — a `.md` attachment renders as a styled page when its card is opened, in the site's own palette, rather than downloading; choose whether it opens in a new tab or a popup over the grid, and mark a document to **open automatically when its group is opened**, once per visit
+- **Markdown documents** — a `.md` attachment renders as a styled page when its card is opened, in the site's own palette, rather than downloading; choose whether it opens in a popup over the grid (the default) or a new tab, and mark a document to **open automatically when its group is opened**, once per visit
 - **Link requests** — let visitors propose links (name, URL, description, icon, target group/section), optionally behind their own password; requests queue up in the admin with a pending badge, and approving one opens the Add-Link form pre-filled
 - **Duplicate-aware approvals** — a request whose URL already exists is flagged with an "Already added" chip (matching ignores http/https, `www.`, trailing slashes and fragments), and approving offers to add that link to the requested group instead of creating a second copy
 - **Password-protected groups** — gate sensitive groups with a password; per-group unlock behaviour: auto-lock after 30 s (kiosk-safe) or stay unlocked for the browser session
@@ -442,7 +442,7 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/settings/public-password` | Admin | Set public password |
 | DELETE | `/api/settings/public-password` | Admin | Remove public password |
 | POST | `/api/settings/requests-enabled` | Admin | Enable/disable the public "Request link" feature |
-| POST | `/api/settings/markdown-open-mode` | Admin | Whether a markdown link opens in a new tab or a popup |
+| POST | `/api/settings/markdown-open-mode` | Admin | Whether a markdown link opens in a popup (the default) or a new tab |
 | POST | `/api/settings/wallpaper/:variant` | Admin | Upload the public page wallpaper (`light` or `dark`) |
 | DELETE | `/api/settings/wallpaper/:variant` | Admin | Remove a wallpaper |
 | POST | `/api/settings/wallpaper-fog` | Admin | How heavily the wallpaper is veiled and blurred (0–100) |
