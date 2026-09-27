@@ -1,6 +1,6 @@
 {
   "name": "linkpage",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "An enterprise-ready self-hosted link page to share links with collaborators or clients.",
   "main": "src/server.js",
   "license": "AGPL-3.0-or-later",

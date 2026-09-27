@@ -5,6 +5,35 @@ the GitHub release notes: the release workflow lifts the section matching the
 pushed tag out of this file. Newest release first; the top section must match
 `version` in package.json.
 
+## v1.0.5
+
+### Custom link slugs
+Give any link or uploaded file a readable address. `/f/handbook` instead of `/r/42`, editable long after the upload, and it falls back to the generated id when you leave it blank.
+
+### Markdown documents
+A `.md` attachment renders as a styled page in the site's own palette instead of downloading. It opens in a popup over the link grid by default — a new tab is the alternative, in Settings → Public Page — and any document can be marked to open itself when its group is opened, once per visit.
+
+### A welcome document on a fresh install
+A new install seeds a Welcome document that explains how the two sides of the app fit together, where the admin token is printed and how to rotate it, alongside one example of each kind of link.
+
+### File and change requests
+Visitors could already propose a new link; now they can also upload a file for you to publish, or propose a change to a link that already exists — including replacing the file behind it. Each lands in the same review queue, showing the current values beside the proposed ones.
+
+### Wallpaper behind the public page
+Set a background image per theme and dial in the fog over it, from barely there to fully veiled.
+
+### Adjustable bars
+The header, group strip and footer run from completely see-through to flat colour. The buttons and the search box inside them follow, held slightly more opaque than the bar itself so they stay legible at every setting.
+
+### API documentation
+The whole HTTP API is documented as OpenAPI 3.0 and served as Swagger UI at `/api/docs`, token-gated like the API it describes and bundled rather than fetched from a CDN, so it works on an airgapped install. A test walks the live Express router and fails when a route is undocumented or a documented path no longer exists. Settings → About links to it.
+
+### Brand assets
+The LinkPage mark ships as the default icon, light and dark logos and favicon, with the icon separated from the full lockup. The public header now shows the icon and the title, matching the admin, rather than the lockup.
+
+### Fixes
+The group strip would not pan by touch on phones, and the active tab's glow was clipped square at the ends of the strip. A light palette variant leaked into dark mode, breaking it. Markdown popups rendered blank, because the sandboxed document's opaque origin made its stylesheet unloadable. A wrapped list item fell out of its list when rendered. The seeded URL example had no favicon. Upload tests raced the unlink they asserted against.
+
 ## v1.0.4
 
 ### Link requests from the public page
