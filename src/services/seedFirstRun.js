@@ -66,7 +66,7 @@ const EXAMPLE_FILE = {
 
 const EXAMPLE_DOC = {
   name:        'Welcome to LinkPage',
-  fileName:    'Welcome to LinkPage.md',
+  fileName:    'Welcome.md',
   basename:    'seed-welcome.md',
   slug:        'welcome',
   description: 'A markdown file. Opening it renders the document instead of downloading it.',
@@ -74,10 +74,27 @@ const EXAMPLE_DOC = {
 
 const WELCOME_MARKDOWN = `# Welcome to LinkPage
 
-This page is a markdown file someone uploaded. Because it ends in \`.md\`,
-opening its link **renders** it rather than downloading it.
+Thank you for choosing LinkPage. Whether this is a page of tools for a team, a
+handful of links for a client, or somewhere to keep the documents people keep
+asking you for — it is good to have you here.
 
-## What you can put on a card
+**LinkPage is free, and it always will be.** Every feature, no accounts, no
+tier above this one, nothing held back for a paid version. It is
+[AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html) and self-hosted: the
+instance you are reading this on is yours, and so is everything in it.
+
+## If you would like to help
+
+- [**Buy the developer a coffee**](https://buymeacoffee.com/tomasneto26) — entirely
+  optional, and the only thing anyone is ever asked for
+- [**LinkPage on GitHub**](https://github.com/Tomasneto404/linkPage) — stars, bug
+  reports and pull requests are all genuinely welcome
+
+## What you are looking at
+
+This page is a markdown file. Because its name ends in \`.md\`, opening its card
+renders it instead of downloading it — and it was set to open by itself when you
+arrived, which any document can be.
 
 | Kind | Looks like | Opens as |
 | --- | --- | --- |
@@ -85,25 +102,9 @@ opening its link **renders** it rather than downloading it.
 | A file | \`report.pdf\` | the document |
 | Markdown | \`notes.md\` | a page like this one |
 
-## A few things worth trying
-
-- Give a link a **custom URL** in its settings, and it answers at \`/f/your-name\`
-- Turn on **Link Requests** so visitors can suggest links, send files, or
-  propose a correction to something already here
-- Switch **Markdown Documents Open In** to a popup, and this page opens over
-  the grid instead of in a new tab
-
-> Raw HTML in a markdown file is shown as text, never run — which is what makes
-> it safe to accept one from a visitor.
-
-\`\`\`bash
-# Everything here is yours to delete
-rm -rf ./examples   # metaphorically: just delete the Examples group
-\`\`\`
-
----
-
-Delete this group whenever you are ready to start for real.
+Close this and you will find three example cards behind it, one of each. They
+are yours to delete — along with this document and the group holding it —
+whenever you are ready to start for real.
 `;
 
 /**
@@ -214,8 +215,16 @@ function seedExamples() {
       filePath:    docPath,
       fileName:    EXAMPLE_DOC.fileName,
       slug:        EXAMPLE_DOC.slug,
+      // Opens itself the first time a visitor reaches this group, which is
+      // what makes it a welcome rather than a file nobody clicks.
+      autoOpen:    true,
     });
   }
+
+  // Land visitors on this group rather than "All", so the welcome document
+  // has a group to open itself in. Harmless once the admin deletes the group:
+  // the public page ignores a pinned group that no longer exists.
+  db.writeSetting('pinned_group_id', String(groupId));
 
   console.log('[seed] Created the "Examples" group: a link, a document and a markdown page');
   return urlLinkId;

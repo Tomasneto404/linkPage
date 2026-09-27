@@ -1396,12 +1396,15 @@ function markdownHref(link, { embed = false } = {}) {
  */
 function openMarkdownViewer(link) {
   document.getElementById('mdViewerTitle').textContent = link.name || 'Document';
-
-  // The frame gets the embedded rendering; the tab link gets the full page.
-  document.getElementById('mdViewerFrame').src    = markdownHref(link, { embed: true });
   document.getElementById('mdViewerOpenTab').href = markdownHref(link);
 
+  // Show the overlay *before* pointing the frame at anything. A src assigned
+  // while the container is still display:none starts a load that never paints
+  // once it becomes visible — the frame sits there blank with the right URL
+  // on it until something sets src again. Ordering it this way means the
+  // frame is laid out before it is asked to load.
   document.getElementById('mdViewerOverlay').classList.remove('hidden');
+  document.getElementById('mdViewerFrame').src = markdownHref(link, { embed: true });
 }
 
 /** Reloads an open document under the new theme; a no-op when none is open. */

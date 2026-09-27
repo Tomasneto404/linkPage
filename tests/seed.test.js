@@ -57,8 +57,9 @@ describe('seedFirstRunContent', () => {
     assert.equal(file.url, file.file_path, 'file-backed links mirror the path into url');
 
     const doc = named('Welcome to LinkPage');
-    assert.equal(doc.file_name, 'Welcome to LinkPage.md');
+    assert.equal(doc.file_name, 'Welcome.md');
     assert.equal(doc.slug, 'welcome', 'and it shows off a custom URL too');
+    assert.equal(doc.auto_open, 1, 'it introduces itself rather than waiting to be clicked');
 
     for (const l of [url, file, doc]) {
       assert.equal(l.is_hidden, 0, `${l.name} is visible`);
@@ -115,6 +116,24 @@ describe('seedFirstRunContent', () => {
     assert.equal(pdf.slice(startxref, startxref + 4), 'xref', 'startxref points at the table');
     const firstOffset = Number(pdf.slice(pdf.indexOf('0000000000 65535 f \n') + 20).match(/^(\d{10})/)[1]);
     assert.match(pdf.slice(firstOffset, firstOffset + 8), /^1 0 obj/, 'object 1 is where xref says');
+  });
+
+  test('visitors land on the group the welcome lives in', async () => {
+    const group = (await c.api('/api/groups')).body.find(g => g.name === 'Examples');
+    const pinned = (await c.pub('/api/settings')).body.pinned_group_id;
+
+    assert.equal(pinned, group.id,
+      'otherwise the page opens on All and the welcome never gets a group to open in');
+  });
+
+  test('the welcome says the things it is there to say', async () => {
+    const res = await c.pub('/f/welcome', { headers: { 'X-Forwarded-For': '203.0.113.201' } });
+    assert.equal(res.status, 200);
+
+    assert.match(res.text, /Thank you for choosing LinkPage/i, 'a thank you');
+    assert.match(res.text, /free, and it always will be/i, 'and that it stays free');
+    assert.match(res.text, /href="https:\/\/buymeacoffee\.com\/tomasneto26"/, 'a way to support the developer');
+    assert.match(res.text, /href="https:\/\/github\.com\/Tomasneto404\/linkPage"/, 'and the repository');
   });
 
   test('the markdown example renders through the slug it was given', async () => {
