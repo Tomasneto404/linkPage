@@ -95,6 +95,33 @@ const DEFAULT_THEMES       = ['light', 'dark', 'system'];
 const MOBILE_NAV_POSITIONS = ['top', 'bottom'];
 const HEX_COLOR_RE         = /^#[0-9a-f]{6}$/i;
 
+// ─── Accounts ───────────────────────────────────────────────────────────────
+
+// What an account may be. 'admin' reaches the admin panel and everything in
+// it; 'user' is an ordinary member.
+const USER_ROLES = ['admin', 'user'];
+
+const SESSION_COOKIE = 'lp_sess';
+
+// How long a session survives without being used, and the ceiling it can never
+// be extended past however much it is used. The idle window is what signs out a
+// forgotten tab on a shared machine; the absolute one is what guarantees a
+// stolen cookie eventually stops working.
+const SESSION_IDLE_MS     = 7  * 24 * 60 * 60 * 1000;   // 7 days
+const SESSION_ABSOLUTE_MS = 30 * 24 * 60 * 60 * 1000;   // 30 days
+
+// Only renew a session once it is within a day of lapsing. Renewing on every
+// request would mean a database write per request for no benefit.
+const SESSION_RENEW_WITHIN_MS = 24 * 60 * 60 * 1000;
+
+// Short enough to type, long enough that it is not the weak link: a password
+// shorter than this is refused rather than merely discouraged.
+const MIN_PASSWORD_LENGTH = 10;
+const MAX_PASSWORD_LENGTH = 1024;
+
+// How long an invite or a password-reset link stays good for.
+const USER_TOKEN_TTL_DAYS = 7;
+
 // ─── Icon library import/export ─────────────────────────────────────────────
 
 const ICON_IMPORT_MAX_BYTES = 3 * 1024 * 1024;   // per icon
@@ -130,6 +157,14 @@ module.exports = {
   DEFAULT_THEMES,
   MOBILE_NAV_POSITIONS,
   HEX_COLOR_RE,
+  USER_ROLES,
+  SESSION_COOKIE,
+  SESSION_IDLE_MS,
+  SESSION_ABSOLUTE_MS,
+  SESSION_RENEW_WITHIN_MS,
+  MIN_PASSWORD_LENGTH,
+  MAX_PASSWORD_LENGTH,
+  USER_TOKEN_TTL_DAYS,
   ICON_IMPORT_MAX_BYTES,
   ICON_EXT_BY_MIME,
   EDITABLE_FILE_EXTENSIONS,

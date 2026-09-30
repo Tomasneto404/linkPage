@@ -142,6 +142,26 @@ const LinkRequest = {
   },
 };
 
+const User = {
+  type: 'object',
+  description: 'A person with an account. The admin token is not one of these — it has no '
+             + 'account behind it, which is why anything recording who acted has to cope '
+             + 'with a null id.',
+  properties: {
+    id:           { type: 'integer', example: 3 },
+    email:        { type: 'string', format: 'email', example: 'sam@example.com' },
+    display_name: { type: 'string', nullable: true },
+    role: {
+      type: 'string', enum: ['admin', 'user'],
+      description: '`admin` reaches the admin panel and everything in it.',
+    },
+    must_change_password: {
+      type: 'boolean',
+      description: 'Set on an account created with a generated password.',
+    },
+  },
+};
+
 const Settings = {
   type: 'object',
   description: 'Public settings. Readable without a token: the page needs them to render.',
@@ -233,6 +253,6 @@ const GroupAssignment = {
 };
 
 module.exports = {
-  Link, LinkGroupMembership, Group, Section, Icon, LinkRequest,
+  Link, LinkGroupMembership, Group, Section, Icon, LinkRequest, User,
   Settings, AuditEntry, LinkStats, IpTag, Error, GroupAssignment,
 };

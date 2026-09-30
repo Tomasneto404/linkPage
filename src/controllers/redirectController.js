@@ -10,7 +10,6 @@ const db = require('../models');
 const { getClientIp } = require('../utils/http');
 const { getUnlockedGroupIds } = require('../utils/groupCrypto');
 const { normalizeSlug } = require('../utils/slug');
-const { isValidAdminToken } = require('../middleware/auth');
 const { resolveStoredFilePath } = require('../services/uploadService');
 const { renderMarkdown } = require('../services/markdownService');
 const { renderMarkdownPage, MARKDOWN_CSP } = require('../services/markdownPage');
@@ -79,7 +78,7 @@ function redirect(req, res) {
   const link = db.getLinkById(linkId);
   if (!link) return res.status(404).send('Link not found');
 
-  const isAdmin = isValidAdminToken(req.headers['x-admin-token']);
+  const isAdmin = req.user?.role === 'admin';
   if (!passesVisibilityGate(req, res, link, isAdmin)) return;
 
   trackVisit(req, link, isAdmin);
@@ -162,7 +161,7 @@ function serveBySlug(req, res) {
   const link = db.getLinkBySlug(slug);
   if (!link) return res.status(404).send('Link not found');
 
-  const isAdmin = isValidAdminToken(req.headers['x-admin-token']);
+  const isAdmin = req.user?.role === 'admin';
   if (!passesVisibilityGate(req, res, link, isAdmin)) return;
 
   trackVisit(req, link, isAdmin);

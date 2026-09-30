@@ -30,7 +30,13 @@ after(harness.stop);
 /** Express writes `:id`; OpenAPI writes `{id}`. */
 const toOpenApiPath = p => p.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
 
-/** Every route the app actually serves, with the middleware guarding it. */
+/**
+ * Every route the app actually serves, with the guard on it.
+ *
+ * The guard is read by the middleware function's *name*, which is why those
+ * names are load-bearing: rename requireAdmin and this test stops seeing any
+ * admin route as gated, and reports the whole API as undocumented-open.
+ */
 function routerRoutes() {
   const found = [];
   (function walk(stack) {
@@ -42,7 +48,10 @@ function routerRoutes() {
           found.push({
             method: method.toLowerCase(),
             path:   toOpenApiPath(layer.route.path),
-            admin:  names.includes('requireAdminToken'),
+            // requireAdmin takes either credential; requireAdminToken is the
+            // narrower break-glass-only guard. Both are "admin" to a reader.
+            admin:  names.includes('requireAdmin') || names.includes('requireAdminToken'),
+            user:   names.includes('requireAuth'),
           });
         }
       } else if (layer.handle && layer.handle.stack) {
@@ -89,6 +98,9 @@ describe('the document covers the router', () => {
 });
 
 describe('the document tells the truth about auth', () => {
+  const declares = (operation, scheme) => (operation.security || [])
+    .some(s => Object.prototype.hasOwnProperty.call(s, scheme));
+
   test('every admin-gated route asks for the token, and only those', () => {
     const documented = new Map(specOperations().map(o => [key(o), o.operation]));
     const wrong = [];
@@ -97,8 +109,7 @@ describe('the document tells the truth about auth', () => {
       const operation = documented.get(key(route));
       if (!operation) continue;                     // covered by the tests above
 
-      const declaresToken = (operation.security || [])
-        .some(s => Object.prototype.hasOwnProperty.call(s, 'AdminToken'));
+      const declaresToken = declares(operation, 'AdminToken');
 
       if (route.admin && !declaresToken) wrong.push(`${key(route)} is gated but documented as open`);
       if (!route.admin && declaresToken) wrong.push(`${key(route)} is open but documented as gated`);
@@ -107,12 +118,37 @@ describe('the document tells the truth about auth', () => {
     assert.deepEqual(wrong, [], wrong.join('\n  '));
   });
 
-  test('a gated operation documents its 401', () => {
+  test('a route that needs a signed-in user says so, and only those', () => {
+    const documented = new Map(specOperations().map(o => [key(o), o.operation]));
+    const wrong = [];
+
+    for (const route of routerRoutes()) {
+      const operation = documented.get(key(route));
+      if (!operation) continue;
+
+      // An admin route also accepts an administrator's session, so it declares
+      // the cookie too; what distinguishes a user-only route is declaring the
+      // cookie *without* the token.
+      const userOnly = declares(operation, 'SessionCookie') && !declares(operation, 'AdminToken');
+
+      if (route.user && !userOnly) wrong.push(`${key(route)} needs a session but is not documented as such`);
+      if (!route.user && userOnly) wrong.push(`${key(route)} is documented as needing a session but does not`);
+    }
+
+    assert.deepEqual(wrong, [], wrong.join('\n  '));
+  });
+
+  test('an operation that needs any credential documents its 401', () => {
     for (const { operation, ...r } of specOperations()) {
-      const gated = (operation.security || []).some(s => 'AdminToken' in s);
+      const gated = (operation.security || []).length > 0;
       if (!gated) continue;
       assert.ok(operation.responses['401'], `${key(r)} should document a 401`);
     }
+  });
+
+  test('both ways in are described', () => {
+    assert.ok(spec.components.securitySchemes.AdminToken);
+    assert.ok(spec.components.securitySchemes.SessionCookie);
   });
 });
 

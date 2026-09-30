@@ -21,6 +21,12 @@ const SSE_BROADCAST_SKIP = new Set([
 const AUDIT_ONLY_PATHS = new Set([
   '/api/auth/rotate-token',
   '/api/audit',
+  // Signing in changes nothing anyone else can see. Broadcasting it would make
+  // every open public page refetch everything because somebody logged in.
+  '/api/auth/login',
+  '/api/auth/logout',
+  '/api/auth/logout-all',
+  '/api/auth/password',
 ]);
 
 function auditAndBroadcast(req, res, next) {

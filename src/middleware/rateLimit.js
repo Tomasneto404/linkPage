@@ -87,13 +87,20 @@ function createFailureRateLimiter(maxFailures, windowMs) {
   };
 }
 
-const authRateLimit  = createRateLimiter(10, 5 * 60 * 1000); // 10 per 5 minutes (legacy)
+
 const clickRateLimit = createRateLimiter(30, 60 * 1000);      // 30 per minute
 
 const adminAuthLimiter    = createFailureRateLimiter(20, 5 * 60 * 1000);
 const publicAuthLimiter   = createFailureRateLimiter(20, 5 * 60 * 1000);
 const groupUnlockLimiter  = createFailureRateLimiter(15, 5 * 60 * 1000);
 const requestAuthLimiter  = createFailureRateLimiter(15, 5 * 60 * 1000);
+
+// Signing in. Tighter than the shared-secret gates above: a password guessed
+// here is an account rather than a page, and a legitimate person gets it right
+// in two or three tries.
+const loginLimiter          = createFailureRateLimiter(10, 15 * 60 * 1000);
+const passwordChangeLimiter = createFailureRateLimiter(5,  15 * 60 * 1000);
+const userTokenLimiter      = createFailureRateLimiter(10, 15 * 60 * 1000);
 
 // Throttles public link-request submissions so the open endpoint can't be
 // spammed into filling the DB. 10 submissions per 10 minutes per IP.
@@ -102,11 +109,13 @@ const requestSubmitLimiter = createRateLimiter(10, 10 * 60 * 1000);
 module.exports = {
   createRateLimiter,
   createFailureRateLimiter,
-  authRateLimit,
   clickRateLimit,
   adminAuthLimiter,
   publicAuthLimiter,
   groupUnlockLimiter,
   requestAuthLimiter,
+  loginLimiter,
+  passwordChangeLimiter,
+  userTokenLimiter,
   requestSubmitLimiter,
 };

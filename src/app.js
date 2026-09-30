@@ -9,6 +9,8 @@ const express = require('express');
 
 const { PUBLIC_DIR, UPLOADS_DIR, TRUST_PROXY } = require('./config/env');
 const { securityHeaders }    = require('./middleware/security');
+const { attachUser }         = require('./middleware/auth');
+const { verifySameOrigin }   = require('./middleware/csrf');
 const { auditAndBroadcast }  = require('./middleware/audit');
 const { errorHandler }       = require('./middleware/error');
 const routes                 = require('./routes');
@@ -38,6 +40,14 @@ app.use('/uploads', express.static(UPLOADS_DIR, {
   lastModified: true,
   setHeaders:   res => res.setHeader('Cache-Control', 'no-cache, must-revalidate'),
 }));
+
+// Works out who is asking, before anything downstream needs to know. Never
+// rejects; the route guards decide what to do with the answer.
+app.use(attachUser);
+
+// Refuses a state-changing request that another site caused. Has to come after
+// attachUser, which is what parses the cookies it looks at.
+app.use(verifySameOrigin);
 
 // Records an audit entry + broadcasts an SSE data update after any successful
 // admin mutation. Registered before the routes so its finish-listener attaches.

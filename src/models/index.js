@@ -18,10 +18,13 @@ const audit        = require('./audit');
 const linkRequests = require('./linkRequests');
 const ipTags       = require('./ipTags');
 const analytics    = require('./analytics');
+const users        = require('./users');
+const sessions     = require('./sessions');
 
 const MODULES = {
   settings, links, groups, sections, clicks,
   icons, audit, linkRequests, ipTags, analytics,
+  users, sessions,
 };
 
 /**

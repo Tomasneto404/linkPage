@@ -11,7 +11,6 @@ const { isValidHttpUrl } = require('../utils/http');
 const { normalizeSlug, isReservedSlug } = require('../utils/slug');
 const { parseGroupAssignments } = require('../utils/parsers');
 const { getUnlockedGroupIds } = require('../utils/groupCrypto');
-const { isValidAdminToken } = require('../middleware/auth');
 const { resolveIconReference, safeDeleteFile, safeDeleteFileUnlessLibrary,
         resolveStoredFilePath } = require('../services/uploadService');
 const { cacheFavicon } = require('../services/faviconService');
@@ -21,7 +20,10 @@ const { ensureGroupByName, ensureSectionByName, filterVisibleLinks } = require('
 
 function list(req, res) {
   const links = db.getAllLinks();
-  if (isValidAdminToken(req.headers['x-admin-token'])) return res.json(links);
+  // An administrator sees everything, by either route in. A signed-in ordinary
+  // user sees exactly what an anonymous visitor sees — being known is not the
+  // same as being privileged.
+  if (req.user?.role === 'admin') return res.json(links);
 
   const visible  = links.filter(l => !l.is_hidden);
   const groups   = db.getAllGroups();

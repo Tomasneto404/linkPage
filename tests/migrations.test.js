@@ -18,7 +18,7 @@ const path   = require('node:path');
 const harness = require('./helpers/harness');
 
 const SRC = path.join(__dirname, '..', 'src');
-const CURRENT_SCHEMA_VERSION = 13;
+const CURRENT_SCHEMA_VERSION = 14;
 
 let c;
 before(async () => { c = await harness.start(); });
@@ -58,6 +58,7 @@ describe('a fresh database', () => {
     for (const table of [
       'settings', 'groups', 'links', 'sections', 'link_clicks',
       'link_groups', 'icons', 'audit_log', 'link_requests', 'ip_tags',
+      'users', 'sessions', 'user_tokens', 'user_identities',
     ]) {
       assert.ok(tables.includes(table), `missing table ${table}`);
     }
@@ -69,6 +70,8 @@ describe('a fresh database', () => {
     for (const index of [
       'idx_sections_group', 'idx_link_groups_link', 'idx_link_groups_group',
       'idx_sections_parent', 'idx_audit_created', 'idx_link_requests_status',
+      'idx_sessions_user', 'idx_sessions_expires', 'idx_user_tokens_kind',
+      'idx_user_identities_subject', 'idx_audit_actor', 'idx_link_clicks_link',
     ]) {
       assert.ok(indexes.includes(index), `missing index ${index}`);
     }

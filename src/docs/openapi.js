@@ -71,8 +71,13 @@ function op({ tag, summary, description, auth = 'admin', params, body, responses
   };
 
   if (auth === 'admin') {
-    out.security = [{ AdminToken: [] }];
+    // Either credential opens an admin route: an administrator's session, or
+    // the admin token. Two schemes in one array means "any of these".
+    out.security = [{ AdminToken: [] }, { SessionCookie: [] }];
     out.responses['401'] = { $ref: '#/components/responses/Unauthorised' };
+  } else if (auth === 'user') {
+    out.security = [{ SessionCookie: [] }];
+    out.responses['401'] = { $ref: '#/components/responses/Unauthenticated' };
   } else {
     // Documented as needing nothing, which is what the router enforces.
     out.security = [];
@@ -758,6 +763,108 @@ const paths = {
   },
 
   // ── Authentication ────────────────────────────────────────────────────────
+  '/api/auth/login': {
+    post: op({
+      tag: TAGS.auth, auth: 'open',
+      summary: 'Sign in',
+      description: 'Sets an HttpOnly session cookie. Every failure answers the same way, '
+                 + 'so this cannot be used to find out which addresses have accounts.',
+      body: jsonBody({
+        email:    { type: 'string', format: 'email' },
+        password: { type: 'string', format: 'password' },
+        remember: { type: 'boolean', default: true,
+                    description: 'False issues a cookie that ends with the browser session. '
+                               + 'The server-side expiry is the same either way.' },
+      }, ['email', 'password']),
+      responses: {
+        200: json({ type: 'object', properties: { user: ref('User') } }),
+        401: json(ref('Error'), 'Wrong email or password'),
+        429: json(ref('Error'), 'Too many failed attempts'),
+      },
+    }),
+  },
+  '/api/auth/logout': {
+    post: op({
+      tag: TAGS.auth, auth: 'open',
+      summary: 'Sign out',
+      description: 'Deletes the session server-side and clears the cookie. Answers the '
+                 + 'same whether or not there was a session.',
+      responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' } } }) },
+    }),
+  },
+  '/api/auth/logout-all': {
+    post: op({
+      tag: TAGS.auth, auth: 'user',
+      summary: 'Sign out everywhere else',
+      description: 'Ends every other session for this account and keeps the current one.',
+      responses: {
+        200: json({ type: 'object', properties: { ended: { type: 'integer' } } }),
+      },
+    }),
+  },
+  '/api/auth/me': {
+    get: op({
+      tag: TAGS.auth, auth: 'open',
+      summary: 'Who is signed in',
+      description: 'Answers 200 with a null user when nobody is, rather than 401 — every '
+                 + 'page load asks this, including anonymous ones.',
+      responses: {
+        200: json({
+          type: 'object',
+          properties: {
+            authenticated: { type: 'boolean' },
+            user:          { ...ref('User'), nullable: true },
+            via:           { type: 'string', nullable: true, enum: ['session', 'token', null] },
+          },
+        }),
+      },
+    }),
+  },
+  '/api/auth/providers': {
+    get: op({
+      tag: TAGS.auth, auth: 'open',
+      summary: 'Ways to sign in',
+      description: 'One entry today, for a password. An external identity provider would '
+                 + 'appear here, so the sign-in page needs no change to offer it.',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+  },
+  '/api/auth/password': {
+    post: op({
+      tag: TAGS.auth, auth: 'user',
+      summary: 'Change your own password',
+      description: 'Ends every other session for the account: a password is changed when '
+                 + 'it might be known, and the sessions it opened would outlive the change.',
+      body: jsonBody({
+        current_password: { type: 'string', format: 'password' },
+        new_password:     { type: 'string', format: 'password' },
+      }, ['current_password', 'new_password']),
+      responses: {
+        200: json({ type: 'object' }),
+        400: json(ref('Error'), 'The new password is too short'),
+        401: json(ref('Error'), 'The current password is wrong'),
+        429: json(ref('Error'), 'Too many attempts'),
+      },
+    }),
+  },
+  '/api/auth/sessions': {
+    get: op({
+      tag: TAGS.auth, auth: 'user',
+      summary: 'Where you are signed in',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+  },
+  '/api/auth/sessions/{id}': {
+    delete: op({
+      tag: TAGS.auth, auth: 'user',
+      summary: 'End one of your sessions',
+      params: [pathParam('id', 'The short id from GET /api/auth/sessions.', 'string')],
+      responses: {
+        200: json({ type: 'object' }),
+        404: json(ref('Error'), 'No such session'),
+      },
+    }),
+  },
   '/api/auth/verify': {
     post: op({
       tag: TAGS.auth, auth: 'open',
@@ -1011,12 +1118,24 @@ function buildOpenApiSpec() {
       securitySchemes: {
         AdminToken: {
           type: 'apiKey', in: 'header', name: 'X-Admin-Token',
-          description: 'The admin token, printed at startup and stored in data/admin-token.txt.',
+          description: 'The admin token, printed at startup and stored in '
+                     + 'data/admin-token.txt. It predates accounts and stays as the way '
+                     + 'in when nobody can sign in.',
+        },
+        SessionCookie: {
+          type: 'apiKey', in: 'cookie', name: 'lp_sess',
+          description: 'The session cookie set by POST /api/auth/login. HttpOnly, so a '
+                     + 'browser sends it automatically and page scripts cannot read it. '
+                     + 'State-changing requests carrying it must also come from this origin.',
         },
       },
       responses: {
         Unauthorised: {
-          description: 'Missing or wrong admin token.',
+          description: 'Not an administrator: no admin token, and no session for an admin account.',
+          content: { 'application/json': { schema: ref('Error') } },
+        },
+        Unauthenticated: {
+          description: 'Nobody is signed in.',
           content: { 'application/json': { schema: ref('Error') } },
         },
       },

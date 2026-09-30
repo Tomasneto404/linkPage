@@ -51,7 +51,10 @@ describe('admin token', () => {
     for (const [method, url] of routes) {
       const anon = await c.pub(url, { method, json: {} });
       assert.equal(anon.status, 401, `${method} ${url} without a token`);
-      assert.deepEqual(anon.body, { error: 'Unauthorized' });
+      assert.equal(anon.body.error, 'Unauthorized');
+      // The code tells the caller whether signing in would help. Nobody is
+      // signed in here, so it always would.
+      assert.equal(anon.body.code, 'auth_required');
 
       const wrong = await c.pub(url, { method, json: {}, headers: { 'X-Admin-Token': 'a'.repeat(64) } });
       assert.equal(wrong.status, 401, `${method} ${url} with a wrong token`);

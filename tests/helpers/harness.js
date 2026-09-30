@@ -132,6 +132,44 @@ async function request(method, urlPath, { headers = {}, body, json, form, redire
   return { status: res.status, headers: res.headers, body: parsed, text, res };
 }
 
+/**
+ * Holds cookies across requests, the way a browser would.
+ *
+ * `fetch` does not do this: every call starts with no cookies and throws away
+ * whatever came back. A session lives in a cookie, so without this a test can
+ * sign in and then be a stranger on the very next line.
+ */
+class CookieJar {
+  constructor() { this.cookies = new Map(); }
+
+  /** Reads every Set-Cookie on a response, honouring deletions. */
+  capture(res) {
+    // getSetCookie keeps them separate. headers.get('set-cookie') folds them
+    // into one comma-joined string, which is unparseable once an Expires date
+    // (which contains a comma) is in play.
+    const raw = res.headers.getSetCookie?.() ?? [res.headers.get('set-cookie')].filter(Boolean);
+    for (const line of raw) {
+      const [pair, ...attrs] = line.split(';');
+      const idx = pair.indexOf('=');
+      if (idx < 0) continue;
+      const name  = pair.slice(0, idx).trim();
+      const value = pair.slice(idx + 1).trim();
+
+      const expired = attrs.some(a => /^\s*Max-Age\s*=\s*0\s*$/i.test(a))
+                   || value === '';
+      if (expired) this.cookies.delete(name);
+      else         this.cookies.set(name, value);
+    }
+  }
+
+  header() {
+    return [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ');
+  }
+
+  get(name) { return this.cookies.get(name) || null; }
+  clear()   { this.cookies.clear(); }
+}
+
 function client() {
   /** Admin-authenticated request. */
   const api = (urlPath, opts = {}) => request(opts.method || 'GET', urlPath, {
@@ -142,8 +180,50 @@ function client() {
   /** Unauthenticated (public visitor) request. */
   const pub = (urlPath, opts = {}) => request(opts.method || 'GET', urlPath, opts);
 
+  /**
+   * A browser-shaped client: carries its cookies, and announces where its
+   * requests come from.
+   *
+   * The Origin header is not decoration — verifySameOrigin refuses a
+   * cookie-bearing write that cannot say where it came from, which is exactly
+   * what a real browser always can. Pass `noOrigin: true` or an `origin` to
+   * play the part of a page on another site.
+   */
+  function session({ jar = new CookieJar() } = {}) {
+    const send = async (urlPath, opts = {}) => {
+      const method  = opts.method || 'GET';
+      const headers = { ...(opts.headers || {}) };
+
+      const cookie = jar.header();
+      if (cookie && !headers.Cookie) headers.Cookie = cookie;
+
+      const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+      if (unsafe && !opts.noOrigin && !headers.Origin) {
+        headers.Origin = opts.origin || baseUrl;
+      }
+
+      const res = await request(method, urlPath, { ...opts, headers });
+      jar.capture(res.res);
+      return res;
+    };
+
+    return {
+      fetch: send,
+      jar,
+      /** Signs in, and from then on this client is that person. */
+      async login(email, password, opts = {}) {
+        const res = await send('/api/auth/login', {
+          method: 'POST', json: { email, password, ...opts },
+        });
+        return res;
+      },
+      async logout() { return send('/api/auth/logout', { method: 'POST' }); },
+      get sessionCookie() { return jar.get('lp_sess'); },
+    };
+  }
+
   return {
-    api, pub, request,
+    api, pub, request, session, CookieJar,
     get token()   { return token; },
     get baseUrl() { return baseUrl; },
     get dataDir() { return dataDir; },
@@ -191,6 +271,28 @@ function normaliseGroups(groups) {
 }
 
 function fixtures(api) {
+  /**
+   * Creates an account, straight through the models.
+   *
+   * Not through the API: there is no endpoint that creates a user outright —
+   * accounts come from an invite — and a test that only needs somebody to sign
+   * in as should not have to act out the whole invitation.
+   */
+  async function makeUser({ email, password = 'correct-horse-battery', role = 'user',
+                            displayName = null } = {}) {
+    const models = require('../../src/models');
+    const { hashPassword } = require('../../src/utils/password');
+    const address = email || `user-${Math.random().toString(36).slice(2, 8)}@example.test`;
+
+    const user = models.createUser({
+      email:        address,
+      displayName,
+      passwordHash: await hashPassword(password),
+      role,
+    });
+    return { ...user, password };
+  }
+
   /** Creates a group and returns its row. */
   async function makeGroup(overrides = {}) {
     const payload = { name: `Group ${Math.random().toString(36).slice(2, 8)}`, color: '#0071e3', ...overrides };
@@ -245,7 +347,7 @@ function fixtures(api) {
     return body;
   }
 
-  return { makeGroup, makeLink, makeFileLink, makeSection, makeIcon };
+  return { makeUser, makeGroup, makeLink, makeFileLink, makeSection, makeIcon };
 }
 
 module.exports = { start, stop, pngBytes, svgBytes, fileForm };

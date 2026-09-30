@@ -120,12 +120,56 @@ function deriveAuditEntry(req) {
 
   // Auth
   if (p === '/api/auth/rotate-token')                    return { action: 'auth.rotate_token', entityType: 'auth', entityId: null, summary: 'Rotated the admin token' };
+  if (p === '/api/auth/login')                           return { action: 'auth.login',       entityType: 'auth', entityId: null, summary: 'Signed in' };
+  if (p === '/api/auth/logout')                          return { action: 'auth.logout',      entityType: 'auth', entityId: null, summary: 'Signed out' };
+  if (p === '/api/auth/logout-all')                      return { action: 'auth.logout_all',  entityType: 'auth', entityId: null, summary: 'Signed out everywhere' };
+  if (p === '/api/auth/password')                        return { action: 'auth.password',    entityType: 'auth', entityId: null, summary: 'Changed a password' };
+  if (/^\/api\/auth\/sessions\//.test(p) && M === 'DELETE') return { action: 'auth.session_revoke', entityType: 'auth', entityId: null, summary: 'Ended a session' };
 
   // Audit log itself (clear/prune) — recorded so the clearing is traceable.
   if (p === '/api/audit' && M === 'DELETE')              return { action: 'audit.clear', entityType: 'audit', entityId: null, summary: 'Cleared the audit log' };
 
   // Anything else under /api that mutated — generic fallback.
   return { action: `${M.toLowerCase()} ${p}`, entityType: null, entityId: id, summary: `${M} ${p}` };
+}
+
+/**
+ * Who made this request, in the three fields the log stores.
+ *
+ * 'token' has no id, because the admin token is not an account. 'public' is an
+ * unauthenticated visitor, which is what a click or a link request is.
+ */
+function actorFor(req) {
+  if (req.user?.via === 'session') {
+    return {
+      actorType:   'user',
+      actorUserId: req.user.id,
+      actorLabel:  req.user.display_name || req.user.email || null,
+    };
+  }
+  if (req.user?.via === 'token') {
+    return { actorType: 'token', actorUserId: null, actorLabel: 'Admin token' };
+  }
+  return { actorType: 'public', actorUserId: null, actorLabel: null };
+}
+
+/**
+ * Writes one entry immediately, rather than waiting for the response.
+ *
+ * The middleware only logs requests that succeeded, which is right for
+ * everything that mutates — a failed edit changed nothing worth recording. A
+ * failed sign-in is the exception: it changed nothing and is precisely the
+ * thing a security log exists to hold.
+ */
+function recordAuditNow(req, { action, entityType = 'auth', entityId = null, summary }) {
+  try {
+    db.recordAudit({
+      action, entityType, entityId, summary,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] || null,
+      ...actorFor(req),
+    });
+  } catch { /* never let audit logging break a request */ }
 }
 
 function writeAuditFromRequest(req) {
@@ -139,8 +183,9 @@ function writeAuditFromRequest(req) {
       summary:    req._auditSummary || derived.summary,
       ipAddress:  getClientIp(req),
       userAgent:  req.headers['user-agent'] || null,
+      ...actorFor(req),
     });
   } catch { /* never let audit logging break a request */ }
 }
 
-module.exports = { truncate, deriveAuditEntry, writeAuditFromRequest };
+module.exports = { truncate, deriveAuditEntry, actorFor, recordAuditNow, writeAuditFromRequest };

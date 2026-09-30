@@ -16,6 +16,7 @@ const { getAdminToken } = require('./config/secrets');
 const db = require('./models');
 const { runHealthCheck } = require('./services/healthService');
 const { seedFirstRunContent } = require('./services/seedFirstRun');
+const { seedAdminUser, announceAdminUser } = require('./services/seedAdminUser');
 
 // Migrate old single-logo setting to the new light/dark format.
 const oldLogoPath = db.readSetting('logo_path');
@@ -36,5 +37,12 @@ console.log(`└${divider}┘\n`);
 // Run the first health check 30 seconds after startup, then every 6 hours.
 setTimeout(runHealthCheck, 30_000);
 setInterval(runHealthCheck, 6 * 60 * 60 * 1000);
+
+// Hashing a password is asynchronous, so this cannot happen inline above. The
+// server starts listening either way — a failure here leaves the admin token
+// working, which is the whole reason it still exists.
+seedAdminUser()
+  .then(announceAdminUser)
+  .catch(err => console.error('[auth] Could not create the first admin account:', err.message));
 
 app.listen(PORT, () => {});

@@ -8,10 +8,12 @@ const { db } = require('../config/db');
  * Appends a single entry to the admin audit log. Best-effort — wrapped by the
  * caller so a logging failure never breaks the underlying mutation.
  */
-function recordAudit({ action, entityType, entityId, summary, ipAddress, userAgent }) {
+function recordAudit({ action, entityType, entityId, summary, ipAddress, userAgent,
+                      actorType, actorUserId, actorLabel }) {
   db.prepare(`
-    INSERT INTO audit_log (action, entity_type, entity_id, summary, ip_address, user_agent)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO audit_log (action, entity_type, entity_id, summary, ip_address, user_agent,
+                           actor_type, actor_user_id, actor_label)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     action,
     entityType ?? null,
@@ -19,7 +21,24 @@ function recordAudit({ action, entityType, entityId, summary, ipAddress, userAge
     summary ?? null,
     ipAddress ?? null,
     userAgent ?? null,
+    actorType ?? null,
+    Number.isFinite(actorUserId) ? actorUserId : null,
+    // A snapshot of the name, not a join: an entry should still say who did it
+    // after that account is deleted.
+    actorLabel ?? null,
   );
+}
+
+/**
+ * Fills in the actor on a row read back from the log.
+ *
+ * Entries written before accounts existed have none, and there is exactly one
+ * thing they can have been: the admin token, which was the only way to change
+ * anything. Saying so on read is honest; back-filling the column would be
+ * asserting it as recorded fact.
+ */
+function withActor(row) {
+  return { ...row, actor_type: row.actor_type || 'token' };
 }
 
 /**
@@ -44,12 +63,13 @@ function getAuditLog(opts = {}) {
   }
   const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
   return db.prepare(`
-    SELECT id, action, entity_type, entity_id, summary, ip_address, user_agent, created_at
+    SELECT id, action, entity_type, entity_id, summary, ip_address, user_agent, created_at,
+           actor_type, actor_user_id, actor_label
     FROM audit_log
     ${clause}
     ORDER BY id DESC
     LIMIT ?
-  `).all(...params, limit);
+  `).all(...params, limit).map(withActor);
 }
 
 /**
@@ -68,12 +88,13 @@ function getAuditLogForExport(opts = {}) {
   }
   const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
   return db.prepare(`
-    SELECT id, action, entity_type, entity_id, summary, ip_address, user_agent, created_at
+    SELECT id, action, entity_type, entity_id, summary, ip_address, user_agent, created_at,
+           actor_type, actor_user_id, actor_label
     FROM audit_log
     ${clause}
     ORDER BY id DESC
     LIMIT 100000
-  `).all(...params);
+  `).all(...params).map(withActor);
 }
 
 /** Total number of audit entries (for the header count). */

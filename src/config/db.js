@@ -34,7 +34,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 13;
+const CURRENT_SCHEMA_VERSION = 14;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -301,6 +301,117 @@ const MIGRATIONS = [
       // group can lead with a document. Off for everything that already
       // exists, which is what the default gives them.
       addColumnIfMissing('links', 'auto_open', 'INTEGER NOT NULL DEFAULT 0');
+    },
+  },
+  {
+    version: 14,
+    name:    'User accounts, sessions and invites',
+    apply: () => {
+      // Identity. Until this version the app had exactly one: the admin token.
+      //
+      // Nothing here inserts a row, and nothing touches links, groups or
+      // sections — an existing install upgrades to a schema that simply has
+      // somewhere to put accounts, and carries on behaving exactly as it did.
+      // The first admin user is created at boot by seedAdminUser, not here,
+      // because a migration cannot know whether this is a fresh install.
+      //
+      // email_key is the lowercased address and the thing uniqueness is
+      // enforced on; email keeps whatever capitalisation the person typed, so
+      // it can be shown back to them as they wrote it.
+      //
+      // password_hash is nullable on purpose: an account provisioned by an
+      // external identity provider has no password of its own.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+          email                TEXT NOT NULL,
+          email_key            TEXT NOT NULL UNIQUE,
+          display_name         TEXT,
+          role                 TEXT NOT NULL DEFAULT 'user',
+          password_hash        TEXT,
+          is_active            INTEGER NOT NULL DEFAULT 1,
+          must_change_password INTEGER NOT NULL DEFAULT 0,
+          storage_used         INTEGER NOT NULL DEFAULT 0,
+          storage_quota        INTEGER,
+          created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_login_at        DATETIME
+        )
+      `);
+
+      // Sessions are server-side so they can be revoked. The primary key is a
+      // hash of the cookie value, never the value itself: a copy of this file
+      // then hands over no working sessions.
+      //
+      // Two expiries. expires_at slides forward while someone keeps using the
+      // session; absolute_expires_at never moves, so a session cannot live
+      // forever by being touched.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS sessions (
+          token_hash          TEXT PRIMARY KEY,
+          user_id             INTEGER NOT NULL,
+          created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_seen_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+          expires_at          DATETIME NOT NULL,
+          absolute_expires_at DATETIME NOT NULL,
+          ip_address          TEXT,
+          user_agent          TEXT
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)');
+
+      // Invites and password resets are the same thing wearing two hats: a
+      // single-use secret, handed to one person, that expires. One table means
+      // one expiry rule, one redemption guard and one revoke path rather than
+      // two of each drifting apart.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_tokens (
+          id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+          kind               TEXT NOT NULL,
+          token_hash         TEXT NOT NULL UNIQUE,
+          label              TEXT,
+          role               TEXT NOT NULL DEFAULT 'user',
+          user_id            INTEGER,
+          created_by_user_id INTEGER,
+          created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+          expires_at         DATETIME NOT NULL,
+          redeemed_at        DATETIME,
+          redeemed_user_id   INTEGER,
+          revoked_at         DATETIME
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_user_tokens_kind ON user_tokens(kind)');
+
+      // The seam for an external identity provider. Empty until one is
+      // configured; it exists now so that adding one later is a new row rather
+      // than a new migration on a live database.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_identities (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id       INTEGER NOT NULL,
+          provider      TEXT NOT NULL,
+          subject       TEXT NOT NULL,
+          email         TEXT,
+          created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_login_at DATETIME
+        )
+      `);
+      db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_user_identities_subject '
+            + 'ON user_identities(provider, subject)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id)');
+
+      // Who did it. With a single shared token there was nobody to record, so
+      // the log never had an actor. Existing rows keep NULL, which reads back
+      // as the admin token — the only thing it could have been.
+      addColumnIfMissing('audit_log', 'actor_type',    'TEXT');
+      addColumnIfMissing('audit_log', 'actor_user_id', 'INTEGER');
+      addColumnIfMissing('audit_log', 'actor_label',   'TEXT');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_user_id)');
+
+      // Unrelated to accounts, but this table has never had an index and every
+      // analytics query groups over it.
+      db.exec('CREATE INDEX IF NOT EXISTS idx_link_clicks_link ON link_clicks(link_id)');
     },
   },
 ];
