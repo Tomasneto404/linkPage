@@ -12,8 +12,9 @@
 <body>
 
 <!-- ════════════════════════════════════════════════
-     TOKEN GATE
-     Shown until the admin enters a valid token.
+     SIGN-IN GATE
+     Shown until an administrator is recognised, by either route: an account
+     with a password, or the admin token that predates accounts.
      Once verified, this is hidden and #adminWrap is shown.
      ════════════════════════════════════════════════ -->
 <div class="gate" id="gate">
@@ -27,9 +28,41 @@
     </div>
 
     <h1>Admin Access</h1>
-    <p>Enter your admin token to manage links.</p>
+    <p id="gateIntro">Sign in to manage links.</p>
 
-    <form id="gateForm">
+    <!-- The ordinary way in. The token form below is still here, and still
+         untouched, because it is what works when this one cannot. -->
+    <form id="adminLoginForm">
+      <div class="form-group">
+        <input type="email" id="adminEmail" placeholder="you@example.com"
+               autocomplete="username" required />
+      </div>
+      <div class="gate-input-wrap">
+        <input type="password" id="adminPassword" placeholder="Password"
+               autocomplete="current-password" required />
+        <button type="button" class="toggle-visibility-btn"
+                id="togglePasswordBtn" aria-label="Show or hide password">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="form-error hidden" id="adminLoginError">
+        Wrong email or password.
+      </div>
+
+      <button type="submit" class="btn btn-primary gate-submit" id="adminLoginBtn">
+        Sign in
+      </button>
+    </form>
+
+    <button type="button" class="gate-alt" id="useTokenBtn">Use an admin token instead</button>
+    <button type="button" class="gate-alt hidden" id="usePasswordBtn">Sign in with a password</button>
+
+    <form id="gateForm" class="hidden">
       <div class="gate-input-wrap">
         <input type="password" id="tokenInput"
                placeholder="Paste admin token…"
@@ -46,6 +79,10 @@
 
       <div class="form-error hidden" id="gateError">
         Invalid token. Check the server console for the correct one.
+      </div>
+
+      <div class="settings-row-desc" style="text-align:center">
+        Printed when the server starts, and kept in <code>data/admin-token.txt</code>.
       </div>
 
       <button type="submit" class="btn btn-primary gate-submit" id="gateSubmitBtn">

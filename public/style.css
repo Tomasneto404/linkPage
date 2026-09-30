@@ -923,7 +923,7 @@ select option { background: var(--surface); }
    (.req-upload-label is inline-flex, which would otherwise win on specificity). */
 [hidden] { display: none !important; }
 
-/* ── Gate (public password + admin token) ── */
+/* ── Gate (public password, and signing in to the admin) ── */
 .gate {
   position: fixed;
   inset: 0;
@@ -975,6 +975,21 @@ select option { background: var(--surface); }
 .gate-submit       { width: 100%; justify-content: center; padding: 10px; font-size: 0.9375rem; }
 .gate-back         { margin-top: 6px; font-size: 0.8125rem; color: var(--text-muted); text-decoration: none; transition: color var(--transition); }
 .gate-back:hover   { color: var(--primary); }
+
+/* The other way in, offered under the form rather than beside it: there is
+   almost always one right answer, and the second one is for when it fails. */
+.gate-alt {
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  background: none;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color var(--transition);
+}
+.gate-alt:hover { color: var(--primary); }
 
 /* ── Form warning (non-blocking, yellow) ───── */
 .form-warning {

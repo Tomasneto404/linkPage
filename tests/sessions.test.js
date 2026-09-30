@@ -410,6 +410,18 @@ describe('the audit log', () => {
     assert.equal(entry.actor_label, 'actor@example.test');
   });
 
+  test('a sign-in is attributed to whoever signed in', async () => {
+    // The request arrives anonymous — that is what signing in means — so this
+    // only works because the entry is written after the session exists.
+    await c.session().login('actor@example.test', PASSWORD);
+
+    const log = await c.api('/api/audit?limit=10');
+    const entry = log.body.entries.find(e => e.action === 'auth.login');
+    assert.ok(entry);
+    assert.equal(entry.actor_type, 'user');
+    assert.equal(entry.actor_label, 'actor@example.test');
+  });
+
   test('the admin token is recorded as itself', async () => {
     await c.api('/api/groups', { method: 'POST', json: { name: 'By the token', color: '#0071e3' } });
 

@@ -127,6 +127,16 @@ applyTheme(getInitialTheme(), false);
 
 const TOKEN_KEY = 'linkpage_admin_token';
 
+/**
+ * How this browser is authenticated: 'session' for a signed-in admin account,
+ * 'token' for the admin token, null before either.
+ *
+ * It decides what happens on a 401. Clearing the stored token when the *session*
+ * expired would throw away a working credential for an unrelated reason.
+ */
+let adminAuthMode = null;
+let adminIdentity = null;
+
 function getAdminToken()       { return localStorage.getItem(TOKEN_KEY) || ''; }
 function saveAdminToken(token) { localStorage.setItem(TOKEN_KEY, token); }
 function clearAdminToken()     { localStorage.removeItem(TOKEN_KEY); }
@@ -149,10 +159,98 @@ async function showAdminUI() {
   checkForUpdates().catch(() => {});
 }
 
-async function checkStoredToken() {
+/**
+ * Works out whether this browser is already an administrator, and lets it in.
+ *
+ * A session is checked first: it is the ordinary way in, and someone who is
+ * signed in should not be held up by a stale token sitting in localStorage.
+ * Falls through to the gate when neither answers.
+ */
+async function resolveAdminIdentity() {
+  try {
+    const me = await fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : { user: null }));
+
+    if (me.user) {
+      if (me.user.role === 'admin') {
+        adminAuthMode = 'session';
+        adminIdentity = me.user;
+        return showAdminUI();
+      }
+      // Signed in, but not as an administrator. Say so rather than showing a
+      // blank sign-in form to someone who is demonstrably already signed in.
+      const intro = document.getElementById('gateIntro');
+      if (intro) {
+        intro.textContent =
+          `You are signed in as ${me.user.email}, which is not an administrator account.`;
+      }
+    }
+  } catch { /* offline, or the server is restarting — fall through to the gate */ }
+
   const t = getAdminToken();
-  if (t && await verifyToken(t)) await showAdminUI();
+  if (t && await verifyToken(t)) {
+    adminAuthMode = 'token';
+    await showAdminUI();
+  }
 }
+
+document.getElementById('adminLoginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn    = document.getElementById('adminLoginBtn');
+  const errBox = document.getElementById('adminLoginError');
+  const email    = document.getElementById('adminEmail').value.trim();
+  const password = document.getElementById('adminPassword').value;
+
+  errBox.classList.add('hidden');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+
+  try {
+    const r = await fetch('/api/auth/login', {
+      method:      'POST',
+      headers:     { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body:        JSON.stringify({ email, password }),
+    });
+    const data = await r.json().catch(() => ({}));
+
+    if (r.ok && data.user?.role === 'admin') {
+      adminAuthMode = 'session';
+      adminIdentity = data.user;
+      await showAdminUI();
+      return;
+    }
+
+    errBox.textContent = r.status === 429
+      ? 'Too many attempts. Try again in a few minutes.'
+      : r.ok
+        ? 'That account is not an administrator.'
+        : 'Wrong email or password.';
+    errBox.classList.remove('hidden');
+    document.getElementById('adminPassword').select();
+  } catch {
+    errBox.textContent = 'Could not reach the server. Is it running?';
+    errBox.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+});
+
+document.getElementById('togglePasswordBtn').addEventListener('click', () => {
+  const input = document.getElementById('adminPassword');
+  input.type  = input.type === 'password' ? 'text' : 'password';
+});
+
+/** Swaps between the password form and the token form. */
+function showGateForm(which) {
+  const password = which === 'password';
+  document.getElementById('adminLoginForm').classList.toggle('hidden', !password);
+  document.getElementById('useTokenBtn').classList.toggle('hidden', !password);
+  document.getElementById('gateForm').classList.toggle('hidden', password);
+  document.getElementById('usePasswordBtn').classList.toggle('hidden', password);
+  document.getElementById(password ? 'adminEmail' : 'tokenInput').focus();
+}
+document.getElementById('useTokenBtn').addEventListener('click', () => showGateForm('token'));
+document.getElementById('usePasswordBtn').addEventListener('click', () => showGateForm('password'));
 
 document.getElementById('gateForm').addEventListener('submit', async e => {
   e.preventDefault();
@@ -166,6 +264,7 @@ document.getElementById('gateForm').addEventListener('submit', async e => {
   try {
     if (await verifyToken(token)) {
       saveAdminToken(token);
+      adminAuthMode = 'token';
       await showAdminUI();
     } else {
       errBox.classList.remove('hidden');
@@ -184,19 +283,46 @@ document.getElementById('toggleVisibilityBtn').addEventListener('click', () => {
   input.type  = input.type === 'password' ? 'text' : 'password';
 });
 
-document.getElementById('logoutBtn').addEventListener('click', () => {
-  clearAdminToken(); location.reload();
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  // End the session on the server as well, not only in this browser. Clearing
+  // the token too covers the case of having used both.
+  if (adminAuthMode === 'session') {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch { /* leaving anyway */ }
+  }
+  clearAdminToken();
+  location.reload();
 });
 
 
 // ─── 3. SERVER CALLS ─────────────────────────────────────────────────────────
 
+// One reload, however many requests were in flight when authentication died.
+// loadAllData fires a dozen at once, and each one used to call location.reload()
+// on its own.
+let reloadingAfterAuthLoss = false;
+
 async function sendAuthRequest(url, opts = {}) {
-  const r = await fetch(url, {
-    ...opts,
-    headers: { ...opts.headers, 'X-Admin-Token': getAdminToken() },
-  });
-  if (r.status === 401) { clearAdminToken(); location.reload(); }
+  const headers = { ...opts.headers };
+  // Only when there is one. Sending an empty header made every request look
+  // like a failed token attempt.
+  const token = getAdminToken();
+  if (token) headers['X-Admin-Token'] = token;
+
+  const r = await fetch(url, { ...opts, headers, credentials: 'same-origin' });
+
+  if (r.status === 401) {
+    // A dead session is not a reason to throw away a perfectly good token.
+    if (adminAuthMode === 'token') clearAdminToken();
+    if (!reloadingAfterAuthLoss) {
+      reloadingAfterAuthLoss = true;
+      location.reload();
+    }
+  }
   return r;
 }
 
@@ -5958,4 +6084,4 @@ function showEasterEgg() {
 
 // ─── 23. STARTUP ─────────────────────────────────────────────────────────────
 
-checkStoredToken();
+resolveAdminIdentity();

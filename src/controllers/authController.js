@@ -89,7 +89,13 @@ async function login(req, res) {
   }
 
   startSession(req, res, user, { remember });
+
+  // The request arrived anonymous, which is what attachUser recorded. By the
+  // time it finishes — which is when the audit entry is written — it is this
+  // person's request, and the log should say so rather than "public".
+  req.user = { ...publicUser(user), via: 'session' };
   req._auditSummary = `${user.email} signed in`;
+
   res.json({ user: publicUser(user) });
 }
 
