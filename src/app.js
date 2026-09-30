@@ -7,13 +7,19 @@
 
 const express = require('express');
 
-const { PUBLIC_DIR, UPLOADS_DIR } = require('./config/env');
+const { PUBLIC_DIR, UPLOADS_DIR, TRUST_PROXY } = require('./config/env');
 const { securityHeaders }    = require('./middleware/security');
 const { auditAndBroadcast }  = require('./middleware/audit');
 const { errorHandler }       = require('./middleware/error');
 const routes                 = require('./routes');
 
 const app = express();
+
+// Tells Express how far to trust X-Forwarded-*, which is what makes req.ip and
+// req.secure correct behind a reverse proxy. Configurable, and explained in
+// src/config/env.js — the short version is that an instance exposed directly to
+// the internet should set TRUST_PROXY=0.
+app.set('trust proxy', TRUST_PROXY);
 
 // 32 MB headroom: the icon-library import embeds base64 image bytes inline,
 // which can add up for a large library. All JSON write routes are admin-gated.

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Tomás Neto
-/** Groups data access + scrypt password hashing (reused for settings gates). */
+/** Groups data access, and the password gate every group-style secret shares. */
 
-const crypto = require('node:crypto');
 const { db } = require('../config/db');
+const { hashPasswordSync, verifyPasswordSync } = require('../utils/password');
 
 /**
  * Strips the password hash from a group row and adds an `is_protected` boolean.
@@ -22,30 +22,27 @@ function safeGroup(row) {
   };
 }
 
-/** Hashes a password using scrypt. Format: scrypt$<saltHex>$<hashHex>. */
+/**
+ * Hashes a password for a group, or for one of the shared gates that borrow
+ * this pair (the public-page password, the request password).
+ *
+ * The implementation moved to src/utils/password.js when user accounts arrived;
+ * these two names stay because half a dozen call sites across the middleware
+ * and the controllers use them, and because what they hash is genuinely a
+ * different thing from a user password — a short-lived gate rather than an
+ * identity, so it keeps the cheaper cost. See the note in that file.
+ */
 function hashGroupPassword(password) {
-  const salt = crypto.randomBytes(16);
-  const hash = crypto.scryptSync(password, salt, 32);
-  return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
+  return hashPasswordSync(password);
 }
 
 /**
- * Constant-time verify of a plaintext password against a stored
- * `scrypt$<saltHex>$<hashHex>` string (produced by hashGroupPassword). Works for
- * any such hash regardless of where it's stored (groups.password_hash, settings).
+ * Constant-time verify against a stored scrypt string, in either the legacy
+ * three-field format or the current one. Works for any such hash regardless of
+ * where it is stored (groups.password_hash, settings).
  */
 function verifyScryptHash(storedHash, password) {
-  if (typeof password !== 'string' || password.length === 0) return false;
-  if (typeof storedHash !== 'string' || !storedHash) return false;
-
-  const [scheme, saltHex, hashHex] = storedHash.split('$');
-  if (scheme !== 'scrypt' || !saltHex || !hashHex) return false;
-
-  const salt     = Buffer.from(saltHex, 'hex');
-  const expected = Buffer.from(hashHex, 'hex');
-  const actual   = crypto.scryptSync(password, salt, expected.length);
-  if (actual.length !== expected.length) return false;
-  return crypto.timingSafeEqual(actual, expected);
+  return verifyPasswordSync(storedHash, password);
 }
 
 /** Returns true if the password matches the stored hash for the given group. */

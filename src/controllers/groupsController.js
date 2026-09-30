@@ -123,7 +123,7 @@ function unlock(req, res) {
   const maxAge  = mode === 'session'
     ? ''                                          // no Max-Age → browser session cookie
     : `; Max-Age=${Math.ceil(GROUP_UNLOCK_TTL_MS / 1000)}`;
-  res.setHeader('Set-Cookie',
+  res.append('Set-Cookie',
     `lp_grp_${id}=${token}; Path=/; HttpOnly; SameSite=Lax${maxAge}${secure}`);
   res.json({
     valid:       true,
@@ -137,7 +137,7 @@ function unlock(req, res) {
 function lock(req, res) {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid group id' });
-  res.setHeader('Set-Cookie', `lp_grp_${id}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  res.append('Set-Cookie', `lp_grp_${id}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
   res.json({ ok: true });
 }
 

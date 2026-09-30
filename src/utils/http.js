@@ -2,14 +2,23 @@
 // Copyright (C) 2026 Tomás Neto
 /** Small, dependency-free HTTP/validation helpers. */
 
+const { TRUST_PROXY } = require('../config/env');
+
 /**
  * Extracts the real client IP address.
- * Checks X-Forwarded-For first so it works correctly behind reverse proxies.
+ *
+ * X-Forwarded-For is read only when TRUST_PROXY says there is a proxy in front
+ * of us (the default — see src/config/env.js). Behind one it is the only way to
+ * see past the proxy's own address; in front of one it is a header the client
+ * writes itself, and this value decides what the rate limiters count and what
+ * the audit log records.
  */
 function getClientIp(req) {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) return forwarded.split(',')[0].trim();
-  return req.ip || req.socket?.remoteAddress || 'unknown';
+  if (TRUST_PROXY !== false) {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) return forwarded.split(',')[0].trim();
+  }
+  return req.socket?.remoteAddress || req.ip || 'unknown';
 }
 
 /** Returns true if the URL uses http or https. */

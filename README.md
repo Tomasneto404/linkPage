@@ -394,6 +394,7 @@ All configuration is done via environment variables:
 | `DATA_DIR` | `./data` | Directory for the database and admin token file |
 | `UPLOADS_DIR` | `./data/uploads` | Directory for uploaded images and cached favicons |
 | `RELEASES_REPO` | `Tomasneto404/linkPage` | GitHub `owner/repo` polled by the in-app update checker. Override to point at a fork or private mirror. |
+| `TRUST_PROXY` | `1` | How far to trust `X-Forwarded-For` when identifying a client. The default of one hop suits the shipped compose file, where a reverse proxy sits in front. **Set it to `0` if the container is exposed directly to the internet** — otherwise a caller can pick its own address, which is what the rate limiters count and what the audit log records. Also accepts a hop count, `loopback`, or a subnet list. |
 
 ---
 
