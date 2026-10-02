@@ -25,12 +25,41 @@ const token = inviteToken || resetToken;
 
 const el = id => document.getElementById(id);
 
+/**
+ * Resolves a requested landing place against this origin, or refuses it.
+ *
+ * Parsed rather than pattern-matched, because a regex over the raw string
+ * checks something the browser will not: before resolving a URL a browser
+ * normalises backslashes to slashes, strips tabs and newlines, and decodes
+ * escapes. "/\\evil.example" looks like a path and resolves to another origin;
+ * so does "/\tevil.example" with a real tab in it. Letting the URL parser
+ * answer "what origin is this actually?" is the only check that matches what
+ * location.assign will do with the same string.
+ *
+ * Returns a fully-resolved absolute URL rather than a path, so that what is
+ * handed to location.assign is exactly the string whose origin was checked.
+ * Returning a path re-opens the question: "/..//evil.example" resolves to a
+ * same-origin URL whose *pathname* is "//evil.example", and handing that back
+ * means the browser resolves it a second time, protocol-relative, straight off
+ * this origin. One parse, one check, one string.
+ *
+ * Takes its inputs rather than reading them from the page, so the test can
+ * exercise the real function.
+ */
+function safeDestination(next, origin) {
+  const home = `${origin}/`;
+  if (typeof next !== 'string' || next === '') return home;
+  try {
+    const url = new URL(next, origin);
+    return url.origin === origin ? url.href : home;
+  } catch {
+    return home;
+  }
+}
+
 /** Where to land after signing in. A path on this site, or the front page. */
 function destination() {
-  const next = params.get('next');
-  // Must start with a single slash: "//evil.example" is a protocol-relative URL
-  // that leaves this origin, and "https://…" plainly does.
-  return typeof next === 'string' && /^\/(?!\/)/.test(next) ? next : '/';
+  return safeDestination(params.get('next'), location.origin);
 }
 
 function showError(box, message) {
