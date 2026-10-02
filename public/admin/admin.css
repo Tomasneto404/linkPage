@@ -3707,3 +3707,73 @@ a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline
   display: block; font-size: 0.6rem; font-weight: 600; text-transform: uppercase;
   letter-spacing: 0.05em; color: var(--text-muted); margin-top: 2px;
 }
+
+
+/* ── Accounts ─────────────────────────────── */
+.users-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.users-list, .invites-list { display: flex; flex-direction: column; gap: 6px; }
+
+.user-row, .invite-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.user-row:hover, .invite-row:hover { border-color: var(--border-strong); }
+
+.user-row-main   { flex: 1; min-width: 0; }
+.user-row-name   { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+                   font-size: 0.875rem; font-weight: 550; }
+.user-row-meta   { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+.user-row-actions{ display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;
+                   justify-content: flex-end; }
+
+.role-pill {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 100px;
+  letter-spacing: 0.01em;
+}
+.role-admin { background: rgba(var(--primary-rgb),0.12); color: var(--primary); }
+.role-user  { background: var(--surface-3); color: var(--text-muted); }
+.role-ok    { background: rgba(52,199,89,0.14);  color: #248a3d; }
+.role-off   { background: var(--surface-3);      color: var(--text-muted); }
+.role-warn  { background: rgba(255,159,10,0.16); color: #b25000; }
+
+[data-theme="dark"] .role-ok   { color: #30d158; }
+[data-theme="dark"] .role-warn { color: #ff9f0a; }
+
+/* The one-time link. Deliberately loud: closing this without copying it means
+   issuing another one. */
+.invite-reveal {
+  background: rgba(var(--primary-rgb),0.06);
+  border: 1px solid rgba(var(--primary-rgb),0.2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.invite-reveal-label { font-size: 0.8125rem; font-weight: 600; margin-bottom: 8px; }
+.invite-reveal-row   { display: flex; gap: 6px; align-items: center; }
+.invite-reveal-row input {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  padding: 6px 10px;
+}
+
+@media (max-width: 640px) {
+  .users-toolbar { flex-wrap: wrap; }
+  .user-row, .invite-row { flex-direction: column; align-items: stretch; }
+  .user-row-actions { justify-content: flex-start; }
+}

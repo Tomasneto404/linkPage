@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Copyright (C) 2026 Tomás Neto
+
+  One page, three jobs: signing in, accepting an invite, and finishing a
+  password reset. Which one it is comes from the query string.
+
+  A real page rather than a dialog on the public page, for two reasons. An
+  invite link has to land somewhere, and an identity provider added later
+  redirects back to a URL — neither works against a modal that only exists once
+  2000 lines of the public page have booted.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in · LinkPage</title>
+  <link rel="icon" href="/brand/icon-light.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <!-- Before paint, or a dark-mode visitor gets a white flash. -->
+  <script src="/theme-boot.js"></script>
+</head>
+<body>
+
+<div class="gate">
+  <div class="gate-card">
+    <div class="gate-icon" id="gateIcon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    </div>
+
+    <h1 id="gateTitle">Sign in</h1>
+    <p id="gateSubtitle">Sign in to keep your own links.</p>
+
+    <!-- ── Signing in ─────────────────────────────────────────────────── -->
+    <form id="signInForm">
+      <div class="form-group">
+        <input type="email" id="signInEmail" placeholder="you@example.com"
+               autocomplete="username" required />
+      </div>
+      <div class="gate-input-wrap">
+        <input type="password" id="signInPassword" placeholder="Password"
+               autocomplete="current-password" required />
+      </div>
+      <label class="login-remember">
+        <input type="checkbox" id="rememberMe" checked />
+        <span>Stay signed in on this device</span>
+      </label>
+
+      <div class="form-error hidden" id="signInError"></div>
+
+      <button type="submit" class="btn btn-primary gate-submit" id="signInBtn">Sign in</button>
+    </form>
+
+    <!-- ── Accepting an invite, or finishing a reset ──────────────────── -->
+    <form id="redeemForm" class="hidden">
+      <div class="form-group" id="redeemEmailGroup">
+        <input type="email" id="redeemEmail" placeholder="you@example.com"
+               autocomplete="username" />
+      </div>
+      <div class="form-group" id="redeemNameGroup">
+        <input type="text" id="redeemName" placeholder="Your name (optional)"
+               autocomplete="name" />
+      </div>
+      <div class="gate-input-wrap">
+        <input type="password" id="redeemPassword" placeholder="Choose a password"
+               autocomplete="new-password" required minlength="10" />
+      </div>
+      <div class="gate-input-wrap">
+        <input type="password" id="redeemConfirm" placeholder="Repeat it"
+               autocomplete="new-password" required />
+      </div>
+
+      <div class="form-error hidden" id="redeemError"></div>
+
+      <button type="submit" class="btn btn-primary gate-submit" id="redeemBtn">Create account</button>
+    </form>
+
+    <!-- A link that is expired, used or invented. No form to show. -->
+    <div class="hidden" id="badLink">
+      <p class="login-note">
+        This link is no longer valid. It may have been used already, or it may have expired.
+        Ask whoever sent it for a new one.
+      </p>
+    </div>
+
+    <!--
+      Reserved for an identity provider. Ships hidden with nothing behind it, so
+      that adding one later is an entry in /api/auth/providers rather than a
+      redesign of this page.
+    -->
+    <div class="hidden" id="providerSection">
+      <div class="gate-divider"><span>or</span></div>
+      <div id="providerButtons"></div>
+    </div>
+
+    <p class="login-note hidden" id="forgotNote">
+      Forgotten your password? This instance sends no email — ask an
+      administrator for a reset link.
+    </p>
+
+    <a href="/" class="gate-back">← Back to the links</a>
+  </div>
+</div>
+
+<script src="/login/login.js"></script>
+</body>
+</html>

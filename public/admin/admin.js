@@ -1008,6 +1008,7 @@ document.getElementById('settingsNav').addEventListener('click', e => {
     .forEach(p => p.classList.toggle('active', p.dataset.panel === id));
   document.getElementById('settingsPanels').scrollTop = 0;
   if (id === 'ipattribution') loadIpTags();
+  if (id === 'users')         loadAccounts();
 });
 
 // Always open the settings modal on the first tab.
@@ -5776,6 +5777,244 @@ function renderIpTagsList(ips) {
       </div>`;
   }).join('');
 }
+
+// ─── Accounts ────────────────────────────────────────────────────────────────
+
+/**
+ * Who this browser is signed in as, when it is signed in rather than holding a
+ * token. Used to grey out the actions somebody must not perform on themselves —
+ * the server refuses them anyway, but a button that always errors is bad UI.
+ */
+function currentAdminId() {
+  return adminAuthMode === 'session' ? adminIdentity?.id ?? null : null;
+}
+
+const fetchUsers        = ()        => apiJson('/api/users');
+const fetchInvites      = ()        => apiJson('/api/invites');
+const createInviteApi   = body      => jsonPost('/api/invites', body);
+const revokeInviteApi   = id        => sendAuthRequest(`/api/invites/${id}`, { method: 'DELETE' });
+const patchUserApi      = (id, b)   => sendAuthRequest(`/api/users/${id}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+});
+const deleteUserApi     = id        => sendAuthRequest(`/api/users/${id}`, { method: 'DELETE' });
+const resetLinkApi      = id        => jsonPost(`/api/users/${id}/reset-link`, {});
+const signOutUserApi    = id        => jsonPost(`/api/users/${id}/logout-all`, {});
+
+async function loadAccounts() {
+  const [users, invites] = await Promise.all([
+    fetchUsers().catch(() => ({ users: [] })),
+    fetchInvites().catch(() => ({ invites: [] })),
+  ]);
+  renderUsersList(users.users || []);
+  renderInvitesList(invites.invites || []);
+}
+
+function renderUsersList(users) {
+  const box = document.getElementById('usersList');
+  if (!users.length) {
+    box.innerHTML = '<div class="audit-empty">No accounts yet. Create an invite to add one.</div>';
+    return;
+  }
+
+  const me = currentAdminId();
+  box.innerHTML = users.map(u => {
+    // Self-protection, mirroring what the server enforces.
+    const isSelf = u.id === me;
+    const lastAdmin = u.role === 'admin' && u.is_active
+                   && users.filter(x => x.role === 'admin' && x.is_active).length === 1;
+    const locked = isSelf || lastAdmin;
+    const why = isSelf ? 'This is your own account'
+              : lastAdmin ? 'The last administrator cannot be removed' : '';
+
+    return `
+      <div class="user-row" data-user-id="${u.id}">
+        <div class="user-row-main">
+          <div class="user-row-name">
+            ${escapeHtml(u.display_name || u.email)}
+            <span class="role-pill role-${u.role}">${u.role === 'admin' ? 'Admin' : 'Member'}</span>
+            ${u.is_active ? '' : '<span class="role-pill role-off">Disabled</span>'}
+            ${u.must_change_password ? '<span class="role-pill role-warn">Must change password</span>' : ''}
+          </div>
+          <div class="user-row-meta">
+            ${escapeHtml(u.email)}
+            · ${u.last_login_at ? `last seen ${formatRequestDate(u.last_login_at)}` : 'never signed in'}
+            · ${u.session_count} session${u.session_count === 1 ? '' : 's'}
+          </div>
+        </div>
+        <div class="user-row-actions">
+          <select class="bulk-group-select" data-action="role" ${locked ? 'disabled' : ''}
+                  title="${escapeHtml(why)}" style="width:104px">
+            <option value="user"  ${u.role === 'user'  ? 'selected' : ''}>Member</option>
+            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" data-action="reset">Reset link</button>
+          <button class="btn btn-ghost btn-sm" data-action="signout"
+                  ${u.session_count ? '' : 'disabled'}>Sign out</button>
+          <button class="btn btn-ghost btn-sm" data-action="toggle"
+                  ${locked ? 'disabled' : ''} title="${escapeHtml(why)}">
+            ${u.is_active ? 'Disable' : 'Enable'}
+          </button>
+          <button class="btn btn-ghost-danger btn-sm" data-action="delete"
+                  ${locked ? 'disabled' : ''} title="${escapeHtml(why)}">Delete</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderInvitesList(invites) {
+  const box = document.getElementById('invitesList');
+  const live = invites.filter(i => i.status === 'pending');
+
+  if (!invites.length) {
+    box.innerHTML = '<div class="audit-empty">No invites yet.</div>';
+    return;
+  }
+
+  // Pending first: the others are history, and only the pending ones can be
+  // acted on.
+  const ordered = [...live, ...invites.filter(i => i.status !== 'pending')].slice(0, 40);
+
+  box.innerHTML = ordered.map(i => `
+    <div class="invite-row" data-invite-id="${i.id}">
+      <div class="user-row-main">
+        <div class="user-row-name">
+          ${escapeHtml(i.label || 'Unlabelled invite')}
+          <span class="role-pill role-${i.role}">${i.role === 'admin' ? 'Admin' : 'Member'}</span>
+          <span class="role-pill role-${i.status === 'pending' ? 'ok' : 'off'}">${i.status}</span>
+        </div>
+        <div class="user-row-meta">
+          ${i.status === 'redeemed'
+            ? `used by ${escapeHtml(i.redeemed_email || 'somebody')} ${formatRequestDate(i.redeemed_at)}`
+            : `expires ${formatRequestDate(i.expires_at)}`}
+          ${i.created_by_email ? `· from ${escapeHtml(i.created_by_email)}` : ''}
+        </div>
+      </div>
+      <div class="user-row-actions">
+        ${i.status === 'pending'
+          ? '<button class="btn btn-ghost-danger btn-sm" data-action="revoke">Revoke</button>'
+          : ''}
+      </div>
+    </div>`).join('');
+}
+
+document.getElementById('generateInviteBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('generateInviteBtn');
+  const role  = document.getElementById('inviteRoleSelect').value;
+  const label = document.getElementById('inviteLabelInput').value.trim();
+
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const invite = await createInviteApi({ role, label });
+    revealInviteUrl(invite.url, 'Invite link — copy it now');
+    document.getElementById('inviteLabelInput').value = '';
+    await loadAccounts();
+  } catch {
+    showToast('Could not create the invite', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create invite';
+  }
+});
+
+/** Shows a one-time link, with the copy button next to it. */
+function revealInviteUrl(url, label) {
+  document.getElementById('newInviteLabel').textContent = label;
+  document.getElementById('newInviteUrl').value = url;
+  document.getElementById('newInviteDisplay').classList.remove('hidden');
+  document.getElementById('newInviteUrl').select();
+}
+
+document.getElementById('copyInviteBtn').addEventListener('click', async () => {
+  const input = document.getElementById('newInviteUrl');
+  try {
+    await navigator.clipboard.writeText(input.value);
+    showToast('Link copied');
+  } catch {
+    // Clipboard access can be refused; selecting it at least makes ⌘C work.
+    input.select();
+    showToast('Press ⌘C to copy', 'info');
+  }
+});
+
+document.getElementById('usersList').addEventListener('click', async e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn || btn.tagName === 'SELECT') return;
+  const row = btn.closest('.user-row');
+  const id  = Number(row.dataset.userId);
+  const name = row.querySelector('.user-row-meta').textContent.trim().split(' ')[0];
+
+  if (btn.dataset.action === 'reset') {
+    try {
+      const link = await resetLinkApi(id);
+      revealInviteUrl(link.url, `Password reset link for ${name} — copy it now`);
+    } catch { showToast('Could not create a reset link', 'error'); }
+    return;
+  }
+
+  if (btn.dataset.action === 'signout') {
+    try {
+      const res = await signOutUserApi(id);
+      showToast(`Signed out of ${res.ended} session${res.ended === 1 ? '' : 's'}`);
+      await loadAccounts();
+    } catch { showToast('Could not sign them out', 'error'); }
+    return;
+  }
+
+  if (btn.dataset.action === 'toggle') {
+    const enabling = btn.textContent.trim() === 'Enable';
+    const r = await patchUserApi(id, { is_active: enabling });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      showToast(d.error || 'Could not change that account', 'error');
+    }
+    await loadAccounts();
+    return;
+  }
+
+  if (btn.dataset.action === 'delete') {
+    const confirmed = await showConfirm({
+      title:   'Delete this account?',
+      message: `${name} will lose access immediately, and anything they own goes with it. `
+             + 'This cannot be undone.',
+      confirmText: 'Delete account',
+      danger:  true,
+    });
+    if (!confirmed) return;
+
+    const r = await deleteUserApi(id);
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      showToast(d.error || 'Could not delete that account', 'error');
+    } else {
+      showToast('Account deleted');
+    }
+    await loadAccounts();
+  }
+});
+
+document.getElementById('usersList').addEventListener('change', async e => {
+  const select = e.target.closest('select[data-action="role"]');
+  if (!select) return;
+  const id = Number(select.closest('.user-row').dataset.userId);
+
+  const r = await patchUserApi(id, { role: select.value });
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    showToast(d.error || 'Could not change that role', 'error');
+  } else {
+    showToast('Role updated');
+  }
+  await loadAccounts();
+});
+
+document.getElementById('invitesList').addEventListener('click', async e => {
+  const btn = e.target.closest('[data-action="revoke"]');
+  if (!btn) return;
+  const id = Number(btn.closest('.invite-row').dataset.inviteId);
+
+  const r = await revokeInviteApi(id);
+  showToast(r.ok ? 'Invite revoked' : 'Could not revoke that invite', r.ok ? 'success' : 'error');
+  await loadAccounts();
+});
 
 async function loadIpTags() {
   document.getElementById('ipTagsLoading').classList.remove('hidden');

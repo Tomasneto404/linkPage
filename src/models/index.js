@@ -20,11 +20,12 @@ const ipTags       = require('./ipTags');
 const analytics    = require('./analytics');
 const users        = require('./users');
 const sessions     = require('./sessions');
+const userTokens   = require('./userTokens');
 
 const MODULES = {
   settings, links, groups, sections, clicks,
   icons, audit, linkRequests, ipTags, analytics,
-  users, sessions,
+  users, sessions, userTokens,
 };
 
 /**

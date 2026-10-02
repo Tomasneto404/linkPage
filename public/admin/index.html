@@ -530,6 +530,7 @@
           <button type="button" class="settings-tab" data-tab="publicpage">Public Page</button>
           <button type="button" class="settings-tab" data-tab="icons">Icons</button>
           <button type="button" class="settings-tab" data-tab="public">Public Access</button>
+          <button type="button" class="settings-tab" data-tab="users">Accounts</button>
           <button type="button" class="settings-tab" data-tab="requests">Link Requests</button>
           <button type="button" class="settings-tab" data-tab="ipattribution">IP Attribution</button>
           <button type="button" class="settings-tab" data-tab="security">Security</button>
@@ -873,6 +874,43 @@
               <button class="btn btn-ghost-danger btn-sm hidden" id="removePublicPasswordBtn">Remove</button>
             </div>
           </div>
+        </div>
+
+        <!-- ── Accounts ──────────────────────────── -->
+        <div class="settings-panel" data-panel="users">
+          <div class="settings-section-title">Accounts</div>
+          <div class="settings-row-desc" style="margin-bottom:14px">
+            People who can sign in. Accounts are created from an invite link — there is no
+            open sign-up, so nobody arrives uninvited.
+          </div>
+
+          <div class="users-toolbar">
+            <select id="inviteRoleSelect" class="bulk-group-select" style="width:110px">
+              <option value="user" selected>Member</option>
+              <option value="admin">Administrator</option>
+            </select>
+            <input type="text" id="inviteLabelInput" placeholder="Who is it for? (optional)"
+                   class="bulk-group-select" style="flex:1; min-width:0" />
+            <button class="btn btn-primary btn-sm" id="generateInviteBtn">Create invite</button>
+          </div>
+
+          <!-- The link appears here once, and is not recoverable afterwards. -->
+          <div class="invite-reveal hidden" id="newInviteDisplay">
+            <div class="invite-reveal-label" id="newInviteLabel">Invite link — copy it now</div>
+            <div class="invite-reveal-row">
+              <input type="text" id="newInviteUrl" readonly />
+              <button class="btn btn-ghost btn-sm" id="copyInviteBtn">Copy</button>
+            </div>
+            <div class="settings-row-desc" id="newInviteHint">
+              Shown once. If you lose it, create another — this one keeps working until it is
+              used, revoked, or expires.
+            </div>
+          </div>
+
+          <div class="users-list" id="usersList"></div>
+
+          <div class="settings-section-title" style="margin-top:22px">Outstanding invites</div>
+          <div class="invites-list" id="invitesList"></div>
         </div>
 
         <!-- ── Link Requests ─────────────────────── -->

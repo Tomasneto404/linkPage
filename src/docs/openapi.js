@@ -99,6 +99,7 @@ const TAGS = {
   requests: 'Link requests',
   settings: 'Settings',
   auth:     'Authentication',
+  users:    'Accounts',
   insight:  'Analytics & audit',
   system:   'System',
   visitor:  'Visitor-facing',
@@ -898,6 +899,138 @@ const paths = {
     }),
   },
 
+  // ── Accounts ──────────────────────────────────────────────────────────────
+  '/api/users': {
+    get: op({
+      tag: TAGS.users, summary: 'List accounts',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+  },
+  '/api/users/{id}': {
+    get: op({
+      tag: TAGS.users, summary: 'One account',
+      params: [pathParam('id', 'User id.')],
+      responses: { 200: json(ref('User')), 404: json(ref('Error')) },
+    }),
+    patch: op({
+      tag: TAGS.users, summary: 'Change an account',
+      description: 'Not the password, which has its own route, and not the email, which is '
+                 + 'the account\'s identity. Refuses to demote or disable the last '
+                 + 'administrator who can still sign in, and refuses to change your own role.',
+      params: [pathParam('id', 'User id.')],
+      body: jsonBody({
+        display_name: { type: 'string' },
+        role:         { type: 'string', enum: ['admin', 'user'] },
+        is_active:    { type: 'boolean' },
+      }),
+      responses: {
+        200: json(ref('User')),
+        404: json(ref('Error')),
+        409: json(ref('Error'), 'Would leave no administrator, or is your own role'),
+      },
+    }),
+    delete: op({
+      tag: TAGS.users, summary: 'Delete an account',
+      description: 'Takes its sessions and tokens with it.',
+      params: [pathParam('id', 'User id.')],
+      responses: {
+        200: json({ type: 'object' }),
+        404: json(ref('Error')),
+        409: json(ref('Error'), 'Would leave no administrator, or is your own account'),
+      },
+    }),
+  },
+  '/api/users/{id}/password': {
+    post: op({
+      tag: TAGS.users, summary: 'Set somebody\'s password',
+      description: 'For an administrator helping somebody standing next to them. Ends that '
+                 + 'account\'s sessions and marks the password as needing changing. A reset '
+                 + 'link is the better path.',
+      params: [pathParam('id', 'User id.')],
+      body: jsonBody({ password: { type: 'string', format: 'password' } }, ['password']),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')), 404: json(ref('Error')) },
+    }),
+  },
+  '/api/users/{id}/logout-all': {
+    post: op({
+      tag: TAGS.users, summary: 'Sign somebody out everywhere',
+      params: [pathParam('id', 'User id.')],
+      responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) },
+    }),
+  },
+  '/api/users/{id}/reset-link': {
+    post: op({
+      tag: TAGS.users, summary: 'Issue a password-reset link',
+      description: 'Returns a URL to hand over. This app sends no email, so delivering it is '
+                 + 'the administrator\'s job. Any earlier reset for the account is revoked, '
+                 + 'and the URL is returned once — only its hash is kept.',
+      params: [pathParam('id', 'User id.')],
+      responses: { 201: json({ type: 'object' }), 404: json(ref('Error')) },
+    }),
+  },
+  '/api/invites': {
+    get: op({
+      tag: TAGS.users, summary: 'List invites',
+      description: 'With a status worked out for each: pending, redeemed, revoked or expired.',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+    post: op({
+      tag: TAGS.users, summary: 'Create an invite',
+      description: 'The link comes back once and cannot be recovered afterwards. Issue '
+                 + 'another if it is lost.',
+      body: jsonBody({
+        role:            { type: 'string', enum: ['admin', 'user'], default: 'user' },
+        label:           { type: 'string', description: 'A note about who it is for.' },
+        expires_in_days: { type: 'integer', minimum: 1, maximum: 30, default: 7 },
+      }),
+      responses: { 201: json({ type: 'object' }) },
+    }),
+  },
+  '/api/invites/{id}': {
+    delete: op({
+      tag: TAGS.users, summary: 'Revoke an invite',
+      description: 'Keeps the row, so the record of who issued what survives. A revoked '
+                 + 'invite then fails exactly as an expired one does.',
+      params: [pathParam('id', 'Invite id.')],
+      responses: {
+        200: json({ type: 'object' }),
+        404: json(ref('Error')),
+        409: json(ref('Error'), 'Already used'),
+      },
+    }),
+  },
+  '/api/tokens/{token}': {
+    get: op({
+      tag: TAGS.auth, auth: 'open',
+      summary: 'Check an invite or reset link',
+      description: 'Says only whether the link is good and what it is for. Never who it was '
+                 + 'meant for or who issued it — a link can be forwarded.',
+      params: [pathParam('token', 'The secret from the link.', 'string')],
+      responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) },
+    }),
+  },
+  '/api/tokens/{token}/redeem': {
+    post: op({
+      tag: TAGS.auth, auth: 'open',
+      summary: 'Accept an invite, or finish a password reset',
+      description: 'Signs the person in afterwards. Expired, revoked, already used and never '
+                 + 'existed all answer identically, so this cannot be used to probe which '
+                 + 'links once existed.',
+      params: [pathParam('token', 'The secret from the link.', 'string')],
+      body: jsonBody({
+        password:     { type: 'string', format: 'password' },
+        email:        { type: 'string', format: 'email', description: 'Invites only.' },
+        display_name: { type: 'string', description: 'Invites only.' },
+      }, ['password']),
+      responses: {
+        200: json({ type: 'object', properties: { user: ref('User') } }),
+        400: json(ref('Error'), 'The link is not valid, or the password is too short'),
+        409: json(ref('Error'), 'That address already has an account'),
+        429: json(ref('Error'), 'Too many attempts'),
+      },
+    }),
+  },
+
   // ── Analytics & audit ─────────────────────────────────────────────────────
   '/api/stats': {
     get: op({
@@ -1107,7 +1240,8 @@ function buildOpenApiSpec() {
       { name: TAGS.icons,    description: 'Shared images, which own their files on disk.' },
       { name: TAGS.requests, description: 'What visitors ask for, and how it is reviewed.' },
       { name: TAGS.settings, description: 'Branding, theme, and the feature switches.' },
-      { name: TAGS.auth,     description: 'Tokens and passwords.' },
+      { name: TAGS.auth,     description: 'Signing in, tokens and passwords.' },
+      { name: TAGS.users,    description: 'Accounts, invites and password resets.' },
       { name: TAGS.insight,  description: 'Clicks, analytics, the audit log and IP tags.' },
       { name: TAGS.system,   description: 'Version, changelog, markdown rendering and the event stream.' },
       { name: TAGS.visitor,  description: 'The addresses a visitor actually opens.' },

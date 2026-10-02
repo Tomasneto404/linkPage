@@ -121,6 +121,7 @@ const MAX_PASSWORD_LENGTH = 1024;
 
 // How long an invite or a password-reset link stays good for.
 const USER_TOKEN_TTL_DAYS = 7;
+const USER_TOKEN_KINDS = ['invite', 'reset'];
 
 // ─── Icon library import/export ─────────────────────────────────────────────
 
@@ -165,6 +166,7 @@ module.exports = {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_LENGTH,
   USER_TOKEN_TTL_DAYS,
+  USER_TOKEN_KINDS,
   ICON_IMPORT_MAX_BYTES,
   ICON_EXT_BY_MIME,
   EDITABLE_FILE_EXTENSIONS,

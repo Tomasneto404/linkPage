@@ -37,4 +37,16 @@ function errorHandler(err, req, res, next) {
   res.status(500).json({ error: 'Internal server error' });
 }
 
-module.exports = { errorHandler };
+/**
+ * Hands a rejected promise to the error handler.
+ *
+ * Express 4 does not await a route handler, so a rejection inside an async one
+ * goes nowhere: the request hangs until it times out, and Node reports an
+ * unhandled rejection with no clue which route it came from. Every async
+ * handler is wrapped in this.
+ */
+function wrapAsync(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+}
+
+module.exports = { errorHandler, wrapAsync };

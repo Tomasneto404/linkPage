@@ -141,14 +141,23 @@ All persistent data lives in `/app/data` inside the container, mapped to `./link
 
 | Path | Purpose |
 |------|---------|
-| `data/links.db` | SQLite database — links, groups, sections & subsections, link↔group mappings, icon library, settings, click analytics, link requests, IP tags, and the admin audit log. The schema is auto-migrated on startup. |
+| `data/links.db` | SQLite database — links, groups, sections & subsections, link↔group mappings, icon library, settings, click analytics, link requests, IP tags, user accounts, sessions, invites, and the admin audit log. The schema is auto-migrated on startup. |
 | `data/admin-token.txt` | Admin token generated on first startup |
+| `data/admin-initial-password.txt` | The first administrator's password, written only when one is generated. Deletes itself once that password is changed. |
 | `data/group-secret.txt` | Key used to sign group-unlock cookies and hash group passwords |
 | `data/uploads/` | Uploaded images, logos, favicons, and link file attachments |
 
 ### Authentication
 
-There is no login system. On first startup the server generates a 64-character hex token and saves it to `data/admin-token.txt`. This token must be entered in the admin panel to unlock management features. It is stored in your browser's `localStorage` and can be rotated from the admin settings at any time.
+Two ways in, and both work everywhere.
+
+**Accounts.** On first startup the server creates an administrator account and prints its email and password in the startup banner; the password is also written to `data/admin-initial-password.txt`, which deletes itself once you change it. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` to choose them yourself. Signing in sets an HttpOnly, SameSite=Lax session cookie; the session lives in the database, so it can be revoked, and it is keyed by a hash of the cookie rather than the cookie itself.
+
+Further accounts come from **invite links** — Settings → Accounts. There is no open sign-up. The link is shown once, works once, and expires. The app sends no email, so you hand the link over yourself, and a forgotten password is a reset link issued from the same place.
+
+**The admin token.** A 64-character hex token in `data/admin-token.txt`, generated on first startup and printed at every start. It predates accounts and remains the way back in when nobody can sign in — choose *Use an admin token instead* on the sign-in screen. It can be rotated from Settings → Security at any time, which invalidates the old one immediately.
+
+State-changing API requests that carry a session cookie must come from this origin; requests authenticated by the token header are exempt, so scripts and `curl` are unaffected.
 
 ### Click Tracking
 
@@ -444,6 +453,29 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | DELETE | `/api/settings/public-password` | Admin | Remove public password |
 | POST | `/api/settings/requests-enabled` | Admin | Enable/disable the public "Request link" feature |
 | POST | `/api/settings/markdown-open-mode` | Admin | Whether a markdown link opens in a popup (the default) or a new tab |
+
+### Accounts
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/api/auth/login` | Public | Sign in; sets the session cookie |
+| POST | `/api/auth/logout` | Public | Sign out |
+| POST | `/api/auth/logout-all` | User | End every other session |
+| GET | `/api/auth/me` | Public | Who is signed in (200 with a null user when nobody is) |
+| GET | `/api/auth/providers` | Public | The ways to sign in |
+| POST | `/api/auth/password` | User | Change your own password |
+| GET | `/api/auth/sessions` | User | Where you are signed in |
+| DELETE | `/api/auth/sessions/:id` | User | End one of your sessions |
+| GET | `/api/users` | Admin | List accounts |
+| PATCH | `/api/users/:id` | Admin | Change a name, role, or whether the account is active |
+| DELETE | `/api/users/:id` | Admin | Delete an account |
+| POST | `/api/users/:id/password` | Admin | Set somebody's password directly |
+| POST | `/api/users/:id/logout-all` | Admin | Sign somebody out everywhere |
+| POST | `/api/users/:id/reset-link` | Admin | Issue a password-reset link |
+| GET/POST | `/api/invites` | Admin | List or create invites |
+| DELETE | `/api/invites/:id` | Admin | Revoke an invite |
+| GET | `/api/tokens/:token` | Public | Check an invite or reset link |
+| POST | `/api/tokens/:token/redeem` | Public | Accept an invite, or finish a reset |
 | POST | `/api/settings/wallpaper/:variant` | Admin | Upload the public page wallpaper (`light` or `dark`) |
 | DELETE | `/api/settings/wallpaper/:variant` | Admin | Remove a wallpaper |
 | POST | `/api/settings/wallpaper-fog` | Admin | How heavily the wallpaper is veiled and blurred (0–100) |

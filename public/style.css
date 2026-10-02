@@ -978,6 +978,45 @@ select option { background: var(--surface); }
 
 /* The other way in, offered under the form rather than beside it: there is
    almost always one right answer, and the second one is for when it fails. */
+/* The sign-in page's own furniture. */
+.login-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.login-remember input { width: auto; margin: 0; }
+.login-note {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* The "or" between a password and whatever else a deployment offers. Hidden
+   until there is something on the other side of it. */
+.gate-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 6px 0;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.gate-divider::before,
+.gate-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 .gate-alt {
   margin-top: 2px;
   font-size: 0.8125rem;

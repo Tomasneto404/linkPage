@@ -95,16 +95,29 @@ server's own \`data\` directory, and nowhere else.
 
 ## Getting in
 
-The admin panel is behind a single token. You will find it in two places:
+An administrator account was made for you when the server first started. Its
+email and password are printed in the console, in a box. The password is also
+saved to \`data/admin-initial-password.txt\`, which deletes itself the moment
+you change it. Sign in at [/admin](/admin).
+
+To add other people, go to **Settings → Accounts** and create an invite. That
+produces a link you hand over however you like; whoever opens it picks their
+own address and password. There is no open sign-up, so nobody arrives
+uninvited, and this instance sends no e-mail, so a forgotten password is a
+reset link you issue from the same place.
+
+### If you are locked out
+
+The **admin token** is the way back in. It predates accounts and still works
+everywhere they do:
 
 - **In the server's console**, printed in a box the moment it starts up
 - **In \`data/admin-token.txt\`** — inside your mounted volume, if you run it
   in Docker
 
-Paste it once at [/admin](/admin) and the browser remembers it. If it ever
-gets out, **Settings → Security → Rotate Token** issues a new one and the old
-one stops working immediately. There is no password to recover and no e-mail
-to reset — keep the token somewhere sensible.
+At [/admin](/admin), choose *Use an admin token instead* and paste it. If it
+ever gets out, **Settings → Security → Rotate Token** issues a new one and the
+old one stops working immediately.
 
 ## What you are looking at
 
