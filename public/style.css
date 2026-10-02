@@ -750,8 +750,17 @@ label {
 .req { color: var(--primary); }
 .label-opt { font-weight: 400; color: var(--text-muted); }
 
+/*
+  Every text-like input, listed by type.
+
+  Note what is not here: type="search". Several search boxes are styled by
+  class, and an attribute selector out-specifies a class — adding it would
+  quietly override them.
+*/
 input[type="text"],
 input[type="url"],
+input[type="email"],
+input[type="number"],
 input[type="password"],
 select,
 textarea {
@@ -978,6 +987,81 @@ select option { background: var(--surface); }
 
 /* The other way in, offered under the form rather than beside it: there is
    almost always one right answer, and the second one is for when it fails. */
+/*
+  Credentials, as one object.
+
+  Two inputs floating next to each other read as a pile of controls; joined
+  into a single bordered block with a hairline between them, they read as one
+  thing you fill in — which is what the app already does with its stacked
+  settings rows, so a sign-in form built this way looks like it belongs here.
+
+  The rounding lives on the first and last rows rather than on an
+  overflow:hidden wrapper, because hiding the overflow would clip the focus
+  ring, and the focus ring is the one thing on this screen that must never be
+  subtle.
+*/
+.field-stack {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.field-row + .field-row { border-top: 1px solid var(--border); }
+
+/* The inputs give up their own frame to the stack. */
+.field-stack input {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 11px 13px;
+  flex: 1;
+  min-width: 0;
+}
+.field-stack input:focus {
+  background: var(--surface);
+  box-shadow: none;
+}
+/* Only the outer corners are round, so the seam between rows stays flat. */
+.field-row:first-child input { border-radius: calc(var(--radius-sm) - 1px) calc(var(--radius-sm) - 1px) 0 0; }
+.field-row:last-child  input { border-radius: 0 0 calc(var(--radius-sm) - 1px) calc(var(--radius-sm) - 1px); }
+.field-row:only-child  input { border-radius: calc(var(--radius-sm) - 1px); }
+
+/* The focused row, lifted just enough to see which one it is. */
+.field-row:focus-within::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.12);
+  pointer-events: none;
+}
+[data-theme="dark"] .field-row:focus-within::after {
+  box-shadow: 0 0 0 3px rgba(10,132,255,0.2);
+}
+
+/* Show/hide, sitting inside the row rather than beside it. */
+.field-reveal {
+  background: none;
+  border: 0;
+  padding: 0 12px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition);
+}
+.field-reveal:hover { color: var(--text); }
+
 /* The sign-in page's own furniture. */
 .login-remember {
   display: flex;
@@ -989,6 +1073,12 @@ select option { background: var(--surface); }
   user-select: none;
 }
 .login-remember input { width: auto; margin: 0; }
+.login-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: -4px 0 0;
+  align-self: flex-start;
+}
 .login-note {
   font-size: 0.8125rem;
   color: var(--text-muted);

@@ -34,18 +34,27 @@
     </div>
 
     <h1 id="gateTitle">Sign in</h1>
-    <p id="gateSubtitle">Sign in to keep your own links.</p>
+    <p id="gateSubtitle">Sign in to manage this page.</p>
 
     <!-- ── Signing in ─────────────────────────────────────────────────── -->
     <form id="signInForm">
-      <div class="form-group">
-        <input type="email" id="signInEmail" placeholder="you@example.com"
-               autocomplete="username" required />
+      <div class="field-stack">
+        <div class="field-row">
+          <input type="email" id="signInEmail" placeholder="you@example.com"
+                 aria-label="Email" autocomplete="username" required />
+        </div>
+        <div class="field-row">
+          <input type="password" id="signInPassword" placeholder="Password"
+                 aria-label="Password" autocomplete="current-password" required />
+          <button type="button" class="field-reveal" id="signInReveal"
+                  aria-label="Show password"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg></button>
+        </div>
       </div>
-      <div class="gate-input-wrap">
-        <input type="password" id="signInPassword" placeholder="Password"
-               autocomplete="current-password" required />
-      </div>
+
       <label class="login-remember">
         <input type="checkbox" id="rememberMe" checked />
         <span>Stay signed in on this device</span>
@@ -58,22 +67,33 @@
 
     <!-- ── Accepting an invite, or finishing a reset ──────────────────── -->
     <form id="redeemForm" class="hidden">
-      <div class="form-group" id="redeemEmailGroup">
-        <input type="email" id="redeemEmail" placeholder="you@example.com"
-               autocomplete="username" />
+      <div class="field-stack">
+        <div class="field-row" id="redeemEmailGroup">
+          <input type="email" id="redeemEmail" placeholder="you@example.com"
+                 aria-label="Email" autocomplete="username" />
+        </div>
+        <div class="field-row" id="redeemNameGroup">
+          <input type="text" id="redeemName" placeholder="Your name (optional)"
+                 aria-label="Your name" autocomplete="name" />
+        </div>
+        <div class="field-row">
+          <input type="password" id="redeemPassword" placeholder="Choose a password"
+                 aria-label="Choose a password" autocomplete="new-password"
+                 required minlength="10" />
+          <button type="button" class="field-reveal" id="redeemReveal"
+                  aria-label="Show password"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg></button>
+        </div>
+        <div class="field-row">
+          <input type="password" id="redeemConfirm" placeholder="Repeat it"
+                 aria-label="Repeat the password" autocomplete="new-password" required />
+        </div>
       </div>
-      <div class="form-group" id="redeemNameGroup">
-        <input type="text" id="redeemName" placeholder="Your name (optional)"
-               autocomplete="name" />
-      </div>
-      <div class="gate-input-wrap">
-        <input type="password" id="redeemPassword" placeholder="Choose a password"
-               autocomplete="new-password" required minlength="10" />
-      </div>
-      <div class="gate-input-wrap">
-        <input type="password" id="redeemConfirm" placeholder="Repeat it"
-               autocomplete="new-password" required />
-      </div>
+
+      <p class="login-hint" id="passwordHint">At least 10 characters.</p>
 
       <div class="form-error hidden" id="redeemError"></div>
 

@@ -235,9 +235,12 @@ document.getElementById('adminLoginForm').addEventListener('submit', async e => 
   }
 });
 
-document.getElementById('togglePasswordBtn').addEventListener('click', () => {
-  const input = document.getElementById('adminPassword');
-  input.type  = input.type === 'password' ? 'text' : 'password';
+document.getElementById('togglePasswordBtn').addEventListener('click', e => {
+  const input   = document.getElementById('adminPassword');
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  e.currentTarget.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  input.focus();
 });
 
 /** Swaps between the password form and the token form. */

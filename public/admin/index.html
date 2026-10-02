@@ -33,21 +33,24 @@
     <!-- The ordinary way in. The token form below is still here, and still
          untouched, because it is what works when this one cannot. -->
     <form id="adminLoginForm">
-      <div class="form-group">
-        <input type="email" id="adminEmail" placeholder="you@example.com"
-               autocomplete="username" required />
-      </div>
-      <div class="gate-input-wrap">
-        <input type="password" id="adminPassword" placeholder="Password"
-               autocomplete="current-password" required />
-        <button type="button" class="toggle-visibility-btn"
-                id="togglePasswordBtn" aria-label="Show or hide password">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-        </button>
+      <div class="field-stack">
+        <div class="field-row">
+          <input type="email" id="adminEmail" placeholder="you@example.com"
+                 aria-label="Email" autocomplete="username" required />
+        </div>
+        <div class="field-row">
+          <input type="password" id="adminPassword" placeholder="Password"
+                 aria-label="Password" autocomplete="current-password" required />
+          <button type="button" class="field-reveal"
+                  id="togglePasswordBtn" aria-label="Show password">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="form-error hidden" id="adminLoginError">

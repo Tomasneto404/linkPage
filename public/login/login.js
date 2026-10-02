@@ -142,12 +142,34 @@ async function prepareRedemption() {
       ? `For ${info.email}.`
       : 'For your account.';
     // Nothing to ask: the token already says which account this is.
-    el('redeemEmailGroup').classList.add('hidden');
-    el('redeemNameGroup').classList.add('hidden');
+    //
+    // Removed rather than hidden: the stack rounds its first and last rows, and
+    // CSS counts a display:none row as a child like any other — hiding these
+    // would put the top corners on a row nobody can see.
+    el('redeemEmailGroup').remove();
+    el('redeemNameGroup').remove();
+    el('redeemPassword').placeholder = 'New password';
+    el('redeemPassword').setAttribute('aria-label', 'New password');
     el('redeemBtn').textContent = 'Set password';
     el('redeemPassword').focus();
   }
 }
+
+/** Wires a show/hide button to the field it sits in. */
+function wireReveal(buttonId, inputId) {
+  const button = el(buttonId);
+  const input  = el(inputId);
+  if (!button || !input) return;
+
+  button.addEventListener('click', () => {
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    button.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+    input.focus();
+  });
+}
+wireReveal('signInReveal', 'signInPassword');
+wireReveal('redeemReveal', 'redeemPassword');
 
 // ─── Signing in ───────────────────────────────────────────────────────────────
 
@@ -197,9 +219,10 @@ el('redeemForm').addEventListener('submit', async e => {
 
   await whileSubmitting(el('redeemBtn'), 'Saving…', async () => {
     const body = { password };
-    if (!el('redeemEmailGroup').classList.contains('hidden')) {
+    // Present only in invite mode — a reset knows whose account it is.
+    if (el('redeemEmail')) {
       body.email = el('redeemEmail').value.trim();
-      body.display_name = el('redeemName').value.trim();
+      body.display_name = el('redeemName')?.value.trim() || '';
     }
 
     try {
