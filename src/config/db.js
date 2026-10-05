@@ -34,7 +34,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 16;
+const CURRENT_SCHEMA_VERSION = 17;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -526,6 +526,28 @@ const MIGRATIONS = [
       addColumnIfMissing('user_links', 'icon_bytes',       'INTEGER NOT NULL DEFAULT 0');
       addColumnIfMissing('user_links', 'favicon_bytes',    'INTEGER NOT NULL DEFAULT 0');
       addColumnIfMissing('user_links', 'attachment_bytes', 'INTEGER NOT NULL DEFAULT 0');
+    },
+  },
+  {
+    version: 17,
+    name:    'Sign-in throttling that survives a restart',
+    apply: () => {
+      // Failed sign-in attempts, counted per key: an address ("login-ip:…") or
+      // an account ("login-account:…"). Kept here rather than in memory, where
+      // they were: a restart used to hand an attacker a fresh budget, and the
+      // per-account count could not exist at all without somewhere to keep it.
+      //
+      // Only the sign-in family lives here. The click and request limiters stay
+      // in memory — they are about load, not about guessing passwords, and a
+      // write per click is not worth what it would buy.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS auth_throttle (
+          key          TEXT PRIMARY KEY,
+          window_start INTEGER NOT NULL,
+          count        INTEGER NOT NULL DEFAULT 0
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_auth_throttle_window ON auth_throttle(window_start)');
     },
   },
 ];

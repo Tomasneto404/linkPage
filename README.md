@@ -160,6 +160,8 @@ Further accounts come from **invite links** — Settings → Accounts. There is 
 
 State-changing API requests that carry a session cookie must come from this origin; requests authenticated by the token header are exempt, so scripts and `curl` are unaffected.
 
+Wrong guesses are throttled: ten failed sign-ins from one address, or twenty against one account from anywhere, and further attempts are refused for fifteen minutes. The account limit applies whether or not the account exists, and a successful sign-in clears it. The admin token, invite and reset links, group passwords and the public password have limits of their own. The counts are kept in the database, so a restart does not reset them.
+
 ### Click Tracking
 
 Every link card points to `/r/:id` (a server-side redirect) instead of the destination URL directly. The server records the click — IP address, user agent, timestamp — in SQLite before redirecting. This works without JavaScript and is not blocked by ad blockers.

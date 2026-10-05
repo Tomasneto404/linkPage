@@ -24,10 +24,14 @@ interface reaches them.
       with an exact file address can still fetch it. Serve shared links'
       attachments through a gated route; keep only what the sign-in page needs
       (logo, favicon, wallpaper) public.
-- [ ] **Login throttling is per address only.** An attack spread across many
+- [x] **Login throttling is per address only.** An attack spread across many
       addresses against one account gets through. Add a per-account limit.
-- [ ] **Login throttling is forgotten on restart.** The counters live in
-      memory. Keep the sign-in ones in the database.
+      Twenty failures per account per fifteen minutes, counted whether or not
+      the account exists. The accepted cost: a stranger can hold an account's
+      password sign-in shut until the window lapses.
+- [x] **Login throttling is forgotten on restart.** The counters live in
+      memory. Keep the sign-in ones in the database. Every failure-counting
+      limiter now does; the click and request limiters stay in memory.
 - [x] **Async handlers that were not wrapped.** Four, not the three first
       counted: `linksController.create` and `update`, `versionController.getVersion`
       and `iconsController.faviconPreview` — a failure left the request hanging

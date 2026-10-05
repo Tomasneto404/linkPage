@@ -7,7 +7,7 @@ const { rotateAdminToken } = require('../config/secrets');
 const db = require('../models');
 const { isValidAdminToken, isValidPublicPassword } = require('../middleware/auth');
 const { adminAuthLimiter, publicAuthLimiter,
-        loginLimiter, passwordChangeLimiter } = require('../middleware/rateLimit');
+        loginLimiter, loginAccountLimiter, passwordChangeLimiter } = require('../middleware/rateLimit');
 const { startSession, endSession, hashToken, sessionTokenFrom } =
   require('../services/sessionService');
 const { authenticateLocal, passwordProblem, publicUser, listProviders } =
@@ -68,7 +68,9 @@ function rotateToken(req, res) {
  * account is disabled" tells a stranger they found a real one.
  */
 async function login(req, res) {
-  if (loginLimiter.isLimited(req)) {
+  // The same answer for both limits, and for an address with no account
+  // behind it: which one tripped is not the caller's business.
+  if (loginLimiter.isLimited(req) || loginAccountLimiter.isLimited(req)) {
     return res.status(429).json({ error: 'Too many failed attempts. Try again later.' });
   }
 
@@ -79,6 +81,7 @@ async function login(req, res) {
   const user = await authenticateLocal(email, password);
   if (!user) {
     loginLimiter.recordFailure(req);
+    loginAccountLimiter.recordFailure(req);
     // Logged here rather than by the middleware, which only records requests
     // that succeeded — and a failed sign-in is the one failure worth keeping.
     recordAuditNow(req, {
@@ -88,6 +91,9 @@ async function login(req, res) {
     return res.status(401).json({ error: 'Wrong email or password', code: 'bad_credentials' });
   }
 
+  // The account's count goes; the address's stays. A success proves this
+  // person knows this password, not that the address is not also guessing others.
+  loginAccountLimiter.clear(req);
   startSession(req, res, user, { remember });
 
   // The request arrived anonymous, which is what attachUser recorded. By the
