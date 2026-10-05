@@ -15,7 +15,10 @@ const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { wrapAsync } = require('../middleware/error');
 const { uploadPersonalPayload } = require('../services/privateFiles');
+const { createRateLimiter } = require('../middleware/rateLimit');
 const my = require('../controllers/personalController');
+
+const faviconPreviewLimit = createRateLimiter(30, 60 * 1000);
 
 const router = express.Router();
 const member = [requireAuth, my.requireMember];
@@ -23,6 +26,10 @@ const member = [requireAuth, my.requireMember];
 router.get ('/api/my/data',    ...member, my.data);
 router.get ('/api/my/storage', ...member, my.storage);
 router.get ('/api/my/icons',   ...member, my.icons);
+
+// Makes this server fetch an address a member typed, so it is throttled: each
+// call can open a dozen outbound connections while it hunts for an icon.
+router.get ('/api/my/favicon-preview', ...member, faviconPreviewLimit, wrapAsync(my.faviconPreview));
 
 router.post  ('/api/my/groups/reorder',     ...member, my.reorderGroups);
 router.post  ('/api/my/groups',             ...member, my.createGroup);

@@ -480,6 +480,83 @@ describe('favicons', () => {
   });
 });
 
+describe('previewing an icon before saving', () => {
+  test('returns the image a web address would get', async () => {
+    c.setFaviconFixture({ buffer: pngBytes(), contentType: 'image/png' });
+    try {
+      const res = await me.fetch('/api/my/favicon-preview?url=' + encodeURIComponent('https://preview.example/'));
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get('content-type'), 'image/png');
+      assert.match(res.headers.get('cache-control'), /no-store/);
+    } finally {
+      c.setFaviconFixture(null);
+    }
+  });
+
+  test('asks the fetcher for member rules: public addresses, no Google', async () => {
+    c.setFaviconFixture({ buffer: pngBytes(), contentType: 'image/png' });
+    try {
+      await me.fetch('/api/my/favicon-preview?url=' + encodeURIComponent('https://rules.example/'));
+      const call = c.faviconCalls.find(x => x.url === 'https://rules.example/');
+      assert.ok(call, 'the fetcher was asked');
+      assert.equal(call.opts?.member, true);
+    } finally {
+      c.setFaviconFixture(null);
+    }
+  });
+
+  test('stores nothing and costs nothing', async () => {
+    const before = (await data()).storage.used;
+    const files  = fs.readdirSync(privateDir()).length;
+    c.setFaviconFixture({ buffer: pngBytes(), contentType: 'image/png' });
+    try {
+      await me.fetch('/api/my/favicon-preview?url=' + encodeURIComponent('https://free.example/'));
+    } finally {
+      c.setFaviconFixture(null);
+    }
+    assert.equal((await data()).storage.used, before);
+    assert.equal(fs.readdirSync(privateDir()).length, files);
+  });
+
+  test('an svg is not handed back', async () => {
+    c.setFaviconFixture({ buffer: Buffer.from('<svg/>'), contentType: 'image/svg+xml' });
+    try {
+      const res = await me.fetch('/api/my/favicon-preview?url=' + encodeURIComponent('https://svg2.example/'));
+      assert.equal(res.status, 404);
+    } finally {
+      c.setFaviconFixture(null);
+    }
+  });
+
+  test('nothing found is a 404, and a non-address is a 400', async () => {
+    assert.equal((await me.fetch('/api/my/favicon-preview?url=' + encodeURIComponent('https://none.example/'))).status, 404);
+    for (const url of ['', 'javascript:alert(1)', 'file:///etc/passwd', 'not a url']) {
+      const res = await me.fetch('/api/my/favicon-preview?url=' + encodeURIComponent(url));
+      assert.equal(res.status, 400, url);
+    }
+  });
+
+  test('a stranger cannot use the server to fetch things', async () => {
+    const res = await c.pub('/api/my/favicon-preview?url=' + encodeURIComponent('https://example.com/'));
+    assert.equal(res.status, 401);
+  });
+
+  test('a saved link\'s favicon uses member rules too', async () => {
+    c.setFaviconFixture({ buffer: pngBytes(), contentType: 'image/png' });
+    try {
+      await me.fetch('/api/my/links', {
+        method: 'POST', form: formOf({ name: 'Saved', url: 'https://saved-rules.example/' }),
+      });
+      await require('../src/services/personalStorage').settlePersonalFavicons();
+      const call = c.faviconCalls.find(x => x.url === 'https://saved-rules.example/');
+      assert.ok(call);
+      assert.equal(call.opts?.member, true);
+    } finally {
+      c.setFaviconFixture(null);
+    }
+  });
+});
+
 describe('a private edit stays private on the live channel', () => {
   test('it does not wake every open page', async () => {
     const { sseClients } = require('../src/services/sseService');

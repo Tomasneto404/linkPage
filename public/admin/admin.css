@@ -402,33 +402,8 @@
   white-space: nowrap;
 }
 
-/* Custom colour swatch in the group modal palette */
-.color-swatch-custom {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.color-swatch-custom input[type="color"] {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  border: 0;
-  padding: 0;
-}
-.color-swatch-plus {
-  color: #fff;
-  font-size: 1.05rem;
-  font-weight: 600;
-  line-height: 1;
-  pointer-events: none;
-  /* Slight shadow so the "+" stays readable on light custom colours */
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-}
+/* The custom colour swatch moved to style.css, so members' group colours can
+   use it on the public page. */
 
 /* ─── Long-press to enter bulk mode ──────────────────────────────────────────
  *

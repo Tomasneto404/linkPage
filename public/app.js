@@ -2162,6 +2162,78 @@ async function signOut() {
   location.reload();
 }
 
+// ─── Group colours ────────────────────────────────────────────────────────────
+//
+// The same ten the admin panel offers for shared groups, so a member's tabs sit
+// in the same family as everyone else's, plus one swatch for any colour at all.
+
+const GROUP_COLORS = [
+  ['#0071e3', 'Blue'],   ['#5856d6', 'Indigo'], ['#af52de', 'Purple'], ['#ff2d55', 'Pink'],
+  ['#ff3b30', 'Red'],    ['#ff9500', 'Orange'], ['#34c759', 'Green'],  ['#00c7be', 'Teal'],
+  ['#007aff', 'Sky'],    ['#8e8e93', 'Grey'],
+];
+const DEFAULT_GROUP_COLOR = GROUP_COLORS[0][0];
+
+/** A row of swatches with `selected` chosen. The value lives in data-value. */
+function colorPaletteHtml(selected = DEFAULT_GROUP_COLOR) {
+  const pick = String(selected || DEFAULT_GROUP_COLOR).toLowerCase();
+  const isPreset = GROUP_COLORS.some(([c]) => c === pick);
+  const swatches = GROUP_COLORS.map(([color, name]) => `
+    <button type="button" class="color-swatch${color === pick ? ' selected' : ''}"
+            data-color="${color}" style="background:${color}"
+            aria-label="${name}" aria-pressed="${color === pick}"></button>`).join('');
+  return `
+    <div class="color-palette" data-value="${escapeHtml(pick)}">
+      ${swatches}
+      <label class="color-swatch color-swatch-custom${isPreset ? '' : ' selected'}"
+             style="background:${isPreset ? 'conic-gradient(#ff3b30, #ff9500, #34c759, #00c7be, #0071e3, #af52de, #ff3b30)' : escapeHtml(pick)}"
+             title="Any colour">
+        <input type="color" value="${isPreset ? '#888888' : escapeHtml(pick)}" aria-label="Choose any colour" />
+        <span class="color-swatch-plus" aria-hidden="true">+</span>
+      </label>
+    </div>`;
+}
+
+/** Marks `color` chosen in a palette, and returns it. */
+function setPaletteValue(palette, color) {
+  const value = color.toLowerCase();
+  palette.dataset.value = value;
+  const isPreset = GROUP_COLORS.some(([c]) => c === value);
+  for (const sw of palette.querySelectorAll('.color-swatch[data-color]')) {
+    const on = sw.dataset.color === value;
+    sw.classList.toggle('selected', on);
+    sw.setAttribute('aria-pressed', String(on));
+  }
+  const custom = palette.querySelector('.color-swatch-custom');
+  custom.classList.toggle('selected', !isPreset);
+  if (!isPreset) custom.style.background = value;
+  return value;
+}
+
+/**
+ * One listener for every palette on the page. A palette announces a change
+ * with a `palettechange` event, so whoever owns it decides what picking means
+ * — saving straight away in Your groups, remembering it in the composer.
+ */
+function onPalettePick(e) {
+  const palette = e.target.closest('.color-palette');
+  if (!palette) return;
+  let color = null;
+  if (e.type === 'click') {
+    const sw = e.target.closest('.color-swatch[data-color]');
+    if (sw) color = sw.dataset.color;
+  } else if (e.target.matches('input[type="color"]')) {
+    color = e.target.value;
+  }
+  if (!color) return;
+  setPaletteValue(palette, color);
+  palette.dispatchEvent(new CustomEvent('palettechange', { bubbles: true, detail: { color } }));
+}
+document.addEventListener('click', onPalettePick);
+// "change", not "input": the browser's picker fires input on every drag, and a
+// save per pixel of dragging is not a save anyone meant.
+document.addEventListener('change', onPalettePick);
+
 // ─── The composer: adding and editing your own links ──────────────────────────
 
 let composerLink = null;      // the link being edited, or null when adding
@@ -2169,6 +2241,10 @@ let composerFile = null;      // a picked attachment
 let composerIcon = null;      // a picked icon image
 let composerMode = 'url';     // 'url' | 'file'
 let composerConfirmingDelete = false;
+
+// The icon a typed address would get, looked up by this server before saving.
+let composerPreview = { url: '', state: 'idle', objectUrl: null };
+let composerPreviewTimer = null;
 
 const el = id => document.getElementById(id);
 
@@ -2207,6 +2283,7 @@ function setComposerMode(mode) {
     btn.setAttribute('aria-pressed', String(btn.dataset.composeMode === mode));
   }
   el('myLinkUrl').required = mode === 'url';
+  refreshComposerIcon();
 }
 
 function formatBytesShort(n) {
@@ -2231,16 +2308,91 @@ function refreshComposerFileLabel() {
     : existing || 'No file chosen';
 }
 
+/**
+ * Shows the icon this link will actually have, and says where it comes from —
+ * the same order the card itself uses: an image you chose, then the file's
+ * type, then the website's own icon, then a plain one.
+ */
 function refreshComposerIcon() {
   const preview = el('myLinkIconPreview');
+  const caption = el('myLinkIconSource');
+  const removed = el('myLinkIconRemoved').checked;
+  const show = (html, text) => { preview.innerHTML = html; caption.textContent = text; };
+  const img  = src => `<img src="${escapeHtml(src)}" alt="" />`;
+
+  el('myLinkClearIcon').classList.toggle('hidden',
+    !composerIcon && !(composerLink?.image_path && !removed));
+
   if (composerIcon) {
-    preview.innerHTML = `<img src="${URL.createObjectURL(composerIcon)}" alt="" />`;
-  } else if (composerLink?.image_path && !el('myLinkIconRemoved').checked) {
-    preview.innerHTML = `<img src="${escapeHtml(composerLink.image_path)}" alt="" />`;
-  } else {
-    preview.innerHTML = FALLBACK_ICON_SVG;
+    if (composerIcon._previewUrl) URL.revokeObjectURL(composerIcon._previewUrl);
+    composerIcon._previewUrl = URL.createObjectURL(composerIcon);
+    return show(img(composerIcon._previewUrl), 'Your image');
   }
-  el('myLinkClearIcon').classList.toggle('hidden', !composerIcon && !composerLink?.image_path);
+  if (composerLink?.image_path && !removed) return show(img(composerLink.image_path), 'Your image');
+
+  if (composerMode === 'file') {
+    const name = composerFile?.name || composerLink?.file_name;
+    return name
+      ? show(fileTypeIconHtml(name), 'From the file')
+      : show(FALLBACK_ICON_SVG, 'Choose a file, and its type sets the icon');
+  }
+
+  const url = el('myLinkUrl').value.trim();
+  // An existing link whose address has not changed already has its icon.
+  if (composerLink?.favicon_path && url === composerLink.url) {
+    return show(img(composerLink.favicon_path), 'From the website');
+  }
+  if (!url) return show(FALLBACK_ICON_SVG, "The website's own icon will be used");
+
+  if (composerPreview.url === url) {
+    if (composerPreview.state === 'found')   return show(img(composerPreview.objectUrl), 'From the website');
+    if (composerPreview.state === 'loading') return show(FALLBACK_ICON_SVG, "Looking for the website's icon…");
+    if (composerPreview.state === 'none')    return show(FALLBACK_ICON_SVG, 'That website has no icon — a plain one will be used');
+  }
+  show(FALLBACK_ICON_SVG, "The website's own icon will be used");
+}
+
+function resetComposerPreview() {
+  clearTimeout(composerPreviewTimer);
+  if (composerPreview.objectUrl) URL.revokeObjectURL(composerPreview.objectUrl);
+  composerPreview = { url: '', state: 'idle', objectUrl: null };
+}
+
+/**
+ * Asks this server for the icon a typed address would get. Debounced, so it
+ * runs once typing pauses rather than once per key, and a late answer for an
+ * address that has since changed is thrown away.
+ */
+function scheduleComposerPreview() {
+  clearTimeout(composerPreviewTimer);
+  const url = el('myLinkUrl').value.trim();
+  const isAddress = /^https?:\/\/[^\s/]+\.[^\s]+/i.test(url);
+  const hasOwn = composerIcon || (composerLink?.image_path && !el('myLinkIconRemoved').checked);
+  if (!isAddress || hasOwn || (composerLink?.favicon_path && url === composerLink.url)) {
+    refreshComposerIcon();
+    return;
+  }
+
+  composerPreviewTimer = setTimeout(async () => {
+    if (composerPreview.objectUrl) URL.revokeObjectURL(composerPreview.objectUrl);
+    composerPreview = { url, state: 'loading', objectUrl: null };
+    refreshComposerIcon();
+
+    let state = 'none', objectUrl = null;
+    try {
+      const r = await fetch(`/api/my/favicon-preview?url=${encodeURIComponent(url)}`,
+                            { credentials: 'same-origin' });
+      if (r.ok) { objectUrl = URL.createObjectURL(await r.blob()); state = 'found'; }
+    } catch { /* treated as none */ }
+
+    // Typing moved on while this was in flight: not this address's answer.
+    if (el('myLinkUrl').value.trim() !== url) {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      return;
+    }
+    composerPreview = { url, state, objectUrl };
+    refreshComposerIcon();
+  }, 600);
 }
 
 /** Opens the composer, empty for a new link or filled in from an existing one. */
@@ -2253,7 +2405,9 @@ function openComposer(link) {
   el('myLinkForm').reset();
   el('myLinkError').classList.add('hidden');
   el('myLinkNewGroupRow').classList.add('hidden');
+  el('myLinkNewGroupColor').innerHTML = colorPaletteHtml(DEFAULT_GROUP_COLOR);
   el('myLinkIconRemoved').checked = false;
+  resetComposerPreview();
 
   el('myLinkTitle').textContent = link ? 'Edit your link' : 'Add a link';
   el('myLinkSubmitBtn').textContent = link ? 'Save changes' : 'Add link';
@@ -2283,6 +2437,7 @@ function openComposer(link) {
 
 function closeComposer() {
   el('myLinkOverlay').classList.add('hidden');
+  resetComposerPreview();
   composerLink = null;
   composerFile = null;
   composerIcon = null;
@@ -2308,11 +2463,14 @@ for (const btn of document.querySelectorAll('[data-compose-mode]')) {
 el('myLinkFileInput')?.addEventListener('change', e => {
   composerFile = e.target.files?.[0] || null;
   refreshComposerFileLabel();
+  refreshComposerIcon();
   // A file named for itself: fill the name in when it is still empty.
   if (composerFile && !el('myLinkName').value.trim()) {
     el('myLinkName').value = composerFile.name.replace(/\.[^.]+$/, '');
   }
 });
+
+el('myLinkUrl')?.addEventListener('input', scheduleComposerPreview);
 
 el('myLinkIconInput')?.addEventListener('change', e => {
   composerIcon = e.target.files?.[0] || null;
@@ -2324,14 +2482,15 @@ el('myLinkClearIcon')?.addEventListener('click', () => {
   composerIcon = null;
   el('myLinkIconInput').value = '';
   el('myLinkIconRemoved').checked = true;
-  refreshComposerIcon();
+  scheduleComposerPreview();
 });
 
 /** Creates the group typed into "New group…", returning its personal id. */
 async function createGroupFromComposer() {
   const name = el('myLinkNewGroup').value.trim();
   if (!name) { showComposerError('Give the new group a name.'); return undefined; }
-  const res = await myRequest('/api/my/groups', { json: { name } });
+  const color = el('myLinkNewGroupColor').querySelector('.color-palette')?.dataset.value;
+  const res = await myRequest('/api/my/groups', { json: { name, color } });
   if (!res.ok) { showComposerError(res.body.error || 'Could not create that group.'); return undefined; }
   return res.body.id;
 }
@@ -2427,6 +2586,7 @@ el('myLinkOverlay')?.addEventListener('click', e => {
 
 function openGroupsManager() {
   renderGroupsManager();
+  el('myGroupsNewColor').innerHTML = colorPaletteHtml(DEFAULT_GROUP_COLOR);
   el('myGroupsError').classList.add('hidden');
   el('myGroupsOverlay').classList.remove('hidden');
   el('myGroupsNewName').focus();
@@ -2444,12 +2604,17 @@ function renderGroupsManager() {
     return;
   }
   list.innerHTML = mine.map(g => `
-    <div class="my-group-row" data-personal-id="${g.personal_id}">
-      <span class="tab-dot" style="background:${escapeHtml(g.color)}"></span>
-      <input type="text" class="my-group-name" value="${escapeHtml(g.name)}"
-             aria-label="Group name" maxlength="100" />
-      <span class="my-group-count">${g.link_count} link${g.link_count === 1 ? '' : 's'}</span>
-      <button type="button" class="btn btn-ghost btn-sm" data-act="delete-group">Delete</button>
+    <div class="my-group-item" data-personal-id="${g.personal_id}">
+      <div class="my-group-row">
+        <button type="button" class="my-group-color" data-act="toggle-color"
+                style="background:${escapeHtml(g.color)}"
+                aria-label="Change the colour of ${escapeHtml(g.name)}" aria-expanded="false"></button>
+        <input type="text" class="my-group-name" value="${escapeHtml(g.name)}"
+               aria-label="Group name" maxlength="100" />
+        <span class="my-group-count">${g.link_count} link${g.link_count === 1 ? '' : 's'}</span>
+        <button type="button" class="btn btn-ghost btn-sm" data-act="delete-group">Delete</button>
+      </div>
+      <div class="my-group-colors hidden">${colorPaletteHtml(g.color)}</div>
     </div>`).join('');
 }
 
@@ -2457,13 +2622,15 @@ el('myGroupsAddForm')?.addEventListener('submit', async e => {
   e.preventDefault();
   const name = el('myGroupsNewName').value.trim();
   if (!name) return;
-  const res = await myRequest('/api/my/groups', { json: { name } });
+  const color = el('myGroupsNewColor').querySelector('.color-palette')?.dataset.value;
+  const res = await myRequest('/api/my/groups', { json: { name, color } });
   if (!res.ok) {
     el('myGroupsError').textContent = res.body.error || 'Could not create that group.';
     el('myGroupsError').classList.remove('hidden');
     return;
   }
   el('myGroupsNewName').value = '';
+  el('myGroupsNewColor').innerHTML = colorPaletteHtml(DEFAULT_GROUP_COLOR);
   await loadData();
   renderGroupsManager();
 });
@@ -2472,7 +2639,7 @@ el('myGroupsAddForm')?.addEventListener('submit', async e => {
 el('myGroupsList')?.addEventListener('change', async e => {
   const input = e.target.closest('.my-group-name');
   if (!input) return;
-  const row = input.closest('.my-group-row');
+  const row = input.closest('.my-group-item');
   const group = personalGroups().find(g => g.personal_id === Number(row.dataset.personalId));
   const name = input.value.trim();
   if (!group || !name || name === group.name) { input.value = group?.name || ''; return; }
@@ -2486,6 +2653,18 @@ el('myGroupsList')?.addEventListener('change', async e => {
 });
 
 el('myGroupsList')?.addEventListener('click', async e => {
+  // The dot opens the row's palette; only one is open at a time.
+  const dot = e.target.closest('[data-act="toggle-color"]');
+  if (dot) {
+    const colors = dot.closest('.my-group-item').querySelector('.my-group-colors');
+    const opening = colors.classList.contains('hidden');
+    for (const other of el('myGroupsList').querySelectorAll('.my-group-colors')) other.classList.add('hidden');
+    for (const other of el('myGroupsList').querySelectorAll('.my-group-color')) other.setAttribute('aria-expanded', 'false');
+    colors.classList.toggle('hidden', !opening);
+    dot.setAttribute('aria-expanded', String(opening));
+    return;
+  }
+
   const btn = e.target.closest('[data-act="delete-group"]');
   if (!btn) return;
   // Twice, on the button, as with links.
@@ -2495,12 +2674,28 @@ el('myGroupsList')?.addEventListener('click', async e => {
     btn.classList.add('btn-ghost-danger');
     return;
   }
-  const id = Number(btn.closest('.my-group-row').dataset.personalId);
+  const id = Number(btn.closest('.my-group-item').dataset.personalId);
   const res = await myRequest(`/api/my/groups/${id}`, { method: 'DELETE' });
   if (!res.ok) { showToast('Could not delete that group', { type: 'error' }); return; }
   await loadData();
   renderGroupsManager();
   showToast('Group deleted', { detail: 'Its links are still in All.' });
+});
+
+// A colour picked in a row is saved at once, and the tab changes behind it.
+el('myGroupsList')?.addEventListener('palettechange', async e => {
+  const item  = e.target.closest('.my-group-item');
+  const group = personalGroups().find(g => g.personal_id === Number(item?.dataset.personalId));
+  if (!group || e.detail.color === group.color) return;
+
+  const name = item.querySelector('.my-group-name').value.trim() || group.name;
+  const res = await myRequest(`/api/my/groups/${group.personal_id}`, {
+    method: 'PUT', json: { name, color: e.detail.color },
+  });
+  if (!res.ok) { showToast('Could not change that colour', { type: 'error' }); return; }
+
+  item.querySelector('.my-group-color').style.background = e.detail.color;
+  await loadData();
 });
 
 el('closeMyGroupsBtn')?.addEventListener('click', closeGroupsManager);

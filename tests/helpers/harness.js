@@ -71,7 +71,7 @@ function stubFaviconService() {
       cacheFavicon: async (linkId, url) => { faviconCalls.push({ linkId, url }); },
       // Returns whatever a test put in faviconFixture, so the personal favicon
       // path can be exercised without the network. Null by default, as before.
-      fetchFaviconForUrl: async url => { faviconCalls.push({ url }); return faviconFixture; },
+      fetchFaviconForUrl: async (url, opts) => { faviconCalls.push({ url, opts }); return faviconFixture; },
     },
   };
 }

@@ -713,14 +713,50 @@
     .my-groups-list { display: flex; flex-direction: column; gap: 6px; }
     .my-groups-empty { font-size: 0.875rem; color: var(--text-muted); line-height: 1.5; }
 
+    .my-group-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+    }
     .my-group-row {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 4px 4px 4px 10px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      background: var(--surface-2);
+      padding: 4px 4px 4px 8px;
+    }
+
+    /* The group's colour, which opens its palette. */
+    .my-group-color {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      padding: 0;
+      border: 2px solid var(--surface);
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px var(--border-strong);
+      cursor: pointer;
+      transition: transform var(--transition), box-shadow var(--transition);
+    }
+    .my-group-color:hover { transform: scale(1.12); }
+    .my-group-color[aria-expanded="true"],
+    .my-group-color:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--primary);
+    }
+    .my-group-colors { padding: 4px 10px 10px; }
+
+    /* Eleven swatches have to fit the narrow dialogs on one line. Only here: the
+       admin's own palettes keep their size. */
+    .my-groups-body .color-palette,
+    .my-link-new-color .color-palette { gap: 6px; flex-wrap: nowrap; }
+    .my-groups-body .color-swatch,
+    .my-link-new-color .color-swatch { width: 22px; height: 22px; flex-shrink: 0; }
+    .my-groups-body .color-swatch-plus,
+    .my-link-new-color .color-swatch-plus { font-size: 0.9rem; }
+
+    .color-swatch:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--primary);
     }
     .my-group-row input.my-group-name {
       flex: 1;
@@ -732,8 +768,10 @@
     .my-group-row input.my-group-name:focus { border-color: var(--primary); background: var(--surface); }
     .my-group-count { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
 
-    .my-groups-add { display: flex; gap: 8px; padding: 0; flex-direction: row; }
-    .my-groups-add input { flex: 1; }
+    .my-groups-add { display: flex; flex-direction: column; gap: 10px; padding: 0; }
+    .my-groups-add-row { display: flex; gap: 8px; }
+    .my-groups-add-row input { flex: 1; }
+    .my-link-new-color { margin-top: 4px; }
 
     @media (max-width: 480px) {
       .account-signin .admin-btn-label { display: none; }
@@ -1116,6 +1154,7 @@
       <div class="form-group hidden" id="myLinkNewGroupRow">
         <label for="myLinkNewGroup">New group's name</label>
         <input type="text" id="myLinkNewGroup" maxlength="100" />
+        <div class="my-link-new-color" id="myLinkNewGroupColor"></div>
       </div>
 
       <div class="form-group">
@@ -1129,7 +1168,7 @@
           <button type="button" class="btn btn-ghost btn-sm hidden" id="myLinkClearIcon">Remove</button>
           <input type="checkbox" id="myLinkIconRemoved" hidden />
         </div>
-        <span class="my-link-hint">Leave it, and the site's own icon is used.</span>
+        <span class="my-link-hint" id="myLinkIconSource" aria-live="polite"></span>
       </div>
 
       <div class="form-error hidden" id="myLinkError" role="alert"></div>
@@ -1158,9 +1197,12 @@
     <div class="my-groups-body">
       <div class="my-groups-list" id="myGroupsList"></div>
       <form id="myGroupsAddForm" class="my-groups-add">
-        <input type="text" id="myGroupsNewName" placeholder="New group" maxlength="100"
-               aria-label="New group name" />
-        <button type="submit" class="btn btn-primary btn-sm">Add</button>
+        <div class="my-groups-add-row">
+          <input type="text" id="myGroupsNewName" placeholder="New group" maxlength="100"
+                 aria-label="New group name" />
+          <button type="submit" class="btn btn-primary btn-sm">Add</button>
+        </div>
+        <div id="myGroupsNewColor"></div>
       </form>
       <div class="form-error hidden" id="myGroupsError" role="alert"></div>
     </div>

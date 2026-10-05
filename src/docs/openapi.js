@@ -1076,6 +1076,22 @@ const paths = {
       responses: { 200: json({ type: 'object' }) },
     }),
   },
+  '/api/my/favicon-preview': {
+    get: op({
+      tag: TAGS.mine, auth: 'user',
+      summary: 'The icon a web address would get',
+      description: 'Fetched by this server before the link is saved, under the same rules a '
+                 + 'saved favicon is: public addresses only, never through Google. Returns '
+                 + 'the image, stores nothing, and is throttled.',
+      params: [queryParam('url', 'The web address to look up.')],
+      responses: {
+        200: { description: 'The image' },
+        400: json(ref('Error'), 'Not a web address'),
+        404: json(ref('Error'), 'No usable icon there'),
+        429: json(ref('Error'), 'Too many previews'),
+      },
+    }),
+  },
   '/api/my/groups': {
     post: op({
       tag: TAGS.mine, auth: 'user', summary: 'Add a group of your own',

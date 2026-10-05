@@ -105,6 +105,37 @@ function icons(req, res) {
   res.json({ icons: db.getAllIcons().map(i => ({ id: i.id, file_path: i.file_path })) });
 }
 
+/**
+ * The icon a web address would get, before the link is saved — so the person
+ * adding it can see what they are about to get, and upload their own instead
+ * if they would rather.
+ *
+ * Fetched by this server under exactly the rules a saved link's favicon is:
+ * public addresses only, and never through Google. Answered with the image
+ * itself, stored nowhere, and costing nothing against the allowance.
+ */
+async function faviconPreview(req, res) {
+  const { fetchFaviconForUrl } = require('../services/faviconService');
+  const url = typeof req.query.url === 'string' ? req.query.url.trim() : '';
+  if (!url || !isValidHttpUrl(url)) return res.status(400).json({ error: 'Send a web address' });
+
+  let found = null;
+  try { found = await fetchFaviconForUrl(url, { member: true }); } catch { found = null; }
+
+  const type = String(found?.contentType || '').split(';')[0].trim().toLowerCase();
+  // The same image types a saved favicon may be. SVG is a document that can
+  // carry script, and this response comes from the admin panel's own origin.
+  const allowed = ['image/png', 'image/x-icon', 'image/vnd.microsoft.icon',
+                   'image/gif', 'image/webp', 'image/jpeg'];
+  if (!found?.buffer || !allowed.includes(type)) {
+    return res.status(404).json({ error: 'No icon found for that address' });
+  }
+
+  res.set('Cache-Control', 'private, no-store');
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.type(type).send(found.buffer);
+}
+
 // ─── Groups ───────────────────────────────────────────────────────────────────
 
 function createGroup(req, res) {
@@ -420,7 +451,7 @@ function file(req, res) {
 
 module.exports = {
   requireMember,
-  data, storage, icons,
+  data, storage, icons, faviconPreview,
   createGroup, updateGroup, deleteGroup, reorderGroups,
   createSection, updateSection, deleteSection, reorderSections,
   createLink, updateLink, deleteLink, reorderLinks,
