@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Tomás Neto
 /** Server-Sent Events stream that pushes "data changed" pings to open pages. */
 
-const { sseClients } = require('../services/sseService');
+const { sseClients, claimStream } = require('../services/sseService');
 
 function stream(req, res) {
   res.writeHead(200, {
@@ -18,6 +18,9 @@ function stream(req, res) {
   res.write('retry: 4000\n\n');
 
   sseClients.add(res);
+  // A member's stream also hears about their own links. The admin token has no
+  // account, so it has nothing personal to hear about.
+  if (req.user?.via === 'session') claimStream(res, req.user.id);
 
   // Keep proxies happy — many drop idle SSE connections after ~30 s.
   const ping = setInterval(() => {

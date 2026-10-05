@@ -3046,14 +3046,20 @@ function connectLiveUpdates() {
 
   liveUpdateSource = new EventSource('/api/events');
 
-  liveUpdateSource.addEventListener('data', () => {
+  const refresh = () => {
     clearTimeout(liveUpdateTimer);
     liveUpdateTimer = setTimeout(() => {
       // Don't fight a typing user: skip the fade while they're searching.
       const inSearch = !!searchQuery || searchChips.length > 0;
       loadData({ transition: !inSearch }).catch(() => {});
     }, 250);
-  });
+  };
+
+  // Something shared changed — an administrator's edit.
+  liveUpdateSource.addEventListener('data', refresh);
+  // Something of this member's own changed, in another of their tabs or on
+  // another device. Only their stream is told.
+  liveUpdateSource.addEventListener('personal', () => { if (currentUser) refresh(); });
 
   liveUpdateSource.addEventListener('error', () => {
     if (liveUpdateSource && liveUpdateSource.readyState === EventSource.CLOSED) {

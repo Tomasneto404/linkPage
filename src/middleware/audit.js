@@ -9,7 +9,7 @@
  */
 
 const { writeAuditFromRequest } = require('../services/auditService');
-const { broadcastDataUpdate }   = require('../services/sseService');
+const { broadcastDataUpdate, broadcastToUser } = require('../services/sseService');
 
 const SSE_BROADCAST_SKIP = new Set([
   '/api/events',
@@ -30,10 +30,10 @@ const AUDIT_ONLY_PATHS = new Set([
 ]);
 
 /**
- * A member's own links. Recorded, because the log is a security log, but never
- * broadcast: the live-update channel is shared by every open page, and a
- * private edit has nothing to show any of them. Broadcasting it would also let
- * anyone watching the stream see when somebody else was busy.
+ * A member's own links. Recorded, because the log is a security log, and sent
+ * only to that member's own open pages — never on the shared channel, where it
+ * would have nothing to show anyone else and would tell everyone watching that
+ * somebody was busy.
  */
 const isPersonal = p => p.startsWith('/api/my/');
 
@@ -46,7 +46,8 @@ function auditAndBroadcast(req, res, next) {
   res.on('finish', () => {
     if (res.statusCode < 200 || res.statusCode >= 300) return;
     writeAuditFromRequest(req);
-    if (!AUDIT_ONLY_PATHS.has(req.path) && !isPersonal(req.path)) broadcastDataUpdate();
+    if (isPersonal(req.path))                 broadcastToUser(req.user?.id);
+    else if (!AUDIT_ONLY_PATHS.has(req.path)) broadcastDataUpdate();
   });
   next();
 }
