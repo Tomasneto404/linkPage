@@ -49,7 +49,7 @@ interface reaches them.
 - [x] **Node version.** `engines` asks for Node 24, but everything runs and
       passes on 22.13+, where `node:sqlite` needs no flag. Say so, so local
       development on 22 stops warning on every start. Docker and CI stay on 24.
-- [ ] **Version and changelog.** The accounts work is a minor release: 1.1.0,
+- [x] **Version and changelog.** The accounts work is a minor release: 1.1.0,
       with a CHANGELOG section. *Publishing it is left to the maintainer.*
 
 ## 4 — Single sign-on

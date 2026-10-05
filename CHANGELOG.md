@@ -5,6 +5,29 @@ the GitHub release notes: the release workflow lifts the section matching the
 pushed tag out of this file. Newest release first; the top section must match
 `version` in package.json.
 
+## v1.1.0
+
+### Accounts
+People can now sign in with an email and a password. The first start creates an administrator account and prints its password beside the admin token; everyone else arrives through an invite link from Settings → Accounts, which works once and expires. There is no open sign-up and the app sends no email: a forgotten password is a reset link the administrator hands over. Sessions live in the database behind an HttpOnly cookie, so they can be listed and ended from any device. The admin token keeps working everywhere it did, as the way back in when nobody can sign in.
+
+### A page of your own
+A signed-in member keeps private links, groups and sections that appear as extra tabs on the public page, marked as theirs and seen by nobody else. Links take an icon fetched from the site, one from the shared library or an upload, and can carry a file of their own, under a storage allowance the administrator sets per account. Groups take a colour; groups, sections and links can be reordered.
+
+### Favourites
+Members star shared links into a Favourites tab and arrange them in their own order. A link the administrator later hides, deletes or locks away leaves everyone's favourites with it.
+
+### Members-only mode
+One setting in Settings → Public Access turns the public page into a private one: strangers are sent to the sign-in page, and every listing, redirect, attachment and the live channel turns them away. The sign-in page keeps the instance's logo, wallpaper and theme.
+
+### Who did it
+Every audit entry records who made the change — an account, the admin token, a visitor or the system — and the Audit Log shows and filters by it. Failed sign-ins are recorded too. Invite and reset links never reach the log.
+
+### Harder to guess your way in
+Wrong guesses are throttled per address and, for signing in, per account, so a guess spread across many addresses is stopped as well. The counts are kept in the database and survive a restart. State-changing requests carrying a session must come from the page itself, and a member's favicon fetch can no longer be pointed at the server's own network.
+
+### Node 22.13 for local development
+Running from source now needs Node 22.13 or later rather than 24. The Docker image still runs on Node 24.
+
 ## v1.0.5
 
 ### Custom link slugs
