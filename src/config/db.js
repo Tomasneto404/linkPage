@@ -3,7 +3,7 @@
 /**
  * Database connection and schema migrations.
  *
- * Uses Node's built-in SQLite module (Node 24+). Opens the single shared
+ * Uses Node's built-in SQLite module (unflagged from Node 22.13). Opens the single shared
  * connection and runs migrations as a load-time side effect — every model
  * module requires this file, so the schema is guaranteed ready before any
  * query runs.

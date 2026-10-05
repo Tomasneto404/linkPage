@@ -325,7 +325,7 @@ A new admin token will be generated on the next startup.
 
 ### Prerequisites
 
-- [Node.js 24+](https://nodejs.org/)
+- [Node.js](https://nodejs.org/) 22.13 or later. The Docker image and CI run on Node 24; 22.13 is the first release where the built-in SQLite module works without a flag.
 
 ### Steps
 

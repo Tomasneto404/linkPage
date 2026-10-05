@@ -46,7 +46,7 @@ interface reaches them.
       `pnpm run dev` broke. Keep both, and add a test that fails when a
       dependency is missing from either. `tests/lockfiles.test.js` also checks
       each declared range and that the resolved versions sit inside it.
-- [ ] **Node version.** `engines` asks for Node 24, but everything runs and
+- [x] **Node version.** `engines` asks for Node 24, but everything runs and
       passes on 22.13+, where `node:sqlite` needs no flag. Say so, so local
       development on 22 stops warning on every start. Docker and CI stay on 24.
 - [ ] **Version and changelog.** The accounts work is a minor release: 1.1.0,
