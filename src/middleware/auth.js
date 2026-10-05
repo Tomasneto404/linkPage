@@ -18,6 +18,7 @@
  */
 
 const crypto = require('crypto');
+const path   = require('path');
 
 const { getAdminToken } = require('../config/secrets');
 const db = require('../models');
@@ -177,6 +178,41 @@ function requireLoginIfPrivate(req, res, next) {
 }
 
 /**
+ * The files a members-only instance still shows a stranger: what the sign-in
+ * page is made of. The logos, the header icon, the browser-tab icon, and the
+ * wallpaper — anything less and the sign-in page cannot dress itself.
+ */
+const PUBLIC_UPLOAD_SETTINGS = [
+  'logo_light', 'logo_dark', 'brand_icon', 'favicon', 'wallpaper_light', 'wallpaper_dark',
+];
+
+/**
+ * /uploads on a members-only page: only the sign-in page's own furniture is
+ * served to somebody who is not signed in. Attachments, link icons, fetched
+ * favicons and request uploads are not — their addresses are unguessable, but
+ * one shared before the page went members-only would otherwise keep working
+ * for anybody holding it.
+ *
+ * A refusal is a 404, not a 401: a stranger learns nothing, not even that the
+ * file exists. Off — the default — it does nothing at all.
+ */
+function guardUploads(req, res, next) {
+  if (req.user || !isMembersOnly()) return next();
+
+  let requested;
+  try { requested = path.basename(decodeURIComponent(req.path)); }
+  catch { return res.status(404).end(); }
+
+  const allowed = new Set(PUBLIC_UPLOAD_SETTINGS
+    .map(key => db.readSetting(key))
+    .filter(Boolean)
+    .map(stored => path.basename(stored)));
+
+  if (allowed.has(requested)) return next();
+  res.status(404).end();
+}
+
+/**
  * Rejects requests if a public password is configured and not provided correctly.
  *
  * Anyone attachUser recognised — a signed-in user, or the admin token — is
@@ -206,6 +242,7 @@ module.exports = {
   requireAdminToken,
   requirePublicAuth,
   requireLoginIfPrivate,
+  guardUploads,
   isMembersOnly,
   optionalAuth,
 };

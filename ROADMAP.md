@@ -20,7 +20,7 @@ interface reaches them.
 
 ## 2 — Security
 
-- [ ] **Attachments in `/uploads` stay public in members-only mode.** Anyone
+- [x] **Attachments in `/uploads` stay public in members-only mode.** Anyone
       with an exact file address can still fetch it. Serve shared links'
       attachments through a gated route; keep only what the sign-in page needs
       (logo, favicon, wallpaper) public.

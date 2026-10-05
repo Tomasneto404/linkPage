@@ -155,3 +155,67 @@ describe('turning it on', () => {
     assert.equal(require('../src/models').readSetting('require_login'), null);
   });
 });
+
+describe('uploaded files, on a members-only page', () => {
+  const { fileForm, pngBytes } = harness;
+  let attachment, icon, logo, wallpaper;
+
+  before(async () => {
+    attachment = (await c.makeFileLink({ name: 'Private report', fileName: 'report.pdf',
+                                          type: 'application/pdf', bytes: Buffer.from('%PDF-1.4 secret') })).file_path;
+    icon = (await c.makeIcon()).file_path;
+    logo = (await c.api('/api/settings/logo/light', {
+      method: 'POST', form: fileForm('logo', { name: 'logo.png', type: 'image/png', bytes: pngBytes() }),
+    })).body.logo_url || (await c.pub('/api/settings')).body.logo_light;
+    await c.api('/api/settings/wallpaper/light', {
+      method: 'POST', form: fileForm('wallpaper', { name: 'wall.png', type: 'image/png', bytes: pngBytes() }),
+    });
+    wallpaper = (await c.pub('/api/settings')).body.wallpaper_light;
+    assert.ok(attachment && icon && logo && wallpaper, 'fixtures exist');
+  });
+
+  test('off, a stranger fetches any of them, as always', async () => {
+    assert.equal((await c.pub(attachment)).status, 200);
+    assert.equal((await c.pub(icon)).status, 200);
+  });
+
+  describe('on', () => {
+    before(async () => { assert.equal((await turnOn()).status, 200); });
+    after(turnOff);
+
+    test('a stranger cannot fetch an attachment, even holding its exact address', async () => {
+      const res = await c.pub(attachment);
+      assert.equal(res.status, 404, 'not 401: nothing confirms the file exists');
+      assert.ok(!res.text.includes('secret'));
+    });
+
+    test('nor a link icon', async () => {
+      assert.equal((await c.pub(icon)).status, 404);
+    });
+
+    test('but still gets everything the sign-in page is made of', async () => {
+      assert.equal((await c.pub(logo)).status, 200, 'the logo');
+      assert.equal((await c.pub(wallpaper)).status, 200, 'the wallpaper');
+    });
+
+    test('an encoded or dotted address is no way round it', async () => {
+      const name = attachment.split('/').pop();
+      for (const variant of [`/uploads/./${name}`, `/uploads/%2e/${name}`,
+                             `/uploads/${encodeURIComponent(name)}`]) {
+        const res = await c.pub(variant);
+        assert.notEqual(res.status, 200, variant);
+      }
+    });
+
+    test('a member fetches all of it', async () => {
+      const s = c.session();
+      await s.login('member@example.test', PASSWORD);
+      assert.equal((await s.fetch(attachment)).status, 200);
+      assert.equal((await s.fetch(icon)).status, 200);
+    });
+
+    test('and so does the admin token', async () => {
+      assert.equal((await c.api(attachment)).status, 200);
+    });
+  });
+});

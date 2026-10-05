@@ -9,7 +9,7 @@ const express = require('express');
 
 const { PUBLIC_DIR, UPLOADS_DIR, TRUST_PROXY } = require('./config/env');
 const { securityHeaders }    = require('./middleware/security');
-const { attachUser }         = require('./middleware/auth');
+const { attachUser, guardUploads } = require('./middleware/auth');
 const { verifySameOrigin }   = require('./middleware/csrf');
 const { auditAndBroadcast }  = require('./middleware/audit');
 const { errorHandler }       = require('./middleware/error');
@@ -32,7 +32,13 @@ app.use(securityHeaders);
 
 // Static assets.
 app.use(express.static(PUBLIC_DIR));
-app.use('/uploads', express.static(UPLOADS_DIR, {
+
+// Works out who is asking, before anything downstream needs to know. Never
+// rejects; the route guards decide what to do with the answer. Ahead of
+// /uploads, which on a members-only page has to know.
+app.use(attachUser);
+
+app.use('/uploads', guardUploads, express.static(UPLOADS_DIR, {
   // ETag-based revalidation. After editing an attached file the bytes change
   // but the URL stays the same; no-cache forces every browser to re-check
   // with us so it can never serve a stale copy of an edited file.
@@ -40,10 +46,6 @@ app.use('/uploads', express.static(UPLOADS_DIR, {
   lastModified: true,
   setHeaders:   res => res.setHeader('Cache-Control', 'no-cache, must-revalidate'),
 }));
-
-// Works out who is asking, before anything downstream needs to know. Never
-// rejects; the route guards decide what to do with the answer.
-app.use(attachUser);
 
 // Refuses a state-changing request that another site caused. Has to come after
 // attachUser, which is what parses the cookies it looks at.
