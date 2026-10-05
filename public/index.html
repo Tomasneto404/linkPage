@@ -804,6 +804,7 @@
     .account-banner-inner span { flex: 1; }
 
     /* ─── Your groups ─────────────────────────────────────────────────── */
+    .my-groups-modal { max-width: 460px; }
     .my-groups-body { padding: 0 22px 22px; display: flex; flex-direction: column; gap: 12px; }
     .my-groups-list { display: flex; flex-direction: column; gap: 6px; }
     .my-groups-empty { font-size: 0.875rem; color: var(--text-muted); line-height: 1.5; }
@@ -839,6 +840,66 @@
       box-shadow: 0 0 0 2px var(--primary);
     }
     .my-group-colors { padding: 4px 10px 10px; }
+
+    /* Up and down: small, quiet, and greyed at the ends of a list. */
+    .my-move {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: none;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .my-move:hover:not(:disabled) { background: var(--surface-3); color: var(--text); border-color: var(--border); }
+    .my-move:disabled { opacity: 0.3; cursor: default; }
+    .my-move:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
+
+    /* Sections, folded under each group until asked for. */
+    .my-sections-toggle {
+      display: block;
+      margin: 0 10px 8px 34px;
+      padding: 0;
+      border: 0;
+      background: none;
+      font: inherit;
+      font-size: 0.75rem;
+      color: var(--primary);
+      cursor: pointer;
+    }
+    .my-sections-toggle:hover { text-decoration: underline; }
+    .my-sections-wrap { padding: 0 10px 10px 34px; }
+    .my-sections { display: flex; flex-direction: column; gap: 6px; }
+
+    .my-section-row { display: flex; align-items: center; gap: 6px; }
+    .my-section-row.is-nested { padding-left: 18px; }
+    .my-section-row.is-nested::before {
+      content: '';
+      width: 8px;
+      height: 1px;
+      margin-left: -14px;
+      margin-right: 4px;
+      background: var(--border-strong);
+      flex-shrink: 0;
+    }
+    .my-section-row input.my-section-name {
+      flex: 1;
+      min-width: 0;
+      padding: 5px 8px;
+      font-size: 0.8125rem;
+      border-color: transparent;
+      background: transparent;
+    }
+    .my-section-row input.my-section-name:focus { border-color: var(--primary); background: var(--surface); }
+
+    .my-section-add { display: flex; gap: 6px; margin-top: 2px; }
+    .my-section-add input { flex: 1; min-width: 0; padding: 5px 8px; font-size: 0.8125rem; }
+    .my-section-add select { width: auto; max-width: 45%; padding: 5px 8px; font-size: 0.8125rem; }
 
     /* Eleven swatches have to fit the narrow dialogs on one line. Only here: the
        admin's own palettes keep their size. */
@@ -1338,7 +1399,7 @@
 
 <!-- ── Your groups ──────────────────────────────────────────────────────── -->
 <div class="modal-overlay hidden" id="myGroupsOverlay">
-  <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="myGroupsTitle">
+  <div class="modal my-groups-modal" role="dialog" aria-modal="true" aria-labelledby="myGroupsTitle">
     <div class="modal-header">
       <h2 id="myGroupsTitle">Your groups</h2>
       <button type="button" class="modal-close" id="closeMyGroupsBtn" aria-label="Close">

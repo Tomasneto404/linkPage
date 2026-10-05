@@ -8,15 +8,15 @@ on `feature/accounts`. Anything deliberately *not* being done says why.
 Gaps left by the accounts work: the server does all of these, nothing in the
 interface reaches them.
 
-- [ ] **Personal sections.** A member cannot create, rename or delete sections
+- [x] **Personal sections.** A member cannot create, rename or delete sections
       from the page; the composer only offers sections that already exist.
-- [ ] **Reordering personal links and groups.** Only favourites can be dragged.
-- [ ] **Storage in the admin panel.** Per-account and instance-wide quotas can
+- [x] **Reordering personal links and groups.** Only favourites can be dragged.
+- [x] **Storage in the admin panel.** Per-account and instance-wide quotas can
       only be set through the API, and the Accounts tab does not show how much
       each member is using.
-- [ ] **Who did it, in the audit log.** Every entry records its actor; the
+- [x] **Who did it, in the audit log.** Every entry records its actor; the
       panel does not show it.
-- [ ] **Invite expiry.** 1–30 days can be chosen through the API only.
+- [x] **Invite expiry.** 1–30 days can be chosen through the API only.
 
 ## 2 — Security
 

@@ -1749,6 +1749,9 @@ function buildLinkCard(link) {
 
   if (currentUser && !isPersonal(link)) addStarButton(card, link);
   if (activeGroup === 'fav' && favoriteIds.includes(link.id)) wireFavoriteDrag(card, link);
+  if (isPersonal(link) && typeof activeGroup === 'string' && activeGroup.startsWith('u')) {
+    wirePersonalDrag(card, link);
+  }
 
   if (isPersonal(link)) {
     card.classList.add('link-card-mine');
@@ -1841,38 +1844,54 @@ async function toggleFavorite(e, link) {
   renderFavoritesTab();
 }
 
-// ─── Reordering favourites ────────────────────────────────────────────────────
+// ─── Reordering by drag ───────────────────────────────────────────────────────
 //
-// By dragging, in the Favourites view only, where the order is the member's
-// own. Everywhere else the order is the administrator's and is not theirs to
-// change. Pointer devices only: HTML drag and drop does not exist on touch.
+// Two things on the page are the member's own to order: their favourites, in
+// the Favourites view, and their own links, inside one of their own groups.
+// Everywhere else the order is the administrator's and is not theirs to change.
+//
+// One implementation for both. Each card is wired with a *zone* — where it may
+// be dropped — and two functions: the zone's current order, and how to save a
+// new one. A card can only land in its own zone: dropping a personal link into
+// another section would not move it to that section, so it would only appear to
+// snap back.
+//
+// Pointer devices only: HTML drag and drop does not exist on touch.
 
-let draggingFavId = null;
+let dragging = null;   // { id, zone } while a reorder is in progress
 
 // A card is a link, and a dragged link carries its address. Let go of it
 // anywhere that is not another card and the browser's default is to open that
 // address in place of this page. While a reorder is in progress, nothing on
 // the page is a place to drop a link.
-document.addEventListener('dragover', e => { if (draggingFavId !== null) e.preventDefault(); });
-document.addEventListener('drop',     e => { if (draggingFavId !== null) e.preventDefault(); });
+document.addEventListener('dragover', e => { if (dragging) e.preventDefault(); });
+document.addEventListener('drop',     e => { if (dragging) e.preventDefault(); });
 
-function wireFavoriteDrag(card, link) {
+/**
+ * Makes a card draggable within `zone`. `order()` gives the zone's ids as they
+ * are shown; `save(newOrder)` applies and persists a new one, and reports
+ * whether it worked.
+ */
+function wireCardDrag(card, link, { zone, order, save }) {
   card.draggable = true;
   card.addEventListener('dragstart', e => {
-    draggingFavId = link.id;
+    dragging = { id: link.id, zone };
     card.classList.add('is-dragging');
     e.dataTransfer.effectAllowed = 'move';
     // Something has to be set or Firefox will not start the drag at all.
     e.dataTransfer.setData('text/plain', String(link.id));
   });
   card.addEventListener('dragend', () => {
-    draggingFavId = null;
+    dragging = null;
     card.classList.remove('is-dragging');
     document.querySelectorAll('.link-card.drop-before, .link-card.drop-after')
       .forEach(c => c.classList.remove('drop-before', 'drop-after'));
   });
+
+  const accepts = () => dragging && dragging.zone === zone && dragging.id !== link.id;
+
   card.addEventListener('dragover', e => {
-    if (draggingFavId === null || draggingFavId === link.id) return;
+    if (!accepts()) return;
     e.preventDefault();
     const box = card.getBoundingClientRect();
     const after = e.clientX > box.left + box.width / 2;
@@ -1881,25 +1900,75 @@ function wireFavoriteDrag(card, link) {
   });
   card.addEventListener('dragleave', () => card.classList.remove('drop-before', 'drop-after'));
   card.addEventListener('drop', async e => {
-    if (draggingFavId === null || draggingFavId === link.id) return;
+    if (!accepts()) return;
     e.preventDefault();
     const after = card.classList.contains('drop-after');
     card.classList.remove('drop-before', 'drop-after');
 
-    const moving = draggingFavId;
-    const order = favoriteIds.filter(id => id !== moving);
-    const at = order.indexOf(link.id) + (after ? 1 : 0);
-    order.splice(at, 0, moving);
+    const moving = dragging.id;
+    const next = order().filter(id => id !== moving);
+    next.splice(next.indexOf(link.id) + (after ? 1 : 0), 0, moving);
 
-    const before = favoriteIds;
-    favoriteIds = order;
-    renderLinks();
-    const res = await myRequest('/api/my/favorites/reorder', { json: { order } });
-    if (!res.ok) {
+    if (!await save(next)) showToast('Could not save that order', { type: 'error' });
+  });
+}
+
+/** Favourites: their own list, saved as it is. */
+function wireFavoriteDrag(card, link) {
+  wireCardDrag(card, link, {
+    zone:  'fav',
+    order: () => favoriteIds.slice(),
+    save:  async next => {
+      const before = favoriteIds;
+      favoriteIds = next;
+      renderLinks();
+      const res = await myRequest('/api/my/favorites/reorder', { json: { order: next } });
+      if (res.ok) return true;
       favoriteIds = before;
       renderLinks();
-      showToast('Could not save that order', { type: 'error' });
-    }
+      return false;
+    },
+  });
+}
+
+/**
+ * A member's own link, inside one of their groups. Its zone is the section it
+ * sits in, so it can only be dropped among the links next to it.
+ *
+ * The server keeps one order across all of a member's links, not one per
+ * group, so a reorder inside this zone is spliced back into the whole list:
+ * the zone's links swap among the slots they already occupy, and every other
+ * link stays exactly where it was.
+ */
+function wirePersonalDrag(card, link) {
+  const section = linkSectionInGroup(link, activeGroup);
+  const zone = `${activeGroup}:${section ?? 'none'}`;
+  const inZone = () => links
+    .filter(l => isPersonal(l) && linkBelongsToGroup(l, activeGroup)
+              && (linkSectionInGroup(l, activeGroup) ?? 'none') === (section ?? 'none'))
+    .map(l => l.id);
+
+  wireCardDrag(card, link, {
+    zone,
+    order: inZone,
+    save: async next => {
+      const before = links;
+      const mine   = links.filter(isPersonal);
+      const byId   = new Map(mine.map(l => [l.id, l]));
+      const moved  = new Set(next);
+      let k = 0;
+      const reordered = mine.map(l => (moved.has(l.id) ? byId.get(next[k++]) : l));
+
+      links = [...links.filter(l => !isPersonal(l)), ...reordered];
+      renderLinks();
+      const res = await myRequest('/api/my/links/reorder', {
+        json: { order: reordered.map(l => l.personal_id) },
+      });
+      if (res.ok) return true;
+      links = before;
+      renderLinks();
+      return false;
+    },
   });
 }
 
@@ -2906,6 +2975,52 @@ function closeGroupsManager() {
   el('myGroupsOverlay').classList.add('hidden');
 }
 
+/** Groups whose Sections panel is open, so a redraw does not snap them shut. */
+const openSectionPanels = new Set();
+
+const UP_SVG   = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>';
+const DOWN_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
+
+/** Up and down, disabled at the ends. Buttons rather than dragging: they work on a phone. */
+function moveButtons(prefix, index, count, what) {
+  return `
+    <button type="button" class="my-move" data-act="${prefix}-up" ${index === 0 ? 'disabled' : ''}
+            aria-label="Move ${escapeHtml(what)} up">${UP_SVG}</button>
+    <button type="button" class="my-move" data-act="${prefix}-down" ${index === count - 1 ? 'disabled' : ''}
+            aria-label="Move ${escapeHtml(what)} down">${DOWN_SVG}</button>`;
+}
+
+function sectionRowHtml(sec, index, count, nested) {
+  return `
+    <div class="my-section-row${nested ? ' is-nested' : ''}" data-section-id="${sec.id}">
+      <input type="text" class="my-section-name" value="${escapeHtml(sec.name)}"
+             aria-label="Section name" maxlength="100" />
+      ${moveButtons('section', index, count, sec.name)}
+      <button type="button" class="btn btn-ghost btn-sm" data-act="delete-section">Delete</button>
+    </div>`;
+}
+
+function sectionsPanelHtml(g) {
+  const tops = g.sections || [];
+  const rows = tops.map((sec, i) => sectionRowHtml(sec, i, tops.length, false)
+    + (sec.subsections || []).map((sub, j, arr) => sectionRowHtml(sub, j, arr.length, true)).join('')
+  ).join('');
+
+  return `
+    <div class="my-sections">
+      ${rows || '<p class="my-groups-empty">No sections yet. They become headings inside the group.</p>'}
+      <div class="my-section-add">
+        <input type="text" class="my-section-new" placeholder="New section" maxlength="100"
+               aria-label="New section name" />
+        <select class="my-section-parent" aria-label="Where it goes">
+          <option value="">At the top</option>
+          ${tops.map(t => `<option value="${t.id}">Inside ${escapeHtml(t.name)}</option>`).join('')}
+        </select>
+        <button type="button" class="btn btn-primary btn-sm" data-act="add-section">Add</button>
+      </div>
+    </div>`;
+}
+
 function renderGroupsManager() {
   const list = el('myGroupsList');
   const mine = personalGroups();
@@ -2913,7 +3028,10 @@ function renderGroupsManager() {
     list.innerHTML = '<p class="my-groups-empty">You have no groups yet. They become tabs, after the shared ones, that only you can see.</p>';
     return;
   }
-  list.innerHTML = mine.map(g => `
+  list.innerHTML = mine.map((g, i) => {
+    const open = openSectionPanels.has(g.personal_id);
+    const sectionCount = (g.sections || []).reduce((n, sec) => n + 1 + (sec.subsections || []).length, 0);
+    return `
     <div class="my-group-item" data-personal-id="${g.personal_id}">
       <div class="my-group-row">
         <button type="button" class="my-group-color" data-act="toggle-color"
@@ -2922,11 +3040,126 @@ function renderGroupsManager() {
         <input type="text" class="my-group-name" value="${escapeHtml(g.name)}"
                aria-label="Group name" maxlength="100" />
         <span class="my-group-count">${g.link_count} link${g.link_count === 1 ? '' : 's'}</span>
+        ${moveButtons('group', i, mine.length, g.name)}
         <button type="button" class="btn btn-ghost btn-sm" data-act="delete-group">Delete</button>
       </div>
       <div class="my-group-colors hidden">${colorPaletteHtml(g.color)}</div>
-    </div>`).join('');
+      <button type="button" class="my-sections-toggle" data-act="toggle-sections" aria-expanded="${open}">
+        ${sectionCount ? `${sectionCount} section${sectionCount === 1 ? '' : 's'}` : 'Sections'}
+      </button>
+      <div class="my-sections-wrap${open ? '' : ' hidden'}">${sectionsPanelHtml(g)}</div>
+    </div>`;
+  }).join('');
 }
+
+/** Swaps an id one step within an ordered list. */
+function shifted(ids, id, step) {
+  const at = ids.indexOf(id), to = at + step;
+  if (at < 0 || to < 0 || to >= ids.length) return null;
+  const next = ids.slice();
+  [next[at], next[to]] = [next[to], next[at]];
+  return next;
+}
+
+/** The section and the siblings it is ordered among, inside one group. */
+function sectionSiblings(group, sectionId) {
+  for (const top of group.sections || []) {
+    if (top.id === sectionId) return (group.sections || []).map(x => x.id);
+    if ((top.subsections || []).some(x => x.id === sectionId)) return top.subsections.map(x => x.id);
+  }
+  return null;
+}
+
+async function refreshGroupsManager() {
+  await loadData();
+  renderGroupsManager();
+}
+
+el('myGroupsList')?.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-act]');
+  if (!btn || btn.disabled) return;
+  const item  = btn.closest('.my-group-item');
+  const group = personalGroups().find(g => g.personal_id === Number(item?.dataset.personalId));
+  if (!group) return;
+  const act = btn.dataset.act;
+
+  if (act === 'group-up' || act === 'group-down') {
+    const order = shifted(personalGroups().map(g => g.personal_id), group.personal_id, act === 'group-up' ? -1 : 1);
+    if (!order) return;
+    const res = await myRequest('/api/my/groups/reorder', { json: { order } });
+    if (!res.ok) { showToast('Could not move that group', { type: 'error' }); return; }
+    await refreshGroupsManager();
+    return;
+  }
+
+  if (act === 'toggle-sections') {
+    if (openSectionPanels.has(group.personal_id)) openSectionPanels.delete(group.personal_id);
+    else openSectionPanels.add(group.personal_id);
+    renderGroupsManager();
+    return;
+  }
+
+  if (act === 'add-section') {
+    const panel  = btn.closest('.my-sections');
+    const name   = panel.querySelector('.my-section-new').value.trim();
+    const parent = panel.querySelector('.my-section-parent').value;
+    if (!name) { panel.querySelector('.my-section-new').focus(); return; }
+    const res = await myRequest(`/api/my/groups/${group.personal_id}/sections`, {
+      json: { name, parent_section_id: parent ? Number(parent) : null },
+    });
+    if (!res.ok) { showToast(res.body.error || 'Could not add that section', { type: 'error' }); return; }
+    await refreshGroupsManager();
+    el('myGroupsList').querySelector(`.my-group-item[data-personal-id="${group.personal_id}"] .my-section-new`)?.focus();
+    return;
+  }
+
+  const row = btn.closest('.my-section-row');
+  const sectionId = Number(row?.dataset.sectionId);
+
+  if (act === 'section-up' || act === 'section-down') {
+    const siblings = sectionSiblings(group, sectionId);
+    const order = siblings && shifted(siblings, sectionId, act === 'section-up' ? -1 : 1);
+    if (!order) return;
+    const res = await myRequest('/api/my/sections/reorder', { json: { order } });
+    if (!res.ok) { showToast('Could not move that section', { type: 'error' }); return; }
+    await refreshGroupsManager();
+    return;
+  }
+
+  if (act === 'delete-section') {
+    // Twice, on the button, as everywhere else on this page.
+    if (btn.dataset.armed !== '1') {
+      btn.dataset.armed = '1';
+      btn.textContent = 'Delete section?';
+      btn.classList.add('btn-ghost-danger');
+      return;
+    }
+    const res = await myRequest(`/api/my/sections/${sectionId}`, { method: 'DELETE' });
+    if (!res.ok) { showToast('Could not delete that section', { type: 'error' }); return; }
+    await refreshGroupsManager();
+    showToast('Section deleted', { detail: 'Its links are still in the group.' });
+  }
+});
+
+// A section is renamed when its field is left, like a group.
+el('myGroupsList')?.addEventListener('change', async e => {
+  const input = e.target.closest('.my-section-name');
+  if (!input) return;
+  const name = input.value.trim();
+  const id   = Number(input.closest('.my-section-row').dataset.sectionId);
+  if (!name) { await refreshGroupsManager(); return; }
+  const res = await myRequest(`/api/my/sections/${id}`, { method: 'PUT', json: { name } });
+  if (!res.ok) { showToast('Could not rename that section', { type: 'error' }); return; }
+  await loadData();
+  showToast('Section renamed');
+});
+
+// Enter in a new section's name adds it.
+el('myGroupsList')?.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !e.target.matches('.my-section-new')) return;
+  e.preventDefault();
+  e.target.closest('.my-sections').querySelector('[data-act="add-section"]').click();
+});
 
 el('myGroupsAddForm')?.addEventListener('submit', async e => {
   e.preventDefault();
