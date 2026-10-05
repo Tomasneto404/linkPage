@@ -395,7 +395,7 @@ function resolveAccount({ claims, cfg, provider, linkUserId, sessionUserId }) {
   if (existing) {
     const user = db.getUserById(existing.user_id);
     if (!user) throw new OidcError('no_account', 'No account here for this sign-in');
-    if (!user.is_active) throw new OidcError('disabled', 'This account is disabled');
+    if (!user.is_active) throw new OidcError('account_disabled', 'This account is disabled');
     db.touchIdentity(existing.id, email);
     return { user, linked: false, created: false };
   }
@@ -403,7 +403,7 @@ function resolveAccount({ claims, cfg, provider, linkUserId, sessionUserId }) {
   const byEmail = email ? db.getUserByEmail(email) : null;
 
   if (byEmail && cfg.linkByEmail && claims.email_verified === true) {
-    if (!byEmail.is_active) throw new OidcError('disabled', 'This account is disabled');
+    if (!byEmail.is_active) throw new OidcError('account_disabled', 'This account is disabled');
     if (db.getIdentitiesForUser(byEmail.id).some(i => i.provider === provider)) {
       throw new OidcError('already_linked', 'That account is already connected to a different sign-in');
     }

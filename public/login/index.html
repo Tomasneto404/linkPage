@@ -112,12 +112,9 @@
       </p>
     </div>
 
-    <!--
-      Reserved for an identity provider. Ships hidden with nothing behind it, so
-      that adding one later is an entry in /api/auth/providers rather than a
-      redesign of this page.
-    -->
-    <div class="hidden" id="providerSection">
+    <!-- Single sign-on, when the instance has it: one button per provider
+         listed by /api/auth/providers. Hidden while there are none. -->
+    <div class="hidden gate-providers" id="providerSection">
       <div class="gate-divider"><span>or</span></div>
       <div id="providerButtons"></div>
     </div>

@@ -185,10 +185,29 @@ async function dressGate() {
   } catch { /* the gate works perfectly well undressed */ }
 }
 
+/**
+ * A button for each single sign-on provider, coming back to this panel. The
+ * trip and its failures belong to the sign-in page; this only starts it.
+ */
+function showGateProviders(providers = []) {
+  const box = document.getElementById('adminProviderButtons');
+  if (!box) return;
+  box.replaceChildren(...providers.filter(p => p.url).map(p => {
+    const a = document.createElement('a');
+    a.className = 'btn btn-ghost gate-submit gate-provider';
+    a.textContent = p.label;
+    a.href = `${p.url}?next=${encodeURIComponent('/admin/')}`;
+    return a;
+  }));
+  document.getElementById('adminProviderSection')
+    .classList.toggle('hidden', box.childElementCount === 0);
+}
+
 async function resolveAdminIdentity() {
   try {
     const me = await fetch('/api/auth/me', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : { user: null }));
+    showGateProviders(me.providers);
 
     if (me.user) {
       if (me.user.role === 'admin') {
@@ -267,6 +286,11 @@ function showGateForm(which) {
   const password = which === 'password';
   document.getElementById('adminLoginForm').classList.toggle('hidden', !password);
   document.getElementById('useTokenBtn').classList.toggle('hidden', !password);
+  // Single sign-on belongs with the account sign-in, not the break-glass token.
+  const providers = document.getElementById('adminProviderSection');
+  if (document.getElementById('adminProviderButtons').childElementCount > 0) {
+    providers.classList.toggle('hidden', !password);
+  }
   document.getElementById('gateForm').classList.toggle('hidden', password);
   document.getElementById('usePasswordBtn').classList.toggle('hidden', password);
   document.getElementById(password ? 'adminEmail' : 'tokenInput').focus();
@@ -1054,6 +1078,7 @@ document.getElementById('settingsNav').addEventListener('click', e => {
   document.getElementById('settingsPanels').scrollTop = 0;
   if (id === 'ipattribution') loadIpTags();
   if (id === 'users')         loadAccounts();
+  if (id === 'sso')           loadSsoSettings();
 });
 
 // Always open the settings modal on the first tab.
@@ -5896,13 +5921,14 @@ function renderUsersList(users) {
               : lastAdmin ? 'The last administrator cannot be removed' : '';
 
     return `
-      <div class="user-row" data-user-id="${u.id}">
+      <div class="user-row" data-user-id="${u.id}" data-has-password="${u.has_password ? '1' : '0'}">
         <div class="user-row-main">
           <div class="user-row-name">
             ${escapeHtml(u.display_name || u.email)}
             <span class="role-pill role-${u.role}">${u.role === 'admin' ? 'Admin' : 'Member'}</span>
             ${u.is_active ? '' : '<span class="role-pill role-off">Disabled</span>'}
             ${u.must_change_password ? '<span class="role-pill role-warn">Must change password</span>' : ''}
+            ${u.sso ? '<span class="role-pill role-user" title="Signs in through single sign-on">SSO</span>' : ''}
           </div>
           <div class="user-row-meta">
             ${escapeHtml(u.email)}
@@ -5931,6 +5957,7 @@ function renderUsersList(users) {
             <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
           </select>
           <button class="btn btn-ghost btn-sm" data-action="reset">Reset link</button>
+          ${u.sso ? '<button class="btn btn-ghost btn-sm" data-action="sso-disconnect">Disconnect SSO</button>' : ''}
           <button class="btn btn-ghost btn-sm" data-action="signout"
                   ${u.session_count ? '' : 'disabled'}>Sign out</button>
           <button class="btn btn-ghost btn-sm" data-action="toggle"
@@ -5943,6 +5970,9 @@ function renderUsersList(users) {
       </div>`;
   }).join('');
 }
+
+/** Whether the account on this row has a password of its own. */
+const rowHasPassword = el => el.closest('.user-row')?.dataset.hasPassword === '1';
 
 function renderInvitesList(invites) {
   const box = document.getElementById('invitesList');
@@ -6083,6 +6113,23 @@ document.getElementById('usersList').addEventListener('click', async e => {
       const d = await r.json().catch(() => ({}));
       showToast(d.error || 'Could not change that account', 'error');
     }
+    await loadAccounts();
+    return;
+  }
+
+  if (btn.dataset.action === 'sso-disconnect') {
+    const confirmed = await showConfirm({
+      title:   'Disconnect from single sign-on?',
+      message: `${name} will no longer be signed in by the provider. `
+             + (rowHasPassword(btn) ? 'Their password keeps working.'
+                                       : 'They have no password here, so they will need a reset link to get back in.'),
+      confirmText: 'Disconnect',
+      danger:  true,
+    });
+    if (!confirmed) return;
+    const r = await sendAuthRequest(`/api/users/${id}/identities`, { method: 'DELETE' });
+    if (!r.ok) { showToast('Could not disconnect that account', 'error'); return; }
+    showToast('Disconnected from single sign-on');
     await loadAccounts();
     return;
   }
@@ -6442,3 +6489,103 @@ function showEasterEgg() {
 
 dressGate();
 resolveAdminIdentity();
+
+// ─── Single sign-on ───────────────────────────────────────────────────────────
+
+/**
+ * The single sign-on panel. Everything is saved together with one button:
+ * turning it on checks the provider, and a half-entered configuration saved
+ * field by field would be checked before it was finished.
+ */
+let ssoSecretSet = false;
+
+function describeSso(s) {
+  const desc = document.getElementById('ssoStatusDesc');
+  desc.textContent = s.enabled
+    ? `On. The sign-in page offers "${s.label || s.default_label}".`
+    : 'Off. Turning it on checks that the provider answers.';
+}
+
+async function loadSsoSettings() {
+  document.getElementById('ssoRedirectUri').value = `${location.origin}/api/auth/oidc/callback`;
+  document.getElementById('ssoError').classList.add('hidden');
+  let s;
+  try {
+    const res = await sendAuthRequest('/api/settings/oidc');
+    if (!res.ok) throw new Error();
+    s = await res.json();
+  } catch {
+    showToast('Could not load the single sign-on settings', 'error');
+    return;
+  }
+  document.getElementById('ssoIssuer').value   = s.issuer || '';
+  document.getElementById('ssoClientId').value = s.client_id || '';
+  document.getElementById('ssoLabel').value    = s.label || '';
+  document.getElementById('ssoLabel').placeholder = s.default_label;
+  document.getElementById('ssoAutoCreateToggle').checked  = !!s.auto_create;
+  document.getElementById('ssoLinkByEmailToggle').checked = !!s.link_by_email;
+  document.getElementById('ssoEnabledToggle').checked     = !!s.enabled;
+  setSsoSecretState(s.client_secret_set);
+  describeSso(s);
+}
+
+function setSsoSecretState(isSet) {
+  ssoSecretSet = !!isSet;
+  const input = document.getElementById('ssoClientSecret');
+  input.value = '';
+  input.placeholder = ssoSecretSet ? 'Saved — type to replace' : 'None';
+  document.getElementById('removeSsoSecretBtn').classList.toggle('hidden', !ssoSecretSet);
+}
+
+async function saveSso(extra = {}) {
+  const btn   = document.getElementById('saveSsoBtn');
+  const error = document.getElementById('ssoError');
+  error.classList.add('hidden');
+
+  const body = {
+    issuer:        document.getElementById('ssoIssuer').value.trim(),
+    client_id:     document.getElementById('ssoClientId').value.trim(),
+    label:         document.getElementById('ssoLabel').value.trim(),
+    auto_create:   document.getElementById('ssoAutoCreateToggle').checked,
+    link_by_email: document.getElementById('ssoLinkByEmailToggle').checked,
+    enabled:       document.getElementById('ssoEnabledToggle').checked,
+    ...extra,
+  };
+  const secret = document.getElementById('ssoClientSecret').value;
+  if (secret && body.client_secret === undefined) body.client_secret = secret;
+
+  btn.disabled = true; btn.textContent = body.enabled ? 'Checking…' : 'Saving…';
+  try {
+    const res  = await sendAuthRequest('/api/settings/oidc', {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      error.textContent = data.error || 'Could not save the single sign-on settings.';
+      error.classList.remove('hidden');
+      return;
+    }
+    setSsoSecretState(data.client_secret_set);
+    describeSso(data);
+    showToast(data.enabled ? 'Single sign-on is on' : 'Single sign-on settings saved');
+  } catch {
+    error.textContent = 'Could not reach the server.';
+    error.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+document.getElementById('saveSsoBtn').addEventListener('click', () => saveSso());
+document.getElementById('removeSsoSecretBtn').addEventListener('click', () => saveSso({ client_secret: null }));
+document.getElementById('copySsoRedirectBtn').addEventListener('click', async () => {
+  const value = document.getElementById('ssoRedirectUri').value;
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast('Redirect URI copied');
+  } catch {
+    document.getElementById('ssoRedirectUri').select();
+  }
+});

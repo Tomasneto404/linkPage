@@ -160,6 +160,16 @@ Further accounts come from **invite links** — Settings → Accounts. There is 
 
 State-changing API requests that carry a session cookie must come from this origin; requests authenticated by the token header are exempt, so scripts and `curl` are unaffected.
 
+**Single sign-on.** Any OpenID Connect provider can sign people in alongside passwords — Settings → Single Sign-On. With [Authentik](https://goauthentik.io):
+
+1. In Authentik, create an **OAuth2/OpenID Provider**: client type *Confidential*, and the **Redirect URI** shown in LinkPage's Single Sign-On tab (`https://<your-linkpage>/api/auth/oidc/callback`, matched exactly). Keep the default scopes `openid`, `email` and `profile`.
+2. Create an **Application** that uses it, and note its slug.
+3. In LinkPage, set the **Issuer** to the provider's *OpenID Configuration Issuer* — `https://<your-authentik>/application/o/<slug>/` — and paste the client ID and secret. Turn it on and save; LinkPage fetches the discovery document first and says so if it cannot.
+
+Who gets in is decided by two switches. **Create accounts** gives anyone the provider lets through a member account on their first sign-in; off, they need an invite first. **Match existing accounts by email** connects an existing account to the provider when the addresses match, but only when the provider marks the address as verified — otherwise anyone who can edit their own address at the provider could claim any account here. Either way, a signed-in member can connect their own account from *Your account*, which needs no trust in addresses at all. Accounts created this way are always members; promote them from Settings → Accounts.
+
+The sign-in uses the authorization code flow with PKCE, a state value bound to the browser by a cookie, and a nonce; the ID token's signature (against the provider's published keys, or the client secret for HS256), issuer, audience, expiry and nonce are all checked. Behind a reverse proxy, make sure it passes `X-Forwarded-Proto` and the original `Host`, or the redirect URI LinkPage sends will not match the registered one.
+
 Wrong guesses are throttled: ten failed sign-ins from one address, or twenty against one account from anywhere, and further attempts are refused for fifteen minutes. The account limit applies whether or not the account exists, and a successful sign-in clears it. The admin token, invite and reset links, group passwords and the public password have limits of their own. The counts are kept in the database, so a restart does not reset them.
 
 ### Click Tracking
@@ -471,6 +481,11 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | POST | `/api/auth/password` | User | Change your own password |
 | GET | `/api/auth/sessions` | User | Where you are signed in |
 | DELETE | `/api/auth/sessions/:id` | User | End one of your sessions |
+| GET | `/api/auth/oidc/start` | Public | Sign in with single sign-on (a browser navigation) |
+| GET | `/api/auth/oidc/callback` | Public | Where the identity provider returns to |
+| GET/DELETE | `/api/auth/identities` | User | Your connection to single sign-on, or disconnect it |
+| GET/PUT | `/api/settings/oidc` | Admin | Single sign-on settings |
+| DELETE | `/api/users/:id/identities` | Admin | Disconnect an account from single sign-on |
 | GET | `/api/users` | Admin | List accounts |
 | PATCH | `/api/users/:id` | Admin | Change a name, role, or whether the account is active |
 | DELETE | `/api/users/:id` | Admin | Delete an account |

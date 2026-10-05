@@ -22,6 +22,9 @@ One setting in Settings → Public Access turns the public page into a private o
 ### Who did it
 Every audit entry records who made the change — an account, the admin token, a visitor or the system — and the Audit Log shows and filters by it. Failed sign-ins are recorded too. Invite and reset links never reach the log.
 
+### Single sign-on
+Sign in through Authentik, or any OpenID Connect provider, from a button on the sign-in page and the admin gate. Set it up in Settings → Single Sign-On, which shows the redirect URI to register and checks the provider before turning it on. Accounts can be created on first sign-in, matched to existing ones by a verified address, or connected by their owners from Your account. Every ID token's signature, issuer, audience, expiry and nonce is checked, and the flow uses PKCE.
+
 ### Harder to guess your way in
 Wrong guesses are throttled per address and, for signing in, per account, so a guess spread across many addresses is stopped as well. The counts are kept in the database and survive a restart. State-changing requests carrying a session must come from the page itself, and a member's favicon fetch can no longer be pointed at the server's own network.
 

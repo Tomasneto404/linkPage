@@ -2866,7 +2866,7 @@ function sinceText(raw) {
   return `${Math.round(s / 86400)} days ago`;
 }
 
-async function openAccount({ focusPassword = false } = {}) {
+async function openAccount({ focusPassword = false, ssoNotice = null } = {}) {
   if (!currentUser) return;
   el('accountWho').textContent = currentUser.display_name
     ? `${currentUser.display_name} · ${currentUser.email}` : currentUser.email;
@@ -2875,8 +2875,53 @@ async function openAccount({ focusPassword = false } = {}) {
   el('accountPasswordError').classList.add('hidden');
   el('accountOverlay').classList.remove('hidden');
   (focusPassword || currentUser.must_change_password ? el('accountCurrentPw') : el('closeAccountBtn')).focus();
-  await renderSessions();
+  await Promise.all([renderSessions(), renderSso(ssoNotice)]);
 }
+
+// What the server's sso_error codes mean when connecting an account.
+const SSO_CONNECT_ERRORS = {
+  already_linked: 'That sign-in is already connected to a different account here.',
+  expired:        'That took too long, or you were signed out on the way. Try again.',
+  denied:         'Connecting was cancelled at the provider.',
+  unavailable:    'The sign-in provider could not be reached. Try again later.',
+  disabled:       'Single sign-on is not set up here.',
+};
+
+/** The single sign-on section: whether it exists here, and whether you are connected. */
+async function renderSso(notice) {
+  const section = el('accountSso');
+  const r = await fetch('/api/auth/identities', { credentials: 'same-origin' }).catch(() => null);
+  if (!r || !r.ok) { section.classList.add('hidden'); return; }
+  const info = await r.json();
+  const connected = info.identities.length > 0;
+
+  // An account with no password of its own has nothing to change it from.
+  el('accountNoPassword').classList.toggle('hidden', info.has_password);
+  el('accountPasswordForm').classList.toggle('hidden', !info.has_password);
+
+  section.classList.toggle('hidden', !info.available && !connected);
+  el('accountSsoStatus').textContent = connected
+    ? `Connected${info.identities[0].email ? ` as ${info.identities[0].email}` : ''}. You can sign in with "${info.label}".`
+    : `Not connected. Connect it to sign in with "${info.label}".`;
+  el('accountSsoConnect').classList.toggle('hidden', connected || !info.available);
+  // Disconnecting the only way in is refused by the server; do not offer it.
+  el('accountSsoDisconnect').classList.toggle('hidden', !connected || !info.has_password);
+
+  const box = el('accountSsoNotice');
+  box.classList.toggle('hidden', !notice);
+  box.textContent = notice || '';
+}
+
+el('accountSsoDisconnect')?.addEventListener('click', async () => {
+  const r = await fetch('/api/auth/identities', { method: 'DELETE', credentials: 'same-origin' }).catch(() => null);
+  if (!r || !r.ok) {
+    const d = r ? await r.json().catch(() => ({})) : {};
+    showToast(d.error || 'Could not disconnect', { type: 'error' });
+    return;
+  }
+  showToast('Disconnected from single sign-on');
+  renderSso();
+});
 
 function closeAccount() { el('accountOverlay').classList.add('hidden'); }
 
@@ -3386,10 +3431,17 @@ async function init() {
   await loadData();
   connectLiveUpdates();
 
-  // /?account=1 opens the account screen — how the admin panel links to it.
-  if (currentUser && new URLSearchParams(location.search).get('account') === '1') {
+  // /?account=1 opens the account screen — how the admin panel links to it,
+  // and where connecting single sign-on comes back to, with how it went.
+  const query = new URLSearchParams(location.search);
+  if (currentUser && query.get('account') === '1') {
     history.replaceState(null, '', location.pathname);
-    openAccount();
+    const ssoError = query.get('sso_error');
+    openAccount({
+      ssoNotice: query.get('sso') === 'connected' ? 'Connected. You can now sign in with it.'
+               : ssoError ? (SSO_CONNECT_ERRORS[ssoError] || 'Connecting did not work. Try again.')
+               : null,
+    });
   }
 }
 

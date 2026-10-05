@@ -18,7 +18,8 @@
 const http   = require('node:http');
 const crypto = require('node:crypto');
 
-async function startFakeOidc({ clientId = 'linkpage', clientSecret = 'provider-secret' } = {}) {
+async function startFakeOidc({ clientId = 'linkpage', clientSecret = 'provider-secret',
+                               port = 0, autoApprove = null } = {}) {
   const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
   const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'key-1', use: 'sig', alg: 'RS256' };
 
@@ -83,6 +84,19 @@ async function startFakeOidc({ clientId = 'linkpage', clientSecret = 'provider-s
     }
     if (path === new URL('jwks/', issuer).pathname) return send(res, 200, { keys: [jwk] });
 
+    // A real browser's visit, for trying the flow by hand: approves straight
+    // away as `autoApprove` and sends the browser back with a code.
+    if (path === '/application/o/authorize/' && autoApprove) {
+      const params = url.searchParams;
+      const code = crypto.randomBytes(16).toString('hex');
+      codes.set(code, { params, user: autoApprove, used: false });
+      const back = new URL(params.get('redirect_uri'));
+      back.searchParams.set('code', code);
+      back.searchParams.set('state', params.get('state'));
+      res.writeHead(302, { Location: back.href });
+      return res.end();
+    }
+
     if (path === '/application/o/token/' && req.method === 'POST') {
       let raw = '';
       for await (const chunk of req) raw += chunk;
@@ -121,7 +135,7 @@ async function startFakeOidc({ clientId = 'linkpage', clientSecret = 'provider-s
     send(res, 404, { error: 'not_found' });
   });
 
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  await new Promise(resolve => server.listen(port, '127.0.0.1', resolve));
   base   = `http://127.0.0.1:${server.address().port}`;
   issuer = `${base}/application/o/linkpage/`;
 

@@ -3695,12 +3695,12 @@ a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline
 }
 .user-row:hover, .invite-row:hover { border-color: var(--border-strong); }
 
-.user-row-main   { flex: 1; min-width: 0; }
+.user-row-main   { flex: 1 1 200px; min-width: min(200px, 100%); }
 .user-row-name   { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
                    font-size: 0.875rem; font-weight: 550; }
 .user-row-meta   { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
-.user-row-actions{ display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap;
-                   justify-content: flex-end; }
+.user-row-actions{ display: flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0;
+                   flex-wrap: wrap; justify-content: flex-end; }
 
 .role-pill {
   font-size: 0.6875rem;
@@ -3786,3 +3786,25 @@ a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline
 .user-storage-edit:hover { text-decoration: underline; }
 .user-quota-form { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
 .user-quota-form input { width: 90px; padding: 5px 8px; font-size: 0.8125rem; }
+
+/* ── Single sign-on settings ───────────────── */
+.settings-panel[data-panel="sso"] .settings-row > div:first-child { flex: 1; min-width: 0; }
+.sso-field {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 0 0 320px;
+  min-width: 0;
+}
+.sso-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 0.875rem;
+}
+#ssoRedirectUri { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.8125rem; }
+#ssoError { margin-top: 12px; }
+@media (max-width: 640px) {
+  .settings-panel[data-panel="sso"] .settings-row { flex-wrap: wrap; }
+  .sso-field { flex-basis: 100%; }
+}

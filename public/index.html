@@ -1371,6 +1371,10 @@
 
       <section class="account-section">
         <h3>Password</h3>
+        <p class="my-link-hint hidden" id="accountNoPassword">
+          This account signs in through single sign-on and has no password here. An administrator
+          can send you a reset link if you want one.
+        </p>
         <form id="accountPasswordForm" class="account-password">
           <input type="password" id="accountCurrentPw" placeholder="Current password"
                  aria-label="Current password" autocomplete="current-password" required />
@@ -1384,6 +1388,17 @@
             <button type="submit" class="btn btn-primary btn-sm" id="accountPasswordBtn">Change password</button>
           </div>
         </form>
+      </section>
+
+      <!-- Only when the instance has single sign-on, or this account is connected to it. -->
+      <section class="account-section hidden" id="accountSso">
+        <div class="account-section-head">
+          <h3>Single sign-on</h3>
+          <a class="btn btn-ghost btn-sm hidden" id="accountSsoConnect" href="/api/auth/oidc/start?connect=1">Connect</a>
+          <button type="button" class="btn btn-ghost btn-sm hidden" id="accountSsoDisconnect">Disconnect</button>
+        </div>
+        <p class="account-session-when" id="accountSsoStatus"></p>
+        <div class="account-notice hidden" id="accountSsoNotice" role="status"></div>
       </section>
 
       <section class="account-section">

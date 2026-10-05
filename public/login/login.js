@@ -101,6 +101,8 @@ async function start() {
     } catch { /* carry on and show the form */ }
 
     el('forgotNote').classList.remove('hidden');
+    await showProviders();
+    showSsoError();
     el('signInEmail').focus();
     return;
   }
@@ -172,6 +174,55 @@ function wireReveal(buttonId, inputId) {
 }
 wireReveal('signInReveal', 'signInPassword');
 wireReveal('redeemReveal', 'redeemPassword');
+
+// ─── Single sign-on ───────────────────────────────────────────────────────────
+
+/**
+ * A button for each provider the server lists with somewhere to send the
+ * browser. Links, not buttons with handlers: the trip is a plain navigation,
+ * and the server decides everything about it.
+ */
+async function showProviders() {
+  let providers = [];
+  try {
+    providers = (await fetch('/api/auth/providers').then(r => r.json())).providers || [];
+  } catch { return; }
+
+  const external = providers.filter(p => p.url);
+  if (external.length === 0) return;
+
+  const next = params.get('next');
+  const box  = el('providerButtons');
+  for (const provider of external) {
+    const a = document.createElement('a');
+    a.className = 'btn btn-ghost gate-submit gate-provider';
+    a.textContent = provider.label;
+    a.href = next ? `${provider.url}?next=${encodeURIComponent(next)}` : provider.url;
+    box.append(a);
+  }
+  el('providerSection').classList.remove('hidden');
+}
+
+// What the server's sso_error codes mean, said to the person who can act on it.
+// The detail of what went wrong is in the audit log and the server console.
+const SSO_ERRORS = {
+  disabled:         'Single sign-on is not set up here.',
+  unavailable:      'The sign-in provider could not be reached. Try again, or use your password.',
+  expired:          'That sign-in took too long, or started in another browser. Try again.',
+  denied:           'Sign-in was cancelled at the provider.',
+  no_account:       'There is no account here for you yet. Ask an administrator for an invite.',
+  account_disabled: 'This account has been disabled.',
+  email_taken:      'An account with your address already exists. Sign in with its password, then connect single sign-on from Your account.',
+  no_email:         'The provider did not share your email address, which an account here needs.',
+  already_linked:   'That sign-in is already connected to a different account here.',
+};
+
+function showSsoError() {
+  const code = params.get('sso_error');
+  if (!code) return;
+  showError(el('signInError'), SSO_ERRORS[code]
+    || 'Single sign-on did not work. Try again, or ask an administrator to check the server log.');
+}
 
 // ─── Signing in ───────────────────────────────────────────────────────────────
 

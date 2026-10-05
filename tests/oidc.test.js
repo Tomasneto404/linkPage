@@ -185,7 +185,7 @@ describe('signing in', () => {
     db.linkIdentity({ userId: off.id, provider: fake.issuer, subject: 'sub-off' });
     db.updateUser(off.id, { isActive: false });
     const r = await trip({ sub: 'sub-off' });
-    assertRefused(r, 'disabled');
+    assertRefused(r, 'account_disabled');
     assert.equal(await signedIn(r.s), false);
   });
 

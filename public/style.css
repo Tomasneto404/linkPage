@@ -1268,6 +1268,12 @@ body.has-wallpaper .gate-card .field-stack input { background: transparent; }
   background: var(--border);
 }
 
+/* A provider's button sits under the password form at the same width, quieter
+   than the primary action so a password sign-in still reads as the default. */
+.gate-providers { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+#providerButtons { display: flex; flex-direction: column; gap: 8px; }
+.gate-provider { text-decoration: none; text-align: center; }
+
 .gate-alt {
   margin-top: 2px;
   font-size: 0.8125rem;

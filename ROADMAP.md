@@ -54,10 +54,13 @@ interface reaches them.
 
 ## 4 — Single sign-on
 
-- [ ] **Authentik, through OpenID Connect.** Authorization code flow with
+- [x] **Authentik, through OpenID Connect.** Authorization code flow with
       PKCE; ID token signature, issuer, audience, expiry and nonce all checked;
       accounts linked by the provider's subject, optionally created on first
       sign-in. Generic OIDC underneath, so any compliant provider works.
+      Also: matching existing accounts by a *verified* address (optional),
+      members connecting their own account, and a fake provider in the tests
+      that every check is proven against.
 
 ## Later
 
@@ -71,6 +74,10 @@ Not started; written down so they are not lost.
   is a link an administrator issues.
 - **Splitting the two big scripts.** `public/app.js` is ~3,300 lines and
   `public/admin/admin.js` ~6,400; both want to be modules.
+- **Roles from the provider.** Single sign-on creates members only; mapping
+  an Authentik group to the administrator role would save a manual promotion.
+- **Single sign-on only.** A setting to hide the password form once everyone
+  signs in through the provider.
 - **Browser tests.** Every browser check during the accounts work was done by
   hand: sign-in, the composer, favourites, members-only. They deserve automated
   coverage.

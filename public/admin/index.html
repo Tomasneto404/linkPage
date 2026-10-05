@@ -70,6 +70,12 @@
       </button>
     </form>
 
+    <!-- Single sign-on, when the instance has it. Filled from /api/auth/me. -->
+    <div class="hidden gate-providers" id="adminProviderSection">
+      <div class="gate-divider"><span>or</span></div>
+      <div id="adminProviderButtons" class="gate-providers"></div>
+    </div>
+
     <button type="button" class="gate-alt" id="useTokenBtn">Use an admin token instead</button>
     <button type="button" class="gate-alt hidden" id="usePasswordBtn">Sign in with a password</button>
 
@@ -542,6 +548,7 @@
           <button type="button" class="settings-tab" data-tab="icons">Icons</button>
           <button type="button" class="settings-tab" data-tab="public">Public Access</button>
           <button type="button" class="settings-tab" data-tab="users">Accounts</button>
+          <button type="button" class="settings-tab" data-tab="sso">Single Sign-On</button>
           <button type="button" class="settings-tab" data-tab="requests">Link Requests</button>
           <button type="button" class="settings-tab" data-tab="ipattribution">IP Attribution</button>
           <button type="button" class="settings-tab" data-tab="security">Security</button>
@@ -959,6 +966,114 @@
 
           <div class="settings-section-title" style="margin-top:22px">Outstanding invites</div>
           <div class="invites-list" id="invitesList"></div>
+        </div>
+
+        <!-- ── Single Sign-On ────────────────────── -->
+        <div class="settings-panel" data-panel="sso">
+          <div class="settings-section-title">Single Sign-On</div>
+          <div class="settings-row-desc" style="margin-bottom:14px">
+            Let people sign in through an OpenID Connect provider — Authentik, Keycloak,
+            or any other. Passwords keep working alongside it, and so does the admin token.
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Redirect URI</div>
+              <div class="settings-row-desc">Register this with the provider, exactly as shown.</div>
+            </div>
+            <div class="sso-field">
+              <input type="text" id="ssoRedirectUri" readonly />
+              <button class="btn btn-ghost btn-sm" id="copySsoRedirectBtn">Copy</button>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Issuer</div>
+              <div class="settings-row-desc">
+                In Authentik, the provider's <em>OpenID Configuration Issuer</em>.
+              </div>
+            </div>
+            <div class="sso-field">
+              <input type="url" id="ssoIssuer" spellcheck="false"
+                     placeholder="https://auth.example.com/application/o/linkpage/" />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div><div class="settings-row-label">Client ID</div></div>
+            <div class="sso-field">
+              <input type="text" id="ssoClientId" spellcheck="false" autocomplete="off" />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Client Secret</div>
+              <div class="settings-row-desc" id="ssoSecretDesc">
+                Kept on the server and never shown again. Leave empty for a public client.
+              </div>
+            </div>
+            <div class="sso-field">
+              <input type="password" id="ssoClientSecret" autocomplete="new-password" />
+              <button class="btn btn-ghost-danger btn-sm hidden" id="removeSsoSecretBtn">Remove</button>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Button Label</div>
+              <div class="settings-row-desc">What the sign-in page offers.</div>
+            </div>
+            <div class="sso-field">
+              <input type="text" id="ssoLabel" maxlength="60" />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Create Accounts</div>
+              <div class="settings-row-desc">
+                Someone the provider lets in, with no account here yet, gets a member account on
+                their first sign-in. Off, they need an invite first.
+              </div>
+            </div>
+            <label class="switch" for="ssoAutoCreateToggle">
+              <input type="checkbox" id="ssoAutoCreateToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Match Existing Accounts by Email</div>
+              <div class="settings-row-desc">
+                Connect an existing account to the provider when the addresses match — only if the
+                provider marks the address as verified. Off, members connect their own account
+                from <em>Your account</em>.
+              </div>
+            </div>
+            <label class="switch" for="ssoLinkByEmailToggle">
+              <input type="checkbox" id="ssoLinkByEmailToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Single Sign-On</div>
+              <div class="settings-row-desc" id="ssoStatusDesc">Off.</div>
+            </div>
+            <label class="switch" for="ssoEnabledToggle">
+              <input type="checkbox" id="ssoEnabledToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="form-error hidden" id="ssoError"></div>
+          <div style="display:flex; justify-content:flex-end; margin-top:12px">
+            <button class="btn btn-primary btn-sm" id="saveSsoBtn">Save</button>
+          </div>
         </div>
 
         <!-- ── Link Requests ─────────────────────── -->
