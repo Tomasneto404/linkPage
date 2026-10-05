@@ -20,6 +20,7 @@ router.delete('/api/settings/brand-icon',      requireAdmin,                    
 router.post  ('/api/settings/favicon',         requireAdmin, upload.single('favicon'), c.uploadFavicon);
 router.delete('/api/settings/favicon',         requireAdmin,                           c.deleteFavicon);
 router.post  ('/api/settings/save-favicons',   requireAdmin,                           c.saveFavicons);
+router.post  ('/api/settings/require-login',   requireAdmin,                           c.setRequireLogin);
 router.post  ('/api/settings/footer-enabled',  requireAdmin,                           c.setFooterEnabled);
 router.post  ('/api/settings/group-tab-color', requireAdmin,                           c.setGroupTabColor);
 router.post  ('/api/settings/group-tabs-loop', requireAdmin,                           c.setGroupTabsLoop);

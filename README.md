@@ -507,6 +507,7 @@ Every route needs a signed-in member; the admin token has no personal page. Ids 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | POST | `/api/settings/user-quota` | Admin | How many megabytes each member may store |
+| POST | `/api/settings/require-login` | Admin | Make the public page members-only |
 | POST | `/api/settings/wallpaper/:variant` | Admin | Upload the public page wallpaper (`light` or `dark`) |
 | DELETE | `/api/settings/wallpaper/:variant` | Admin | Remove a wallpaper |
 | POST | `/api/settings/wallpaper-fog` | Admin | How heavily the wallpaper is veiled and blurred (0–100) |

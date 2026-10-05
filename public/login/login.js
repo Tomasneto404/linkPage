@@ -88,6 +88,9 @@ async function start() {
     const settings = await fetch('/api/settings').then(r => r.json());
     window.LinkPageTheme?.applyAppearance(settings);
     if (settings.site_title) document.title = `Sign in · ${settings.site_title}`;
+    // Members-only: the links are behind this page, so "back to them" would
+    // only bring a stranger straight back here.
+    if (settings.require_login) document.querySelector('.gate-back')?.classList.add('hidden');
   } catch { /* the page works perfectly well with the stock palette */ }
 
   // Already signed in and nothing to redeem: there is nothing to do here.

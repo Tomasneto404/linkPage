@@ -56,6 +56,7 @@ function getSettings(req, res) {
     wallpaper_fog:             readWallpaperFog(),
     bar_opacity:               readBarOpacity(),
     user_storage_quota:        readUserQuota(),
+    require_login:             db.readSetting('require_login') === '1',
   });
 }
 
@@ -325,6 +326,27 @@ function saveFavicons(req, res) {
 
 // Show/hide the developer credit footer. On by default, so we only persist the
 // "off" state ('0') and clear the key to re-enable.
+/**
+ * Makes the whole public page members-only, or open again. Off is the default
+ * and is stored as nothing, like every other setting at its default.
+ *
+ * Refused when nobody could sign in afterwards: an instance with no active
+ * accounts, turned members-only, would show every visitor a sign-in page that
+ * no one can get past. The admin token would still reach the panel, but the
+ * page itself would be a wall.
+ */
+function setRequireLogin(req, res) {
+  const enabled = req.body?.enabled === true;
+  if (enabled && db.countActiveUsers() === 0) {
+    return res.status(409).json({
+      error: 'Invite somebody first — with no accounts, nobody could get past the sign-in page.',
+    });
+  }
+  if (enabled) db.writeSetting('require_login', '1');
+  else         db.deleteSetting('require_login');
+  res.json({ require_login: enabled });
+}
+
 function setFooterEnabled(req, res) {
   const enabled = !!req.body.enabled;
   if (enabled) db.deleteSetting('footer_enabled');
@@ -489,6 +511,7 @@ function setTheme(req, res) {
 }
 
 module.exports = {
+  setRequireLogin,
   setUserQuota,
   setMarkdownOpenMode,
   uploadWallpaperImage,

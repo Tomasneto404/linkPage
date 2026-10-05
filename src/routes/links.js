@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Tomás Neto
 const express = require('express');
-const { requireAdmin, requirePublicAuth } = require('../middleware/auth');
+const { requireAdmin, requirePublicAuth, requireLoginIfPrivate } = require('../middleware/auth');
 const { uploadLinkPayload } = require('../services/uploadService');
 const links = require('../controllers/linksController');
 const stats = require('../controllers/statsController');
@@ -15,7 +15,7 @@ router.post('/api/links/reorder',      requireAdmin, links.reorder);
 router.post('/api/links/bulk-delete',  requireAdmin, links.bulkDelete);
 
 // Public read.
-router.get('/api/links', requirePublicAuth, links.list);
+router.get('/api/links', requireLoginIfPrivate, requirePublicAuth, links.list);
 
 // Per-link admin routes.
 router.get   ('/api/links/:id/clicks',     requireAdmin, stats.getLinkClicks);

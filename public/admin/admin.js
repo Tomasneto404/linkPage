@@ -621,6 +621,7 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   updatePublicPasswordStatus(s.public_password_required);
   document.getElementById('requestsEnabledToggle').checked = !!s.requests_enabled;
   document.getElementById('footerEnabledToggle').checked = !!s.footer_enabled;
+  document.getElementById('requireLoginToggle').checked = !!s.require_login;
   document.getElementById('groupTabColorToggle').checked = s.group_tab_color !== false;
   document.getElementById('groupTabsLoopToggle').checked = !!s.group_tabs_loop;
   document.getElementById('markdownOpenModeSelect').value =
@@ -862,6 +863,23 @@ document.getElementById('requestsEnabledToggle').addEventListener('change', asyn
   }
   updateRequestsFeatureUI(enabled);
   showToast(enabled ? 'Link requests enabled' : 'Link requests disabled');
+});
+
+document.getElementById('requireLoginToggle').addEventListener('change', async e => {
+  const enabled = e.target.checked;
+  const res = await sendAuthRequest('/api/settings/require-login', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    e.target.checked = !enabled;
+    // 409 says why: nobody could sign in. Show that rather than a generic error.
+    const d = await res.json().catch(() => ({}));
+    showToast(d.error || 'Could not save setting', 'error');
+    return;
+  }
+  showToast(enabled ? 'The page is now members-only' : 'The page is open to everyone again');
 });
 
 document.getElementById('footerEnabledToggle').addEventListener('change', async e => {

@@ -207,6 +207,9 @@ const Settings = {
       type: 'integer', minimum: 0, maximum: 100,
       description: 'How heavily the wallpaper is veiled and blurred.',
     },
+    require_login:            {
+      type: 'boolean', description: 'The public page is members-only.',
+    },
     user_storage_quota:       {
       type: 'integer', description: 'Bytes each member may store, unless their account says otherwise.',
     },

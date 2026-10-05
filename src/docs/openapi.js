@@ -727,6 +727,20 @@ const paths = {
       responses: { 200: json({ type: 'object' }) },
     }),
   },
+  '/api/settings/require-login': {
+    post: op({
+      tag: TAGS.settings,
+      summary: 'Make the public page members-only',
+      description: 'When on, a visitor who has not signed in is turned away from the listings, '
+                 + 'the /r and /f doors, the request form and the live channel, and sent to the '
+                 + 'sign-in page. Refused while no account could sign in.',
+      body: jsonBody({ enabled: { type: 'boolean' } }, ['enabled']),
+      responses: {
+        200: json({ type: 'object', properties: { require_login: { type: 'boolean' } } }),
+        409: json(ref('Error'), 'Nobody could sign in afterwards'),
+      },
+    }),
+  },
   '/api/settings/user-quota': {
     post: op({
       tag: TAGS.settings,

@@ -77,6 +77,11 @@ function countActiveAdmins() {
   ).get().n;
 }
 
+/** Accounts that could sign in today. */
+function countActiveUsers() {
+  return db.prepare('SELECT COUNT(*) AS n FROM users WHERE is_active = 1').get().n;
+}
+
 function countUsers() {
   return db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
 }
@@ -175,6 +180,6 @@ function deleteUser(id) {
 module.exports = {
   normalizeEmail, isValidEmail, safeUser,
   getUserById, getUserByEmail, getUserByEmailWithHash, getAllUsers,
-  countActiveAdmins, countUsers,
+  countActiveAdmins, countActiveUsers, countUsers,
   createUser, updateUser, setUserPassword, recordLogin, deleteUser,
 };

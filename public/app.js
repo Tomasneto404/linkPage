@@ -271,10 +271,22 @@ async function authorisedFetch(url) {
   if (publicPassword) headers['X-Public-Password'] = publicPassword;
   const r = await fetch(url, { headers, credentials: 'same-origin' });
   if (r.status === 401) {
+    const body = await r.clone().json().catch(() => ({}));
+    // Members-only, and nobody is signed in — most likely a session that ran
+    // out mid-visit. The site password would not help; signing in would.
+    if (body.code === 'login_required') {
+      goToSignIn();
+      throw new Error('Sign in required');
+    }
     publicPassword = null; localStorage.removeItem('linkpage_public_password');
     showPublicGate(); throw new Error('Password required');
   }
   return r.json();
+}
+
+/** Off to the sign-in page, coming back here afterwards. */
+function goToSignIn() {
+  location.replace(`/login/?next=${encodeURIComponent(location.pathname + location.search)}`);
 }
 
 // ─── Who is signed in ─────────────────────────────────────────────────────────
@@ -2975,6 +2987,10 @@ async function init() {
   ]);
   // The admin token is not a member: it has no page of its own.
   currentUser = me.via === 'session' ? me.user : null;
+
+  // A members-only page shows a stranger nothing at all, not even its frame.
+  if (settings.require_login && !currentUser) { goToSignIn(); return; }
+
   renderAccountControl();
 
   if (settings.site_title) document.title = settings.site_title;

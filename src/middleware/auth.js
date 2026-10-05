@@ -147,6 +147,35 @@ function optionalAuth(req, res, next) {
   next();
 }
 
+/** True when an administrator has made the whole page members-only. */
+function isMembersOnly() {
+  return db.readSetting('require_login') === '1';
+}
+
+/**
+ * Turns away anybody who has not signed in, when the instance is members-only.
+ * Does nothing at all otherwise, which is the default: an install that never
+ * turns this on behaves exactly as it always did.
+ *
+ * An API caller is answered 401 with a code the page can act on. A browser
+ * following a link — /r/:id, /f/:slug — is sent to the sign-in page instead,
+ * with the address it was trying to reach, so signing in lands it there.
+ *
+ * Put in front of every route a stranger could otherwise use to learn what is
+ * on the page: the listings, the doors, the request form, the live channel.
+ * Not in front of what signing in itself needs — the settings the sign-in page
+ * dresses itself in, the auth routes, invite redemption.
+ */
+function requireLoginIfPrivate(req, res, next) {
+  if (req.user || !isMembersOnly()) return next();
+
+  if (req.path.startsWith('/api/')) {
+    return res.status(401).json({ error: 'Sign in to see this page', code: 'login_required' });
+  }
+  const next_ = encodeURIComponent(req.originalUrl || '/');
+  res.redirect(302, `/login/?next=${next_}`);
+}
+
 /**
  * Rejects requests if a public password is configured and not provided correctly.
  *
@@ -176,5 +205,7 @@ module.exports = {
   requireAdmin,
   requireAdminToken,
   requirePublicAuth,
+  requireLoginIfPrivate,
+  isMembersOnly,
   optionalAuth,
 };

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Tomás Neto
 const express = require('express');
-const { requireAdmin } = require('../middleware/auth');
+const { requireAdmin, requireLoginIfPrivate } = require('../middleware/auth');
 const { requestSubmitLimiter } = require('../middleware/rateLimit');
 const { uploadRequestPayload } = require('../services/uploadService');
 const c = require('../controllers/linkRequestsController');
@@ -9,7 +9,7 @@ const c = require('../controllers/linkRequestsController');
 const router = express.Router();
 
 // Public submit (gated inside the controller by the feature flag + password).
-router.post('/api/link-requests', requestSubmitLimiter, uploadRequestPayload, c.submit);
+router.post('/api/link-requests', requireLoginIfPrivate, requestSubmitLimiter, uploadRequestPayload, c.submit);
 
 // Admin review.
 router.get   ('/api/link-requests',             requireAdmin, c.list);
