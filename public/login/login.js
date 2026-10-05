@@ -81,13 +81,12 @@ async function whileSubmitting(btn, label, work) {
 // ─── Picking a mode ───────────────────────────────────────────────────────────
 
 async function start() {
-  // The instance's own palette, so this page looks like the rest of it.
+  // The instance's own look — palette, accent, wallpaper and its fog, and how
+  // solid the bars are — so signing in happens on the same page, visibly, as
+  // the one it leads back to.
   try {
     const settings = await fetch('/api/settings').then(r => r.json());
-    window.LinkPageTheme?.applyVariants({
-      light: settings.theme_light_variant,
-      dark:  settings.theme_dark_variant,
-    });
+    window.LinkPageTheme?.applyAppearance(settings);
     if (settings.site_title) document.title = `Sign in · ${settings.site_title}`;
   } catch { /* the page works perfectly well with the stock palette */ }
 

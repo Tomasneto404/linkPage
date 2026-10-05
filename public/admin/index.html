@@ -8,8 +8,16 @@
   <title>LinkPage — Admin</title>
   <link rel="icon" id="favicon" href="/brand/icon-light.png" />
   <link rel="stylesheet" href="admin.css" />
+  <!-- The shared theme core, for the sign-in gate: the panel itself keeps its
+       own fuller theme code in admin.js. -->
+  <script src="/theme-boot.js"></script>
 </head>
 <body>
+
+<!-- The instance's wallpaper, shown behind the sign-in gate only. The panel
+     has its own look and takes it down as soon as somebody is let in. -->
+<div class="wallpaper" id="wallpaper" aria-hidden="true"></div>
+
 
 <!-- ════════════════════════════════════════════════
      SIGN-IN GATE

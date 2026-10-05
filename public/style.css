@@ -961,6 +961,120 @@ select option { background: var(--surface); }
    (.req-upload-label is inline-flex, which would otherwise win on specificity). */
 [hidden] { display: none !important; }
 
+/* ── Wallpaper ─────────────────────────────────────────────────────────
+   Fixed behind the page. The blur lives on this element rather than on
+   the body so nothing else is softened, and the slight scale-up hides the
+   transparent fringe a blur leaves at the edges. The veil is a child
+   layer painted in the page colour, so it darkens or lightens to suit the
+   theme without a second image. */
+.wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  display: none;
+  overflow: hidden;
+}
+.wallpaper.is-on { display: block; }
+.wallpaper::before,
+.wallpaper::after { content: ''; position: absolute; inset: 0; }
+/* The photograph. Only this layer is blurred. */
+.wallpaper::before {
+  background-image: var(--wallpaper-image, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: blur(var(--wallpaper-blur, 0px));
+  transform: scale(1.06);
+}
+/* The veil. */
+.wallpaper::after {
+  background: var(--bg);
+  opacity: var(--wallpaper-veil, 0);
+}
+/* With a wallpaper up, the page itself must not paint over it. */
+body.has-wallpaper { background: transparent; }
+
+/* ── Sign-in screens over a wallpaper ──
+   The gate normally paints the page colour over everything. With a wallpaper
+   up it lets the picture through, and the card takes the same translucency
+   and blur as the header and footer, so the sign-in screen is visibly part of
+   the same instance rather than a flat page bolted onto it. Its controls take
+   the bars' slightly stronger opacity, for the reason the bars' own controls
+   do: at a low setting they would otherwise all but vanish. */
+/* The gate stays a cover. It paints the wallpaper itself rather than letting the
+   page behind show through, because hiding that page is its job: the password
+   gate also appears mid-visit, when the public password changes, and by then
+   the links are already rendered underneath. A transparent gate would show
+   them, readable, straight through the screen asking for the password. The
+   base colour stays underneath too, so a wallpaper that fails to load still
+   leaves an opaque cover. */
+body.has-wallpaper .gate {
+  background: var(--bg);
+  overflow: hidden;
+}
+body.has-wallpaper .gate::before,
+body.has-wallpaper .gate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* The same two layers as .wallpaper: the photograph, blurred by the fog... */
+body.has-wallpaper .gate::before {
+  background-image: var(--wallpaper-image, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: blur(var(--wallpaper-blur, 0px));
+  transform: scale(1.06);
+}
+/* ...and the veil. */
+body.has-wallpaper .gate::after {
+  background: var(--bg);
+  opacity: var(--wallpaper-veil, 0);
+}
+
+body.has-wallpaper .gate-card {
+  position: relative;
+  z-index: 1;
+  background: var(--bar-bg);
+  border-color: var(--bar-border);
+  -webkit-backdrop-filter: saturate(1.4) blur(var(--bar-blur));
+          backdrop-filter: saturate(1.4) blur(var(--bar-blur));
+}
+
+body.has-wallpaper .gate-card .field-stack,
+body.has-wallpaper .gate-card input[type="text"],
+body.has-wallpaper .gate-card input[type="password"] {
+  background: var(--bar-control-bg-alt);
+  border-color: var(--bar-control-border);
+}
+/* Secondary text, raised a step. The muted grey is chosen for a solid card;
+   on a translucent one over a photograph it is mid-grey on a picture, and at a
+   low bar opacity it simply stops being readable. --text-2 is near-white in the
+   dark theme and near-black in the light, so it holds on the tinted card either
+   way, and the faint shadow keeps it off whatever detail is behind. */
+body.has-wallpaper .gate-card > p,
+body.has-wallpaper .gate-card .login-remember,
+body.has-wallpaper .gate-card .login-note,
+body.has-wallpaper .gate-card .login-hint,
+body.has-wallpaper .gate-card .gate-back,
+body.has-wallpaper .gate-card .gate-alt,
+body.has-wallpaper .gate-card .gate-divider,
+body.has-wallpaper .gate-card .settings-row-desc {
+  color: var(--text-2);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+[data-theme="dark"] body.has-wallpaper .gate-card :is(p, .login-remember, .login-note, .login-hint,
+  .gate-back, .gate-alt, .gate-divider, .settings-row-desc) {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+body.has-wallpaper .gate-card .gate-back:hover,
+body.has-wallpaper .gate-card .gate-alt:hover { color: var(--primary); }
+
+/* Inside the stack the rows give their frame up to it, as they always do. */
+body.has-wallpaper .gate-card .field-stack input { background: transparent; }
+
 /* ── Button variants shared by both pages ── */
 .btn-sm {
   padding: 5px 12px;

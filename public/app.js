@@ -198,10 +198,14 @@ function applyWallpaper() {
   const el = document.getElementById('wallpaper');
   if (!el) return;
 
+  // On the root, not the element: the password gate paints its own copy of the
+  // wallpaper, so that it can stay an opaque cover, and reads the same values.
+  const root = document.documentElement.style;
+
   const url = isDarkTheme() ? wallpaperDarkUrl : wallpaperLightUrl;
   if (!url) {
     el.classList.remove('is-on');
-    el.style.removeProperty('--wallpaper-image');
+    root.removeProperty('--wallpaper-image');
     document.body.classList.remove('has-wallpaper');
     return;
   }
@@ -209,9 +213,9 @@ function applyWallpaper() {
   const fog = Math.min(100, Math.max(0, Number(wallpaperFog) || 0)) / 100;
 
   // encodeURI, and quoted, so a path can never break out of the url() token.
-  el.style.setProperty('--wallpaper-image', `url("${encodeURI(url)}")`);
-  el.style.setProperty('--wallpaper-blur', `${(fog * 18).toFixed(1)}px`);
-  el.style.setProperty('--wallpaper-veil', (fog * 0.94).toFixed(3));
+  root.setProperty('--wallpaper-image', `url("${encodeURI(url)}")`);
+  root.setProperty('--wallpaper-blur', `${(fog * 18).toFixed(1)}px`);
+  root.setProperty('--wallpaper-veil', (fog * 0.94).toFixed(3));
   el.classList.add('is-on');
   document.body.classList.add('has-wallpaper');
 }

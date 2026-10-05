@@ -86,3 +86,34 @@ describe('it agrees with the copy in the browser', () => {
     }
   });
 });
+
+describe('it agrees with the copy the sign-in screens use', () => {
+  // public/theme-boot.js carries a third copy, for the sign-in page and the
+  // admin gate, which load nothing else. It is exposed on window.LinkPageTheme,
+  // so run the whole file with just enough of a window to hold it.
+  function signInCopy() {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'theme-boot.js'), 'utf8');
+    const root = { setAttribute() {}, style: { setProperty() {}, removeProperty() {} } };
+    const context = {
+      window:    {},
+      document:  { documentElement: root, getElementById: () => null, body: { classList: { add() {}, remove() {} } } },
+      localStorage: { getItem: () => null, setItem() {} },
+    };
+    context.window.matchMedia = () => ({ matches: false });
+    vm.createContext(context);
+    vm.runInContext(src, context);
+    return context.window.LinkPageTheme;
+  }
+
+  test('over the same shades', () => {
+    const signIn = signInCopy();
+    assert.ok(signIn?.shadeColor, 'theme-boot.js exposes its colour maths');
+
+    for (const hex of ['#0071e3', '#ff2d55', '#00c7be', '#111111', '#eeeeee']) {
+      assert.equal(hexToRgb(hex).join(','), signIn.hexToRgb(hex).join(','), `hexToRgb ${hex}`);
+      for (const pct of [18, 12, -8, 0, 100, -100]) {
+        assert.equal(shadeColor(hex, pct), signIn.shadeColor(hex, pct), `shadeColor(${hex}, ${pct})`);
+      }
+    }
+  });
+});

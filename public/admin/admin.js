@@ -152,6 +152,8 @@ async function verifyToken(token) {
 async function showAdminUI() {
   document.getElementById('gate').classList.add('hidden');
   document.getElementById('adminWrap').classList.remove('hidden');
+  // The wallpaper dresses the gate; the panel underneath has a look of its own.
+  window.LinkPageTheme?.clearWallpaper();
   await loadSettings();
   await loadAllData();
   renderChangelog().catch(() => {});
@@ -166,6 +168,21 @@ async function showAdminUI() {
  * signed in should not be held up by a stale token sitting in localStorage.
  * Falls through to the gate when neither answers.
  */
+/**
+ * Dresses the sign-in gate in the instance's look — wallpaper, fog, bar
+ * opacity, accent — the way the public page and the sign-in page are dressed.
+ * Asked for before anybody is signed in, since /api/settings is public.
+ */
+async function dressGate() {
+  try {
+    const settings = await fetch('/api/settings').then(r => r.json());
+    // Still on the gate? Someone already signed in has no use for it.
+    if (!document.getElementById('gate').classList.contains('hidden')) {
+      window.LinkPageTheme?.applyAppearance(settings);
+    }
+  } catch { /* the gate works perfectly well undressed */ }
+}
+
 async function resolveAdminIdentity() {
   try {
     const me = await fetch('/api/auth/me', { credentials: 'same-origin' })
@@ -6328,4 +6345,5 @@ function showEasterEgg() {
 
 // ─── 23. STARTUP ─────────────────────────────────────────────────────────────
 
+dressGate();
 resolveAdminIdentity();
