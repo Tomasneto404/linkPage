@@ -909,10 +909,33 @@
             open sign-up, so nobody arrives uninvited.
           </div>
 
-          <div class="users-toolbar">
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Storage Per Member</div>
+              <div class="settings-row-desc">
+                How much each member may keep: their attachments, icons and fetched favicons.
+                An account can be given its own allowance below.
+              </div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center">
+              <input type="number" id="userQuotaInput" min="0" step="1"
+                     style="width:90px; padding:6px 10px; font-size:0.875rem" aria-label="Megabytes per member" />
+              <span class="settings-row-desc">MB</span>
+              <button class="btn btn-ghost btn-sm" id="saveUserQuotaBtn">Save</button>
+            </div>
+          </div>
+
+          <div class="users-toolbar" style="margin-top:14px">
             <select id="inviteRoleSelect" class="bulk-group-select" style="width:110px">
               <option value="user" selected>Member</option>
               <option value="admin">Administrator</option>
+            </select>
+            <select id="inviteExpirySelect" class="bulk-group-select" style="width:110px"
+                    aria-label="How long the invite stays valid">
+              <option value="1">1 day</option>
+              <option value="7" selected>7 days</option>
+              <option value="14">14 days</option>
+              <option value="30">30 days</option>
             </select>
             <input type="text" id="inviteLabelInput" placeholder="Who is it for? (optional)"
                    class="bulk-group-select" style="flex:1; min-width:0" />

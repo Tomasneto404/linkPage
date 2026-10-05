@@ -3756,3 +3756,33 @@ a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline
 }
 .audit-actor-user  { background: rgba(var(--primary-rgb),0.12); color: var(--primary); }
 .audit-actor-token { color: var(--text-2); }
+
+/* A member's storage, under their name. */
+.user-row-storage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.user-storage-bar {
+  width: 80px;
+  height: 5px;
+  border-radius: 100px;
+  background: var(--surface-3);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.user-storage-bar > span { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
+.user-storage-edit {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--primary);
+  cursor: pointer;
+}
+.user-storage-edit:hover { text-decoration: underline; }
+.user-quota-form { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.user-quota-form input { width: 90px; padding: 5px 8px; font-size: 0.8125rem; }

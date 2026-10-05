@@ -624,6 +624,9 @@ document.getElementById('openSettingsBtn').addEventListener('click', async () =>
   document.getElementById('requestsEnabledToggle').checked = !!s.requests_enabled;
   document.getElementById('footerEnabledToggle').checked = !!s.footer_enabled;
   document.getElementById('requireLoginToggle').checked = !!s.require_login;
+  if (Number.isFinite(s.user_storage_quota)) {
+    document.getElementById('userQuotaInput').value = Math.round(s.user_storage_quota / 1024 / 1024);
+  }
   document.getElementById('groupTabColorToggle').checked = s.group_tab_color !== false;
   document.getElementById('groupTabsLoopToggle').checked = !!s.group_tabs_loop;
   document.getElementById('markdownOpenModeSelect').value =
@@ -5906,6 +5909,20 @@ function renderUsersList(users) {
             · ${u.last_login_at ? `last seen ${formatRequestDate(u.last_login_at)}` : 'never signed in'}
             · ${u.session_count} session${u.session_count === 1 ? '' : 's'}
           </div>
+          ${u.storage ? `
+          <div class="user-row-storage">
+            <span class="user-storage-bar"><span style="width:${Math.min(100, u.storage.quota ? (u.storage.used / u.storage.quota) * 100 : 0).toFixed(1)}%"></span></span>
+            <span>${formatBytes(u.storage.used)} of ${formatBytes(u.storage.quota)}${u.storage_quota === null ? '' : ' · own allowance'}</span>
+            <button type="button" class="user-storage-edit" data-action="quota">Change</button>
+          </div>
+          <div class="user-quota-form hidden">
+            <input type="number" min="0" step="1" placeholder="Default"
+                   value="${u.storage_quota === null ? '' : Math.round(u.storage_quota / 1024 / 1024)}"
+                   aria-label="Allowance for ${escapeHtml(u.email)} in megabytes" />
+            <span class="settings-row-desc">MB</span>
+            <button type="button" class="btn btn-ghost btn-sm" data-action="quota-save">Save</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-action="quota-default">Use the default</button>
+          </div>` : ''}
         </div>
         <div class="user-row-actions">
           <select class="bulk-group-select" data-action="role" ${locked ? 'disabled' : ''}
@@ -5963,14 +5980,27 @@ function renderInvitesList(invites) {
     </div>`).join('');
 }
 
+document.getElementById('saveUserQuotaBtn').addEventListener('click', async () => {
+  const mb = Number(document.getElementById('userQuotaInput').value);
+  if (!Number.isFinite(mb) || mb < 0) { showToast('Enter a number of megabytes', 'error'); return; }
+  const r = await sendAuthRequest('/api/settings/user-quota', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ megabytes: mb }),
+  });
+  if (!r.ok) { showToast('Could not save the allowance', 'error'); return; }
+  showToast(`Each member may now keep ${mb} MB`);
+  await loadAccounts();
+});
+
 document.getElementById('generateInviteBtn').addEventListener('click', async () => {
   const btn = document.getElementById('generateInviteBtn');
   const role  = document.getElementById('inviteRoleSelect').value;
   const label = document.getElementById('inviteLabelInput').value.trim();
+  const expires_in_days = Number(document.getElementById('inviteExpirySelect').value) || 7;
 
   btn.disabled = true; btn.textContent = 'Creating…';
   try {
-    const invite = await createInviteApi({ role, label });
+    const invite = await createInviteApi({ role, label, expires_in_days });
     revealInviteUrl(invite.url, 'Invite link — copy it now');
     document.getElementById('inviteLabelInput').value = '';
     await loadAccounts();
@@ -6007,6 +6037,27 @@ document.getElementById('usersList').addEventListener('click', async e => {
   const row = btn.closest('.user-row');
   const id  = Number(row.dataset.userId);
   const name = row.querySelector('.user-row-meta').textContent.trim().split(' ')[0];
+
+  if (btn.dataset.action === 'quota') {
+    row.querySelector('.user-quota-form').classList.toggle('hidden');
+    row.querySelector('.user-quota-form input').focus();
+    return;
+  }
+
+  if (btn.dataset.action === 'quota-save' || btn.dataset.action === 'quota-default') {
+    const input = row.querySelector('.user-quota-form input');
+    const usingDefault = btn.dataset.action === 'quota-default' || input.value.trim() === '';
+    const mb = Number(input.value);
+    if (!usingDefault && (!Number.isFinite(mb) || mb < 0)) {
+      showToast('Enter a number of megabytes', 'error');
+      return;
+    }
+    const r = await patchUserApi(id, { storage_quota_mb: usingDefault ? null : mb });
+    if (!r.ok) { showToast('Could not change that allowance', 'error'); return; }
+    showToast(usingDefault ? 'Back to the default allowance' : 'Allowance saved');
+    await loadAccounts();
+    return;
+  }
 
   if (btn.dataset.action === 'reset') {
     try {
