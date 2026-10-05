@@ -14,6 +14,7 @@ const fs   = require('fs');
 const { Agent: UndiciAgent } = require('undici');
 
 const { UPLOADS_DIR } = require('../config/env');
+const { publicOnlyDispatcher } = require('../utils/networkGuard');
 const db = require('../models');
 const { broadcastDataUpdate } = require('./sseService');
 
@@ -40,6 +41,10 @@ const faviconInsecureDispatcher = new UndiciAgent({
   bodyTimeout:           FAVICON_REQUEST_TIMEOUT_MS,
 });
 
+// The one a member's fetch goes through: public addresses only, checked as each
+// socket opens, certificates verified. See src/utils/networkGuard.js.
+const memberDispatcher = publicOnlyDispatcher({ timeoutMs: FAVICON_REQUEST_TIMEOUT_MS });
+
 /**
  * fetch() wrapper with a hard timeout, body-size cap, and TLS bypass.
  * Returns the raw Response on success, or null on any failure.
@@ -50,9 +55,10 @@ const faviconInsecureDispatcher = new UndiciAgent({
  * `redirect: 'follow'`.
  */
 async function fetchWithLimits(url, {
-  timeoutMs = FAVICON_REQUEST_TIMEOUT_MS,
+  timeoutMs  = FAVICON_REQUEST_TIMEOUT_MS,
   maxBytes,
-  redirect  = 'follow',
+  redirect   = 'follow',
+  dispatcher = faviconInsecureDispatcher,
 } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -61,8 +67,9 @@ async function fetchWithLimits(url, {
       signal:     controller.signal,
       redirect,
       headers:    { 'User-Agent': FAVICON_USER_AGENT, 'Accept': '*/*' },
-      // Skip TLS validation — intranet hosts often serve self-signed certs.
-      dispatcher: faviconInsecureDispatcher,
+      // The admin's links skip TLS validation, for intranet hosts with
+      // self-signed certs; a member's go through the public-only dispatcher.
+      dispatcher,
     });
     // Don't reject on !res.ok here — image probes deliberately want to read
     // bodies from 4xx responses (e.g. Google's "unknown domain" 404 ships a
@@ -83,7 +90,7 @@ async function fetchWithLimits(url, {
  * Used to walk SSO chains where Node's built-in redirect handling would either
  * give up at 20 hops or burn time on an infinite OAuth loop.
  */
-async function walkRedirects(startUrl, onHop, maxHops = 10) {
+async function walkRedirects(startUrl, onHop, maxHops = 10, dispatcher = faviconInsecureDispatcher) {
   let url = startUrl;
   const visited = new Set();
   for (let i = 0; i < maxHops; i++) {
@@ -93,6 +100,7 @@ async function walkRedirects(startUrl, onHop, maxHops = 10) {
     const res = await fetchWithLimits(url, {
       maxBytes: FAVICON_MAX_HTML_BYTES,
       redirect: 'manual',
+      dispatcher,
     });
     if (!res) return;
 
@@ -148,7 +156,7 @@ async function fetchHtml(url) {
  * Returns { html, finalUrl, hopOrigins[] } — hopOrigins is every distinct
  * origin/base path visited, so callers can probe each for /favicon.ico fallbacks.
  */
-async function collectFaviconCandidatesAlongRedirects(siteUrl) {
+async function collectFaviconCandidatesAlongRedirects(siteUrl, dispatcher) {
   const hopOrigins = new Set();
   const hopBases   = new Set();   // distinct path prefixes, e.g. /ovirt-engine/
   let bestHtml     = null;
@@ -175,18 +183,19 @@ async function collectFaviconCandidatesAlongRedirects(siteUrl) {
         }
       }
     }
-  });
+  }, 10, dispatcher);
 
   return { html: bestHtml, finalUrl, hopOrigins: [...hopOrigins], hopBases: [...hopBases] };
 }
 
-async function fetchImageCandidate(url) {
+async function fetchImageCandidate(url, dispatcher = faviconInsecureDispatcher) {
   // Use redirect:'manual' here too so we don't burn the 20-hop budget on
   // /favicon.ico endpoints that lead into the same SSO loop. Follow one
   // explicit hop manually if needed.
   const res = await fetchWithLimits(url, {
     maxBytes: FAVICON_MAX_IMAGE_BYTES,
     redirect: 'follow',
+    dispatcher,
   });
   if (!res) return null;
   const contentType = (res.headers.get('content-type') || 'application/octet-stream')
@@ -225,8 +234,17 @@ const FAVICON_FALLBACK_PATHS = [
  *      prefix we touched along the way — covers servers that hide /favicon.ico
  *      behind auth but expose one under /<app>/favicon.ico, /static/, etc.
  *   3. Fall back to Google's favicon service for public URLs.
+ *
+ * `member: true` is for anything a signed-in member causes. It changes two
+ * things, and both matter:
+ *   - Every connection must go to a public address (src/utils/networkGuard.js),
+ *     redirects and declared icon URLs included. The administrator's links
+ *     keep reaching the intranet, which is what an internal link page is for.
+ *   - Google's service is never asked. Its URL carries the hostname, and the
+ *     hostname of somebody's private bookmark is not Google's to know.
  */
-async function fetchFaviconForUrl(siteUrl) {
+async function fetchFaviconForUrl(siteUrl, { member = false } = {}) {
+  const dispatcher = member ? memberDispatcher : faviconInsecureDispatcher;
   let parsed;
   try { parsed = new URL(siteUrl); } catch { return null; }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
@@ -239,13 +257,13 @@ async function fetchFaviconForUrl(siteUrl) {
   const outOfTime = () => Date.now() >= deadline;
 
   const { html, finalUrl, hopOrigins, hopBases } =
-    await collectFaviconCandidatesAlongRedirects(siteUrl);
+    await collectFaviconCandidatesAlongRedirects(siteUrl, dispatcher);
 
   // 1) HTML-declared icon link.
   if (html && !outOfTime()) {
     const declared = parseDeclaredIconUrl(html, finalUrl);
     if (declared) {
-      const img = await fetchImageCandidate(declared);
+      const img = await fetchImageCandidate(declared, dispatcher);
       if (img) return img;
     }
   }
@@ -260,12 +278,13 @@ async function fetchFaviconForUrl(siteUrl) {
       const url = `${root.replace(/\/$/, '')}${p}`;
       if (tried.has(url)) continue;
       tried.add(url);
-      const img = await fetchImageCandidate(url);
+      const img = await fetchImageCandidate(url, dispatcher);
       if (img) return img;
     }
   }
 
   if (outOfTime()) return null;
+  if (member) return null;
 
   // 3) Google's service — only works for public hostnames.
   return fetchImageCandidate(

@@ -91,7 +91,8 @@ async function fetchAndStoreFavicon(ownerId, linkId, siteUrl) {
   const { fetchFaviconForUrl } = require('./faviconService');
 
   let found;
-  try { found = await fetchFaviconForUrl(siteUrl); } catch { return; }
+  // member: public addresses only, and never Google — see fetchFaviconForUrl.
+  try { found = await fetchFaviconForUrl(siteUrl, { member: true }); } catch { return; }
   if (!found?.buffer) return;
 
   const ext = FAVICON_EXT[String(found.contentType || '').split(';')[0].trim().toLowerCase()];
