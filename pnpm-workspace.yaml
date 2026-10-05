@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Tomás Neto
+# Build scripts dependencies may run on install. pnpm 11 refuses to finish an
+# install while any of them is undecided.
+allowBuilds:
+  # swagger-ui-dist's install-time analytics ping. Nothing in the app needs it,
+  # and not phoning home is the private default.
+  '@scarf/scarf': false
