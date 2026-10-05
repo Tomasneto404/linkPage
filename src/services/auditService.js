@@ -52,9 +52,11 @@ function derivePersonalEntry(p, M, id) {
     const summary = fixedVerb ? noun
                   : entityType === 'my_favorite' ? (starred[verb] || 'Changed a favourite')
                   : `${said[verb] || 'Changed a personal'} ${noun}`;
-    return { action: `${entityType}.${verb}`, entityType, entityId: id, summary };
+    // One entity type for all of them, so the panel filters "members' own pages"
+    // as one thing; the action still says which kind.
+    return { action: `${entityType}.${verb}`, entityType: 'personal', entityId: id, summary };
   }
-  return { action: 'my.other', entityType: 'my', entityId: null, summary: 'Changed their personal page' };
+  return { action: 'my.other', entityType: 'personal', entityId: null, summary: 'Changed their personal page' };
 }
 
 function deriveAuditEntry(req) {
@@ -143,6 +145,26 @@ function deriveAuditEntry(req) {
   if (p === '/api/settings/requests-enabled')            return { action: 'settings.requests_enabled', entityType: 'settings', entityId: null, summary: 'Toggled the link-request feature' };
   if (p === '/api/settings/request-password')            return { action: 'settings.request_password', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the request password' : 'Set the request password' };
   if (p === '/api/settings/theme')                       return { action: 'settings.theme', entityType: 'settings', entityId: null, summary: 'Updated theme & appearance' };
+  if (p === '/api/settings/require-login')               return { action: 'settings.require_login', entityType: 'settings', entityId: null, summary: body.enabled ? 'Made the page members-only' : 'Opened the page to everyone' };
+  if (p === '/api/settings/user-quota')                  return { action: 'settings.user_quota', entityType: 'settings', entityId: null, summary: 'Changed the storage allowance' };
+  // Any other setting: named after its route rather than left to the fallback.
+  if (/^\/api\/settings\/[a-z-]+$/.test(p)) {
+    const what = p.slice('/api/settings/'.length);
+    return { action: `settings.${what.replace(/-/g, '_')}`, entityType: 'settings', entityId: null,
+             summary: `Changed the ${what.replace(/-/g, ' ')} setting` };
+  }
+
+  // Accounts. The summaries come from the controllers, which know whose account
+  // it was; these name the action. Never let one of these reach the fallback:
+  // an invite or reset link carries its secret in the path.
+  if (/^\/api\/users\/\d+$/.test(p) && M === 'PATCH')       return { action: 'user.update',     entityType: 'user',   entityId: id, summary: 'Changed an account' };
+  if (/^\/api\/users\/\d+$/.test(p) && M === 'DELETE')      return { action: 'user.delete',     entityType: 'user',   entityId: id, summary: 'Deleted an account' };
+  if (/^\/api\/users\/\d+\/password$/.test(p))              return { action: 'user.password',   entityType: 'user',   entityId: id, summary: "Set somebody's password" };
+  if (/^\/api\/users\/\d+\/logout-all$/.test(p))            return { action: 'user.logout_all', entityType: 'user',   entityId: id, summary: 'Signed somebody out everywhere' };
+  if (/^\/api\/users\/\d+\/reset-link$/.test(p))            return { action: 'user.reset_link', entityType: 'user',   entityId: id, summary: 'Issued a password reset link' };
+  if (p === '/api/invites' && M === 'POST')                   return { action: 'invite.create',   entityType: 'invite', entityId: null, summary: 'Created an invite' };
+  if (/^\/api\/invites\/\d+$/.test(p) && M === 'DELETE')    return { action: 'invite.revoke',   entityType: 'invite', entityId: id, summary: 'Revoked an invite' };
+  if (/^\/api\/tokens\/[^/]+\/redeem$/.test(p))              return { action: 'invite.redeem',   entityType: 'invite', entityId: null, summary: 'Used an invite or reset link' };
 
   // Link requests (public submit + admin review)
   if (p === '/api/link-requests' && M === 'POST')             return { action: 'request.create',  entityType: 'request', entityId: null, summary: name ? `New link request "${truncate(name)}"` : 'New link request' };
@@ -167,7 +189,10 @@ function deriveAuditEntry(req) {
   if (p === '/api/audit' && M === 'DELETE')              return { action: 'audit.clear', entityType: 'audit', entityId: null, summary: 'Cleared the audit log' };
 
   // Anything else under /api that mutated — generic fallback.
-  return { action: `${M.toLowerCase()} ${p}`, entityType: null, entityId: id, summary: `${M} ${p}` };
+  // Long opaque segments — tokens, mostly — are blanked out. Every route that
+  // carries one has an entry above; this is for the one added later without.
+  const safe = p.split('/').map(seg => (/^[A-Za-z0-9_-]{20,}$/.test(seg) ? ':secret' : seg)).join('/');
+  return { action: `${M.toLowerCase()} ${safe}`, entityType: null, entityId: id, summary: `${M} ${safe}` };
 }
 
 /**

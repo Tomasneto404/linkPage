@@ -3436,6 +3436,12 @@ body.is-link-dragging .section-nav-item:not(.editing) {
 [data-theme="dark"] .audit-badge-section  { color: #5fd3cb; }
 [data-theme="dark"] .audit-badge-icon     { color: #ffb761; }
 [data-theme="dark"] .audit-badge-auth     { color: #ff8a80; }
+.audit-badge-user     { background: rgba(52,199,89,0.15);  color: #248a3d; }
+.audit-badge-invite   { background: rgba(88,86,214,0.14);  color: #5856d6; }
+.audit-badge-personal { background: rgba(255,45,85,0.12);  color: #d0234a; }
+[data-theme="dark"] .audit-badge-user     { color: #6fdc8c; }
+[data-theme="dark"] .audit-badge-invite   { color: #a5a3ff; }
+[data-theme="dark"] .audit-badge-personal { color: #ff8fa6; }
 
 .audit-action-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -3736,3 +3742,17 @@ a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline
   .user-row, .invite-row { flex-direction: column; align-items: stretch; }
   .user-row-actions { justify-content: flex-start; }
 }
+
+
+/* Who did it: a person in the accent, the token and visitors quieter. */
+.audit-actor {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 100px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.audit-actor-user  { background: rgba(var(--primary-rgb),0.12); color: var(--primary); }
+.audit-actor-token { color: var(--text-2); }

@@ -5144,7 +5144,30 @@ const AUDIT_TYPE_META = {
   request:  { cls: 'request',  label: 'Request' },
   auth:     { cls: 'auth',     label: 'Auth' },
   audit:    { cls: 'audit',    label: 'Audit' },
+  user:     { cls: 'user',     label: 'Account' },
+  invite:   { cls: 'invite',   label: 'Invite' },
+  personal: { cls: 'personal', label: 'Member page' },
+  // Entries written before personal changes shared one type keep their old,
+  // separate ones; shown the same way.
+  my_link:     { cls: 'personal', label: 'Member page' },
+  my_group:    { cls: 'personal', label: 'Member page' },
+  my_section:  { cls: 'personal', label: 'Member page' },
+  my_favorite: { cls: 'personal', label: 'Member page' },
 };
+
+/**
+ * Who did it. A person, by the name they had at the time; the admin token,
+ * which is not a person; or a visitor nobody knows. Entries from before
+ * accounts existed have no actor recorded and read back as the token — the
+ * only thing that could change anything then.
+ */
+function auditActorHtml(e) {
+  if (e.actor_type === 'user' && e.actor_label) {
+    return `<span class="audit-actor audit-actor-user" title="Signed-in account">${escapeHtml(e.actor_label)}</span>`;
+  }
+  if (e.actor_type === 'public') return '<span class="audit-actor">Visitor</span>';
+  return '<span class="audit-actor audit-actor-token" title="The admin token">Admin token</span>';
+}
 
 function auditActionVerb(action) {
   // Maps an action to a dot colour. Clicks get their own neutral colour;
@@ -5298,6 +5321,7 @@ function renderAuditList(newIds = null) {
         <div class="audit-main">
           <div class="audit-summary">${escapeHtml(e.summary || e.action)}</div>
           <div class="audit-meta">
+            ${auditActorHtml(e)}
             <span class="audit-badge audit-badge-${meta.cls}">${escapeHtml(meta.label)}</span>
             <span class="audit-action-code">${escapeHtml(e.action)}</span>
             ${originHtml ? `<span class="audit-origin">${originHtml}</span>` : ''}

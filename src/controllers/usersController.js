@@ -299,6 +299,7 @@ async function redeemToken(req, res) {
       db.deleteSessionsForUser(user.id);
       forgetInitialPassword();
       req._auditSummary = `${user.email} set a new password from a reset link`;
+      req._auditAction  = 'user.reset_redeem';
     } else {
       const email = String(req.body?.email || '').trim();
       if (!db.isValidEmail(email)) {

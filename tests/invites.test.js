@@ -354,3 +354,27 @@ describe('the audit trail', () => {
 
 /** The models, for assertions that have no API to go through. */
 function db() { return require('../src/models'); }
+
+describe('secrets in the audit log', () => {
+  test('neither an invite\'s nor a reset\'s token is ever written to it', async () => {
+    // The token is in the path of the redeem request. It once reached the log
+    // through the generic fallback, which records the path as the action.
+    const invite = await newInvite({ label: 'Logged' });
+    const inviteSecret = secretOf(invite.url);
+    await c.session().fetch(`/api/tokens/${inviteSecret}/redeem`, {
+      method: 'POST', json: { email: 'logged@example.test', password: PASSWORD },
+    });
+
+    const user = await c.makeUser({ email: 'logged-reset@example.test', password: PASSWORD });
+    const reset = await c.api(`/api/users/${user.id}/reset-link`, { method: 'POST' });
+    const resetSecret = secretOf(reset.body.url);
+    await c.session().fetch(`/api/tokens/${resetSecret}/redeem`, {
+      method: 'POST', json: { password: 'a-fresh-password-for-the-log' },
+    });
+
+    const log = JSON.stringify((await c.api('/api/audit?limit=200')).body.entries);
+    assert.ok(!log.includes(inviteSecret), 'the invite token is not in the log');
+    assert.ok(!log.includes(resetSecret),  'nor is the reset token');
+    assert.ok(log.includes('user.reset_redeem'), 'though the reset itself is recorded');
+  });
+});
