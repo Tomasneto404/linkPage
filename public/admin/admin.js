@@ -154,6 +154,8 @@ async function showAdminUI() {
   document.getElementById('adminWrap').classList.remove('hidden');
   // The wallpaper dresses the gate; the panel underneath has a look of its own.
   window.LinkPageTheme?.clearWallpaper();
+  // The admin token is not an account: there is no password of its own to change.
+  document.getElementById('yourAccountRow')?.classList.toggle('hidden', adminAuthMode !== 'session');
   await loadSettings();
   await loadAllData();
   renderChangelog().catch(() => {});
