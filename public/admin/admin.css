@@ -1109,24 +1109,8 @@ header {
 
 /* ─── Button variants ────────────────────────────────────────────────────────── */
 
-/* Small buttons for compact UIs like the settings modal */
-.btn-sm {
-  padding: 5px 12px;
-  font-size: 0.8125rem;
-  border-radius: 8px;
-}
-
-/* Ghost button with danger (red) colouring */
-.btn-ghost-danger {
-  background: none;
-  color: var(--danger);
-  border: 1px solid rgba(255, 59, 48, 0.35);
-  border-radius: 8px;
-}
-.btn-ghost-danger:hover {
-  background: rgba(255, 59, 48, 0.08);
-  border-color: var(--danger);
-}
+/* .btn-sm and .btn-ghost-danger moved to style.css once the public page needed
+   them too; this file imports that one, so nothing here changes. */
 
 /* ─── Settings modal ─────────────────────────────────────────────────────────── */
 

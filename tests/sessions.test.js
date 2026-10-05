@@ -458,3 +458,57 @@ describe('the audit log', () => {
     }
   });
 });
+
+describe('the admin view has to be asked for', () => {
+  // A session is a cookie, so a browser sends it on the public page's own fetch
+  // of the link list. Widening on the role alone put hidden links on the public
+  // page for any administrator who had signed in to the panel.
+  let hidden;
+
+  before(async () => {
+    hidden = await c.makeLink({ name: 'Hidden from visitors' });
+    const res = await c.api(`/api/links/${hidden.id}/visibility`, { method: 'POST', json: { hidden: true } });
+    // Pin the fixture: a link that quietly failed to hide would make every
+    // assertion below about the wrong thing.
+    assert.equal(res.status, 200);
+    assert.equal(res.body.is_hidden, 1, 'the link really is hidden');
+    assert.ok(!(await c.pub('/api/links')).body.some(l => l.id === hidden.id),
+              'and a stranger really cannot see it');
+  });
+
+  test('an admin session sees the visitor view by default', async () => {
+    await c.makeUser({ email: 'viewer-admin@example.test', password: PASSWORD, role: 'admin' });
+    const s = c.session();
+    await s.login('viewer-admin@example.test', PASSWORD);
+
+    const plain = await s.fetch('/api/links');
+    assert.ok(!plain.body.some(l => l.id === hidden.id), 'not on the public page');
+
+    const asked = await s.fetch('/api/links?view=admin');
+    assert.ok(asked.body.some(l => l.id === hidden.id), 'but there when the panel asks');
+  });
+
+  test('an ordinary member cannot ask for it', async () => {
+    await c.makeUser({ email: 'viewer-member@example.test', password: PASSWORD });
+    const s = c.session();
+    await s.login('viewer-member@example.test', PASSWORD);
+
+    const asked = await s.fetch('/api/links?view=admin');
+    assert.ok(!asked.body.some(l => l.id === hidden.id));
+  });
+
+  test('the token still sees everything, as it always did', async () => {
+    const res = await c.api('/api/links');
+    assert.ok(res.body.some(l => l.id === hidden.id));
+  });
+
+  test('an admin\'s click on a hidden link is treated like anyone\'s', async () => {
+    // A click is a navigation, and carries the session. Before accounts it
+    // never carried a credential at all, so it never skipped the rules.
+    const s = c.session();
+    await s.login('viewer-admin@example.test', PASSWORD);
+    const res = await s.fetch(`/r/${hidden.id}`);
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get('location'), '/', 'bounced home, as any visitor is');
+  });
+});

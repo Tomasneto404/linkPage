@@ -331,7 +331,9 @@ async function sendAuthRequest(url, opts = {}) {
 
 const apiJson = (url, opts) => sendAuthRequest(url, opts).then(r => r.json());
 
-async function fetchLinks()            { return apiJson('/api/links'); }
+// ?view=admin: the panel shows every link, hidden ones included. The public
+// page's own fetch of the same list must not, so the wide view is asked for.
+async function fetchLinks()            { return apiJson('/api/links?view=admin'); }
 async function fetchGroups()           { return apiJson('/api/groups'); }
 async function fetchSettings()         { return fetch('/api/settings').then(r => r.json()); }
 async function fetchAllStats()         { return apiJson('/api/stats'); }

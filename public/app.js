@@ -265,12 +265,93 @@ document.getElementById('publicGateForm').addEventListener('submit', async e => 
 async function authorisedFetch(url) {
   const headers = {};
   if (publicPassword) headers['X-Public-Password'] = publicPassword;
-  const r = await fetch(url, { headers });
+  const r = await fetch(url, { headers, credentials: 'same-origin' });
   if (r.status === 401) {
     publicPassword = null; localStorage.removeItem('linkpage_public_password');
     showPublicGate(); throw new Error('Password required');
   }
   return r.json();
+}
+
+// ─── Who is signed in ─────────────────────────────────────────────────────────
+//
+// The session is an HttpOnly cookie, which this script cannot read — that is
+// the point of it. So the page asks the server who it is, once, alongside the
+// settings, and keeps the answer here. A member's own groups and links are then
+// fetched and merged with the shared ones.
+
+/** `{ id, email, display_name, role }` when somebody is signed in, else null. */
+let currentUser = null;
+
+/** Bytes used against this member's allowance, for the composer to show. */
+let personalStorage = null;
+
+const isPersonal = item => item?.owner === 'me';
+
+/**
+ * Personal ids are the member's own and can coincide with shared ones — their
+ * link 5 is not the shared link 5. They are renamed here, the moment they
+ * arrive, to "u5": a value no shared id can ever be. After that, every
+ * comparison the page already makes (`g.id === activeGroup`, `group_ids.
+ * includes(...)`) works unchanged for both, and nothing can mix them up.
+ *
+ * `personal_id` keeps the real number for talking to /api/my/*.
+ */
+function adoptPersonal(data) {
+  const key = id => `u${id}`;
+  return {
+    groups: (data.groups || []).map(g => ({ ...g, id: key(g.id), personal_id: g.id })),
+    links:  (data.links  || []).map(l => ({
+      ...l,
+      id:          key(l.id),
+      personal_id: l.id,
+      group_ids:   (l.group_ids || []).map(key),
+      groups:      (l.groups || []).map(m => ({ ...m, id: key(m.id) })),
+    })),
+  };
+}
+
+/**
+ * This member's own content, or nothing. A 401 means the session ended since
+ * the page loaded; that is handled by treating them as signed out, not by
+ * breaking the page — the shared links are still perfectly good.
+ */
+async function fetchPersonal() {
+  if (!currentUser) return { groups: [], links: [] };
+  try {
+    const r = await fetch('/api/my/data', { credentials: 'same-origin' });
+    if (r.status === 401) { sessionEnded(); return { groups: [], links: [] }; }
+    if (!r.ok) return { groups: [], links: [] };
+    const data = await r.json();
+    personalStorage = data.storage || null;
+    return adoptPersonal(data);
+  } catch {
+    return { groups: [], links: [] };
+  }
+}
+
+/** The session went away underneath the page. Carry on as a visitor. */
+function sessionEnded() {
+  if (!currentUser) return;
+  currentUser = null;
+  personalStorage = null;
+  renderAccountControl();
+  showToast('You have been signed out', { type: 'info', detail: 'Sign in again to see your own links.' });
+}
+
+/** A request to /api/my/* that sends a form or JSON, with the session. */
+async function myRequest(url, { method = 'POST', json, form } = {}) {
+  const init = { method, credentials: 'same-origin', headers: {} };
+  if (json !== undefined) {
+    init.headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(json);
+  } else if (form) {
+    init.body = form;
+  }
+  const r = await fetch(url, init);
+  if (r.status === 401) sessionEnded();
+  const body = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, body };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -357,19 +438,28 @@ let pinnedAppliedOnce  = false;
 
 // Returning visitors keep the tab they were on across refreshes. The pinned
 // default only kicks in when nothing is stored (a fresh, uncached visitor).
+//
+// Per person when somebody is signed in: "u12" is meaningless to anyone else,
+// and on a shared machine the stored value would tell the next person which of
+// the last one's groups they were reading.
 const LAST_GROUP_KEY = 'linkpage_last_group';
+const lastGroupKey = () => (currentUser ? `${LAST_GROUP_KEY}:${currentUser.id}` : LAST_GROUP_KEY);
+
+/** A tab key from its stored or data-attribute form: 'all', 12, or 'u12'. */
+function parseGroupKey(raw) {
+  if (raw === 'all') return 'all';
+  if (typeof raw === 'string' && /^u\d+$/.test(raw)) return raw;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 function loadStoredGroup() {
-  try {
-    const raw = localStorage.getItem(LAST_GROUP_KEY);
-    if (raw === 'all') return 'all';
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  } catch { return null; }
+  try { return parseGroupKey(localStorage.getItem(lastGroupKey())); }
+  catch { return null; }
 }
 
 function saveStoredGroup(group) {
-  try { localStorage.setItem(LAST_GROUP_KEY, String(group)); } catch {}
+  try { localStorage.setItem(lastGroupKey(), String(group)); } catch {}
 }
 
 /** Returns the section_id this link has within `groupId`, or null. */
@@ -393,6 +483,14 @@ const LOCK_SVG = `
     <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
   </svg>`;
 
+/** The mark on a group or link only its owner can see. */
+const MINE_SVG = `
+  <svg class="tab-mine-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-label="Yours">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
+  </svg>`;
+
 function isGroupLocked(group) {
   return group.is_protected && !group.is_unlocked;
 }
@@ -407,11 +505,14 @@ function groupTabHtml(g, dup) {
   const activeStyle = (active && tabsUseGroupColor)
     ? ` style="background:${escapeHtml(g.color)};border-color:${escapeHtml(g.color)};--tab-rgb:${hexToRgb(g.color).join(',')}"`
     : '';
+  const mine = isPersonal(g);
   return `
-    <button class="tab${active ? ' active' : ''}${locked ? ' locked' : ''}"
-            data-group="${g.id}" data-locked="${locked ? '1' : '0'}"${activeStyle}${dup ? ' aria-hidden="true" tabindex="-1"' : ''}>
+    <button class="tab${active ? ' active' : ''}${locked ? ' locked' : ''}${mine ? ' tab-mine' : ''}"
+            data-group="${g.id}" data-locked="${locked ? '1' : '0'}"${activeStyle}${dup ? ' aria-hidden="true" tabindex="-1"' : ''}
+            ${mine ? 'title="Only you can see this group"' : ''}>
       <span class="tab-dot" style="background:${escapeHtml(active ? '#fff' : g.color)}"></span>
       ${escapeHtml(g.name)}
+      ${mine ? MINE_SVG : ''}
       ${locked ? LOCK_SVG : ''}
       <span class="tab-count">${count}</span>
     </button>`;
@@ -583,12 +684,14 @@ function bindTabScroller() {
   document.getElementById('tabsRow').addEventListener('click', e => {
     const btn = e.target.closest('.tab');
     if (!btn) return;
+    const key = parseGroupKey(btn.dataset.group);
+    if (key === null) return;
     if (btn.dataset.locked === '1') {
-      const g = groups.find(x => x.id === Number(btn.dataset.group));
+      const g = groups.find(x => x.id === key);
       if (g) openUnlockModal(g);
       return;
     }
-    activeGroup = btn.dataset.group === 'all' ? 'all' : Number(btn.dataset.group);
+    activeGroup = key;
     saveStoredGroup(activeGroup);
     renderTabs(); renderLinks(true);
   });
@@ -810,7 +913,9 @@ function presetSvgString(body, color, size = 64) {
 /** Populates the group <select>, then triggers a section repopulate. */
 function populateRequestGroups() {
   const sel = document.getElementById('reqGroup');
-  const opts = groups.map(g =>
+  // Only shared groups. A member's own group is not somewhere a request can
+  // go, and its name would end up in front of whoever reviews the request.
+  const opts = groups.filter(g => !isPersonal(g)).map(g =>
     `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
   sel.innerHTML = `<option value="" disabled selected>Choose a group…</option>${opts}`;
   populateRequestSections();
@@ -980,7 +1085,9 @@ function setRequestMode(mode) {
 /** Fills the "link to change" picker with every link this visitor can see. */
 function populateRequestTargets() {
   const sel = document.getElementById('reqTarget');
+  // Only shared links, for the same reason.
   const opts = links
+    .filter(l => !isPersonal(l))
     .map(l => `<option value="${l.id}">${escapeHtml(l.name)}</option>`)
     .join('');
   sel.innerHTML = `<option value="" disabled selected>Choose a link…</option>${opts}`;
@@ -1374,6 +1481,10 @@ function currentThemeName() {
 
 /** Where a link points: its slug when it has one, otherwise /r/<id>. */
 function linkHref(link) {
+  // A personal link has no /r/ door: nothing tracks clicks on somebody's own
+  // bookmarks. It goes straight to its address, or to its file through the
+  // route that checks the session.
+  if (isPersonal(link)) return link.file_path || link.url;
   return link.slug ? `/f/${encodeURIComponent(link.slug)}` : `/r/${link.id}`;
 }
 
@@ -1383,7 +1494,9 @@ function linkHref(link) {
  * overlay where the modal already supplies both.
  */
 function markdownHref(link, { embed = false } = {}) {
-  return `${linkHref(link)}?theme=${currentThemeName()}${embed ? '&embed=1' : ''}`;
+  const base = linkHref(link);
+  const join = base.includes('?') ? '&' : '?';
+  return `${base}${join}theme=${currentThemeName()}${embed ? '&embed=1' : ''}`;
 }
 
 /**
@@ -1583,6 +1696,28 @@ function buildLinkCard(link) {
 
   card.querySelector('.link-copy-btn').addEventListener('click', e => copyLinkFromCard(e, link));
 
+  if (isPersonal(link)) {
+    card.classList.add('link-card-mine');
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'link-edit-btn';
+    edit.title = 'Edit this link';
+    edit.setAttribute('aria-label', `Edit ${link.name}`);
+    edit.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+      </svg>`;
+    // The card is an <a>, so a click inside it would follow the link. Same
+    // treatment as the copy button.
+    edit.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      openComposer(link);
+    });
+    card.insertBefore(edit, card.querySelector('.link-copy-btn'));
+  }
+
   return card;
 }
 
@@ -1638,9 +1773,11 @@ async function copyLinkFromCard(e, link) {
   const btn = e.currentTarget;
 
   // A slug exists to be shared, so it wins whenever the link has one.
-  const toCopy = link.slug
-    ? `${location.origin}/f/${link.slug}`
-    : (link.file_path ? `${location.origin}/r/${link.id}` : link.url);
+  const toCopy = isPersonal(link)
+    ? (link.file_path ? `${location.origin}${link.file_path}` : link.url)
+    : link.slug
+      ? `${location.origin}/f/${link.slug}`
+      : (link.file_path ? `${location.origin}/r/${link.id}` : link.url);
 
   let ok = false;
   try {
@@ -1795,7 +1932,7 @@ function renderLinks(transition = false) {
     emptyState.classList.add('hidden');
 
     const shouldGroupBySection =
-      typeof activeGroup === 'number' &&
+      activeGroup !== 'all' &&
       (groups.find(g => g.id === activeGroup)?.sections || []).length > 0;
 
     if (shouldGroupBySection) {
@@ -1918,14 +2055,471 @@ document.getElementById('searchWrap').addEventListener('click', e => {
   document.getElementById('searchInput').focus();
 });
 
+// ─── Your account, in the header ──────────────────────────────────────────────
+//
+// Signed out: the Admin button stays exactly where it was — it is the way in
+// for whoever runs the instance — with Sign in beside it. Signed in: an initial
+// in a circle, which opens a short menu.
+
+/**
+ * One letter per name, two at most: "Sam Lee" is SL, "Administrator" is A.
+ * Two letters of a single word read as the initials of two people.
+ */
+function initialsOf(user) {
+  const name = (user.display_name || '').trim();
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  if (words.length === 1) return words[0][0].toUpperCase();
+  // No name: the address, before the @.
+  return ((user.email || '?')[0]).toUpperCase();
+}
+
+function renderAccountControl() {
+  const slot = document.getElementById('accountSlot');
+  if (!slot) return;
+  const next = encodeURIComponent(location.pathname + location.search);
+
+  if (!currentUser) {
+    // The Admin button exactly as it always was — an operator who never makes
+    // an account must not find it moved or restyled — and Sign in beside it,
+    // in the same shape.
+    slot.innerHTML = `
+      <a href="/login/?next=${next}" class="admin-btn account-signin">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+          <polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+        </svg>
+        <span class="admin-btn-label">Sign in</span>
+      </a>
+      <a href="/admin" class="admin-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <span class="admin-btn-label">Admin</span>
+      </a>`;
+    return;
+  }
+
+  const isAdmin = currentUser.role === 'admin';
+  slot.innerHTML = `
+    <button type="button" class="account-btn" id="accountBtn"
+            aria-haspopup="menu" aria-expanded="false"
+            title="${escapeHtml(currentUser.email)}">${escapeHtml(initialsOf(currentUser))}</button>
+    <div class="account-menu hidden" id="accountMenu" role="menu">
+      <div class="account-menu-head">
+        <span class="account-menu-name">${escapeHtml(currentUser.display_name || currentUser.email)}</span>
+        ${currentUser.display_name ? `<span class="account-menu-email">${escapeHtml(currentUser.email)}</span>` : ''}
+      </div>
+      <button type="button" class="account-menu-item" role="menuitem" data-act="add-link">Add a link</button>
+      <button type="button" class="account-menu-item" role="menuitem" data-act="groups">Your groups</button>
+      ${isAdmin ? '<a class="account-menu-item" role="menuitem" href="/admin">Admin panel</a>' : ''}
+      <div class="account-menu-divider" role="separator"></div>
+      <button type="button" class="account-menu-item account-menu-danger" role="menuitem" data-act="sign-out">Sign out</button>
+    </div>`;
+}
+
+function setAccountMenu(open) {
+  const menu = document.getElementById('accountMenu');
+  const btn  = document.getElementById('accountBtn');
+  if (!menu || !btn) return;
+  menu.classList.toggle('hidden', !open);
+  btn.setAttribute('aria-expanded', String(open));
+  if (open) menu.querySelector('.account-menu-item')?.focus();
+}
+
+document.addEventListener('click', async e => {
+  if (e.target.closest('#accountBtn')) {
+    const open = document.getElementById('accountMenu')?.classList.contains('hidden');
+    setAccountMenu(!!open);
+    return;
+  }
+
+  const item = e.target.closest('#accountMenu [data-act]');
+  if (item) {
+    setAccountMenu(false);
+    if (item.dataset.act === 'add-link') openComposer(null);
+    if (item.dataset.act === 'groups')   openGroupsManager();
+    if (item.dataset.act === 'sign-out') await signOut();
+    return;
+  }
+
+  // Anywhere else closes it. Not a .modal-overlay, so the overlay's own
+  // backdrop and Escape handling do not reach it.
+  if (!e.target.closest('#accountMenu')) setAccountMenu(false);
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('accountMenu')?.classList.contains('hidden')) {
+    setAccountMenu(false);
+    document.getElementById('accountBtn')?.focus();
+  }
+});
+
+async function signOut() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+  } catch { /* leaving anyway */ }
+  // A full reload: the surest way to have nothing of theirs left in memory.
+  location.reload();
+}
+
+// ─── The composer: adding and editing your own links ──────────────────────────
+
+let composerLink = null;      // the link being edited, or null when adding
+let composerFile = null;      // a picked attachment
+let composerIcon = null;      // a picked icon image
+let composerMode = 'url';     // 'url' | 'file'
+let composerConfirmingDelete = false;
+
+const el = id => document.getElementById(id);
+
+function personalGroups() { return groups.filter(isPersonal); }
+
+function fillComposerGroups(selectedKey = null) {
+  const sel = el('myLinkGroup');
+  const options = personalGroups()
+    .map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
+  sel.innerHTML = `<option value="">Not in a group</option>${options}
+                   <option value="__new">New group…</option>`;
+  sel.value = selectedKey && personalGroups().some(g => g.id === selectedKey) ? selectedKey : '';
+  fillComposerSections();
+}
+
+function fillComposerSections(selectedId = null) {
+  const group = personalGroups().find(g => g.id === el('myLinkGroup').value);
+  const row = el('myLinkSectionRow');
+  const sections = group ? group.sections.flatMap(s => [
+    { id: s.id, name: s.name },
+    ...(s.subsections || []).map(sub => ({ id: sub.id, name: `${s.name} › ${sub.name}` })),
+  ]) : [];
+
+  row.classList.toggle('hidden', sections.length === 0);
+  el('myLinkSection').innerHTML = `<option value="">No section</option>` +
+    sections.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  if (selectedId) el('myLinkSection').value = String(selectedId);
+}
+
+function setComposerMode(mode) {
+  composerMode = mode;
+  el('myLinkUrlRow').classList.toggle('hidden', mode !== 'url');
+  el('myLinkFileRow').classList.toggle('hidden', mode !== 'file');
+  for (const btn of document.querySelectorAll('[data-compose-mode]')) {
+    btn.classList.toggle('active', btn.dataset.composeMode === mode);
+    btn.setAttribute('aria-pressed', String(btn.dataset.composeMode === mode));
+  }
+  el('myLinkUrl').required = mode === 'url';
+}
+
+function formatBytesShort(n) {
+  if (!Number.isFinite(n)) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
+
+function refreshComposerStorage() {
+  const line = el('myLinkStorage');
+  if (!personalStorage) { line.textContent = ''; return; }
+  const { used, quota } = personalStorage;
+  line.textContent = `${formatBytesShort(used)} of ${formatBytesShort(quota)} used`;
+  line.classList.toggle('is-near', quota > 0 && used / quota > 0.9);
+}
+
+function refreshComposerFileLabel() {
+  const existing = composerLink?.file_name && !composerFile ? composerLink.file_name : null;
+  el('myLinkFileName').textContent = composerFile
+    ? `${composerFile.name} · ${formatBytesShort(composerFile.size)}`
+    : existing || 'No file chosen';
+}
+
+function refreshComposerIcon() {
+  const preview = el('myLinkIconPreview');
+  if (composerIcon) {
+    preview.innerHTML = `<img src="${URL.createObjectURL(composerIcon)}" alt="" />`;
+  } else if (composerLink?.image_path && !el('myLinkIconRemoved').checked) {
+    preview.innerHTML = `<img src="${escapeHtml(composerLink.image_path)}" alt="" />`;
+  } else {
+    preview.innerHTML = FALLBACK_ICON_SVG;
+  }
+  el('myLinkClearIcon').classList.toggle('hidden', !composerIcon && !composerLink?.image_path);
+}
+
+/** Opens the composer, empty for a new link or filled in from an existing one. */
+function openComposer(link) {
+  composerLink = link;
+  composerFile = null;
+  composerIcon = null;
+  composerConfirmingDelete = false;
+
+  el('myLinkForm').reset();
+  el('myLinkError').classList.add('hidden');
+  el('myLinkNewGroupRow').classList.add('hidden');
+  el('myLinkIconRemoved').checked = false;
+
+  el('myLinkTitle').textContent = link ? 'Edit your link' : 'Add a link';
+  el('myLinkSubmitBtn').textContent = link ? 'Save changes' : 'Add link';
+  el('myLinkDeleteBtn').classList.toggle('hidden', !link);
+  el('myLinkDeleteBtn').textContent = 'Delete';
+
+  if (link) {
+    el('myLinkName').value = link.name || '';
+    el('myLinkUrl').value  = link.url  || '';
+    el('myLinkDesc').value = link.description || '';
+    setComposerMode(link.file_path ? 'file' : 'url');
+    const membership = (link.groups || [])[0];
+    fillComposerGroups(membership?.id || null);
+    fillComposerSections(membership?.section_id || null);
+  } else {
+    setComposerMode('url');
+    // Adding while looking at one of your groups puts it there.
+    fillComposerGroups(typeof activeGroup === 'string' && activeGroup.startsWith('u') ? activeGroup : null);
+  }
+
+  refreshComposerFileLabel();
+  refreshComposerIcon();
+  refreshComposerStorage();
+  el('myLinkOverlay').classList.remove('hidden');
+  el('myLinkName').focus();
+}
+
+function closeComposer() {
+  el('myLinkOverlay').classList.add('hidden');
+  composerLink = null;
+  composerFile = null;
+  composerIcon = null;
+}
+
+function showComposerError(message) {
+  const box = el('myLinkError');
+  box.textContent = message;
+  box.classList.remove('hidden');
+}
+
+el('myLinkGroup')?.addEventListener('change', () => {
+  const creating = el('myLinkGroup').value === '__new';
+  el('myLinkNewGroupRow').classList.toggle('hidden', !creating);
+  if (creating) el('myLinkNewGroup').focus();
+  fillComposerSections();
+});
+
+for (const btn of document.querySelectorAll('[data-compose-mode]')) {
+  btn.addEventListener('click', () => setComposerMode(btn.dataset.composeMode));
+}
+
+el('myLinkFileInput')?.addEventListener('change', e => {
+  composerFile = e.target.files?.[0] || null;
+  refreshComposerFileLabel();
+  // A file named for itself: fill the name in when it is still empty.
+  if (composerFile && !el('myLinkName').value.trim()) {
+    el('myLinkName').value = composerFile.name.replace(/\.[^.]+$/, '');
+  }
+});
+
+el('myLinkIconInput')?.addEventListener('change', e => {
+  composerIcon = e.target.files?.[0] || null;
+  el('myLinkIconRemoved').checked = false;
+  refreshComposerIcon();
+});
+
+el('myLinkClearIcon')?.addEventListener('click', () => {
+  composerIcon = null;
+  el('myLinkIconInput').value = '';
+  el('myLinkIconRemoved').checked = true;
+  refreshComposerIcon();
+});
+
+/** Creates the group typed into "New group…", returning its personal id. */
+async function createGroupFromComposer() {
+  const name = el('myLinkNewGroup').value.trim();
+  if (!name) { showComposerError('Give the new group a name.'); return undefined; }
+  const res = await myRequest('/api/my/groups', { json: { name } });
+  if (!res.ok) { showComposerError(res.body.error || 'Could not create that group.'); return undefined; }
+  return res.body.id;
+}
+
+el('myLinkForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  el('myLinkError').classList.add('hidden');
+
+  const name = el('myLinkName').value.trim();
+  const url  = el('myLinkUrl').value.trim();
+  if (!name) return showComposerError('Give the link a name.');
+  if (composerMode === 'url' && !url) return showComposerError('Add a web address.');
+  if (composerMode === 'file' && !composerFile && !composerLink?.file_path) {
+    return showComposerError('Choose a file to attach.');
+  }
+
+  const btn = el('myLinkSubmitBtn');
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    // Which of your groups, as the real number the server knows it by.
+    let groupId = null;
+    const chosen = el('myLinkGroup').value;
+    if (chosen === '__new') {
+      groupId = await createGroupFromComposer();
+      if (groupId === undefined) return;
+    } else if (chosen) {
+      groupId = personalGroups().find(g => g.id === chosen)?.personal_id ?? null;
+    }
+    const sectionId = el('myLinkSection').value ? Number(el('myLinkSection').value) : null;
+
+    const form = new FormData();
+    form.append('name', name);
+    form.append('description', el('myLinkDesc').value.trim());
+    form.append('groups', JSON.stringify(groupId ? [{ group_id: groupId, section_id: sectionId }] : []));
+
+    if (composerMode === 'url') {
+      form.append('url', url);
+      if (composerLink?.file_path) form.append('remove_file', '1');
+    } else if (composerFile) {
+      form.append('file', composerFile);
+    }
+    if (composerIcon) form.append('image', composerIcon);
+    else if (el('myLinkIconRemoved').checked) form.append('remove_image', '1');
+
+    const res = composerLink
+      ? await myRequest(`/api/my/links/${composerLink.personal_id}`, { method: 'PUT', form })
+      : await myRequest('/api/my/links', { form });
+
+    if (res.status === 413) {
+      const left = res.body.storage ? formatBytesShort(res.body.storage.remaining) : 'not enough';
+      return showComposerError(`That file is bigger than the space you have left (${left}).`);
+    }
+    if (!res.ok) return showComposerError(res.body.error || 'Could not save that link.');
+
+    const wasEditing = !!composerLink;
+    closeComposer();
+    // Show the link where it now lives.
+    if (groupId) { activeGroup = `u${groupId}`; saveStoredGroup(activeGroup); }
+    await loadData({ transition: true });
+    showToast(wasEditing ? 'Link saved' : 'Link added');
+  } catch {
+    showComposerError('Could not reach the server.');
+  } finally {
+    btn.disabled = false; btn.textContent = label;
+  }
+});
+
+// Deleting asks twice, on the button itself: a modal for one confirmation is
+// heavier than the decision, and the codebase never uses confirm().
+el('myLinkDeleteBtn')?.addEventListener('click', async () => {
+  const btn = el('myLinkDeleteBtn');
+  if (!composerConfirmingDelete) {
+    composerConfirmingDelete = true;
+    btn.textContent = 'Delete for good?';
+    return;
+  }
+  const res = await myRequest(`/api/my/links/${composerLink.personal_id}`, { method: 'DELETE' });
+  if (!res.ok) { showComposerError(res.body.error || 'Could not delete that link.'); return; }
+  closeComposer();
+  await loadData({ transition: true });
+  showToast('Link deleted');
+});
+
+el('closeMyLinkBtn')?.addEventListener('click', closeComposer);
+el('cancelMyLinkBtn')?.addEventListener('click', closeComposer);
+el('myLinkOverlay')?.addEventListener('click', e => {
+  if (e.target.id === 'myLinkOverlay') closeComposer();
+});
+
+// ─── Your groups ──────────────────────────────────────────────────────────────
+
+function openGroupsManager() {
+  renderGroupsManager();
+  el('myGroupsError').classList.add('hidden');
+  el('myGroupsOverlay').classList.remove('hidden');
+  el('myGroupsNewName').focus();
+}
+
+function closeGroupsManager() {
+  el('myGroupsOverlay').classList.add('hidden');
+}
+
+function renderGroupsManager() {
+  const list = el('myGroupsList');
+  const mine = personalGroups();
+  if (!mine.length) {
+    list.innerHTML = '<p class="my-groups-empty">You have no groups yet. They become tabs, after the shared ones, that only you can see.</p>';
+    return;
+  }
+  list.innerHTML = mine.map(g => `
+    <div class="my-group-row" data-personal-id="${g.personal_id}">
+      <span class="tab-dot" style="background:${escapeHtml(g.color)}"></span>
+      <input type="text" class="my-group-name" value="${escapeHtml(g.name)}"
+             aria-label="Group name" maxlength="100" />
+      <span class="my-group-count">${g.link_count} link${g.link_count === 1 ? '' : 's'}</span>
+      <button type="button" class="btn btn-ghost btn-sm" data-act="delete-group">Delete</button>
+    </div>`).join('');
+}
+
+el('myGroupsAddForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = el('myGroupsNewName').value.trim();
+  if (!name) return;
+  const res = await myRequest('/api/my/groups', { json: { name } });
+  if (!res.ok) {
+    el('myGroupsError').textContent = res.body.error || 'Could not create that group.';
+    el('myGroupsError').classList.remove('hidden');
+    return;
+  }
+  el('myGroupsNewName').value = '';
+  await loadData();
+  renderGroupsManager();
+});
+
+// Renames save when the field is left, like the admin's inline edits.
+el('myGroupsList')?.addEventListener('change', async e => {
+  const input = e.target.closest('.my-group-name');
+  if (!input) return;
+  const row = input.closest('.my-group-row');
+  const group = personalGroups().find(g => g.personal_id === Number(row.dataset.personalId));
+  const name = input.value.trim();
+  if (!group || !name || name === group.name) { input.value = group?.name || ''; return; }
+
+  const res = await myRequest(`/api/my/groups/${group.personal_id}`, {
+    method: 'PUT', json: { name, color: group.color },
+  });
+  if (!res.ok) { input.value = group.name; showToast('Could not rename that group', { type: 'error' }); return; }
+  await loadData();
+  showToast('Group renamed');
+});
+
+el('myGroupsList')?.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-act="delete-group"]');
+  if (!btn) return;
+  // Twice, on the button, as with links.
+  if (btn.dataset.armed !== '1') {
+    btn.dataset.armed = '1';
+    btn.textContent = 'Delete group?';
+    btn.classList.add('btn-ghost-danger');
+    return;
+  }
+  const id = Number(btn.closest('.my-group-row').dataset.personalId);
+  const res = await myRequest(`/api/my/groups/${id}`, { method: 'DELETE' });
+  if (!res.ok) { showToast('Could not delete that group', { type: 'error' }); return; }
+  await loadData();
+  renderGroupsManager();
+  showToast('Group deleted', { detail: 'Its links are still in All.' });
+});
+
+el('closeMyGroupsBtn')?.addEventListener('click', closeGroupsManager);
+el('myGroupsOverlay')?.addEventListener('click', e => {
+  if (e.target.id === 'myGroupsOverlay') closeGroupsManager();
+});
+
 // ─── Data loading ─────────────────────────────────────────────────────────────
 
 async function loadData({ transition = false } = {}) {
-  const [fl, fg] = await Promise.all([
+  const [fl, fg, mine] = await Promise.all([
     authorisedFetch('/api/links'),
     authorisedFetch('/api/groups'),
+    fetchPersonal(),
   ]);
-  links = fl; groups = fg;
+  // Shared first, then the member's own, so their tabs sit after the ones
+  // everybody sees.
+  links  = [...fl, ...mine.links];
+  groups = [...fg, ...mine.groups];
 
   // First-time landing: returning visitors keep the tab they last viewed
   // (stored in localStorage). Only when nothing is stored do we fall back to
@@ -1942,11 +2536,12 @@ async function loadData({ transition = false } = {}) {
     }
   }
 
-  // If the active tab was a now-locked group, fall back to "All" so the user
-  // isn't stuck looking at an empty filtered grid.
-  if (typeof activeGroup === 'number') {
+  // If the active tab was a now-locked group — or a personal one that has gone,
+  // because it was deleted or because its owner signed out — fall back to "All"
+  // rather than leave an empty grid with no explanation.
+  if (activeGroup !== 'all') {
     const current = groups.find(g => g.id === activeGroup);
-    if (current && isGroupLocked(current)) activeGroup = 'all';
+    if (!current || isGroupLocked(current)) activeGroup = 'all';
   }
 
   renderTabs(); renderLinks(transition);
@@ -1995,7 +2590,17 @@ function applyFavicon(url) {
 }
 
 async function init() {
-  const settings = await fetch('/api/settings').then(r => r.json());
+  // In parallel: the settings were always a round trip, and asking who is
+  // signed in at the same time adds nothing to it, for anyone.
+  const [settings, me] = await Promise.all([
+    fetch('/api/settings').then(r => r.json()),
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : { user: null }))
+      .catch(() => ({ user: null })),
+  ]);
+  // The admin token is not a member: it has no page of its own.
+  currentUser = me.via === 'session' ? me.user : null;
+  renderAccountControl();
 
   if (settings.site_title) document.title = settings.site_title;
   applyBrandText(settings.site_title);
@@ -2019,7 +2624,8 @@ async function init() {
   tabsLoopEnabled   = !!settings.group_tabs_loop;
   markdownOpenMode  = settings.markdown_open_mode === 'tab' ? 'tab' : 'modal';
 
-  if (settings.public_password_required) {
+  // A member has already said who they are; the site password is for strangers.
+  if (settings.public_password_required && !currentUser) {
     const stored = localStorage.getItem('linkpage_public_password');
     if (stored && await verifyPublicPassword(stored)) {
       publicPassword = stored;

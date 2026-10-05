@@ -112,8 +112,12 @@ const paths = {
     get: op({
       tag: TAGS.links, auth: 'public-gate',
       summary: 'List links',
-      description: 'With an admin token, every link. Without one, only links a visitor may '
-                 + 'see: nothing hidden, and nothing in a locked group that has not been unlocked.',
+      description: 'Only links a visitor may see: nothing hidden, and nothing in a locked group '
+                 + 'that has not been unlocked. Every link comes back with the admin token, or '
+                 + 'with an administrator\'s session *and* `?view=admin`. The session alone is '
+                 + 'not enough, because a browser sends it on the public page\'s fetch too.',
+      params: [queryParam('view', 'Send `admin`, with an administrator\'s session, for every link.',
+                          { type: 'string', enum: ['admin'] })],
       responses: { 200: json(arrayOf('Link')) },
     }),
     post: op({

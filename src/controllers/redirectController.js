@@ -78,7 +78,11 @@ function redirect(req, res) {
   const link = db.getLinkById(linkId);
   if (!link) return res.status(404).send('Link not found');
 
-  const isAdmin = req.user?.role === 'admin';
+  // The token only — never the session. A click is a browser navigation, and
+  // a browser sends the session cookie on every one; widening on the role would
+  // let an administrator's ordinary click skip the visibility rules and go
+  // uncounted, which a click never did before accounts existed.
+  const isAdmin = req.isAdminToken;
   if (!passesVisibilityGate(req, res, link, isAdmin)) return;
 
   trackVisit(req, link, isAdmin);
@@ -156,7 +160,11 @@ function serveBySlug(req, res) {
   const link = db.getLinkBySlug(slug);
   if (!link) return res.status(404).send('Link not found');
 
-  const isAdmin = req.user?.role === 'admin';
+  // The token only — never the session. A click is a browser navigation, and
+  // a browser sends the session cookie on every one; widening on the role would
+  // let an administrator's ordinary click skip the visibility rules and go
+  // uncounted, which a click never did before accounts existed.
+  const isAdmin = req.isAdminToken;
   if (!passesVisibilityGate(req, res, link, isAdmin)) return;
 
   trackVisit(req, link, isAdmin);

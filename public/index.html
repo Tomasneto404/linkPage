@@ -199,7 +199,9 @@
       position: relative;
     }
     .link-card:hover .link-copy-btn,
-    .link-copy-btn:focus-visible { opacity: 1; }
+    .link-copy-btn:focus-visible,
+    .link-card:hover .link-edit-btn,
+    .link-edit-btn:focus-visible { opacity: 1; }
     .link-copy-btn:hover {
       background: var(--surface-3);
       border-color: var(--border-strong);
@@ -238,8 +240,8 @@
     /* Touch screens never get hover — always show the button so it can be
        tapped. Slightly larger touch target too. */
     @media (hover: none) {
-      .link-copy-btn { opacity: 0.55; width: 34px; height: 34px; }
-      .link-copy-btn:hover { opacity: 1; }
+      .link-copy-btn, .link-edit-btn { opacity: 0.55; width: 34px; height: 34px; }
+      .link-copy-btn:hover, .link-edit-btn:hover { opacity: 1; }
     }
 
     /* ─── Toast notifications ─────────────────────────────────────────── */
@@ -507,6 +509,235 @@
     }
     .req-preset-tile:hover { background: var(--surface-3); }
     .req-preset-tile.is-selected { border-color: var(--primary); background: rgba(var(--primary-rgb),0.10); color: var(--text); }
+
+    /* ─── Your own links ──────────────────────────────────────────────── */
+
+    /* Edit, beside copy, on a card only its owner sees. Same shape. */
+    .link-edit-btn {
+      flex-shrink: 0;
+      align-self: center;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity var(--transition), background var(--transition),
+                  border-color var(--transition), color var(--transition);
+    }
+    .link-edit-btn:hover {
+      background: var(--surface-3);
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+    .link-edit-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.18);
+    }
+
+    /* A personal tab: the same pill, with a small mark that says only you see it. */
+    .tab-mine-mark {
+      width: 11px;
+      height: 11px;
+      margin-left: 1px;
+      opacity: 0.55;
+      flex-shrink: 0;
+    }
+    .tab.active .tab-mine-mark { opacity: 0.85; }
+
+    /* ─── Account control ─────────────────────────────────────────────── */
+    .account-slot {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .account-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid var(--bar-control-border);
+      background: rgba(var(--primary-rgb),0.12);
+      color: var(--primary);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: background var(--transition), box-shadow var(--transition);
+    }
+    .account-btn:hover { background: rgba(var(--primary-rgb),0.2); }
+    .account-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.25);
+    }
+
+    .account-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      min-width: 220px;
+      padding: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      z-index: 120;
+      display: flex;
+      flex-direction: column;
+    }
+    .account-menu.hidden { display: none; }
+
+    .account-menu-head {
+      display: flex;
+      flex-direction: column;
+      padding: 8px 10px 10px;
+      margin-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .account-menu-name  { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+    .account-menu-email { font-size: 0.75rem; color: var(--text-muted); margin-top: 1px; }
+
+    .account-menu-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: var(--radius-sm);
+      background: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.875rem;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .account-menu-item:hover,
+    .account-menu-item:focus-visible { background: var(--surface-3); outline: none; }
+    .account-menu-danger { color: var(--danger); }
+    .account-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* ─── The composer ────────────────────────────────────────────────── */
+    .my-link-modal { max-width: 460px; }
+    #myLinkForm { padding: 0 22px 22px; }
+
+    /* Group and section share a row, and each takes half of it. Scoped here so
+       no other .form-row in the app changes. */
+    #myLinkForm .form-row > .form-group { flex: 1; min-width: 0; }
+
+    .my-link-privacy {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin: -4px 0 0;
+    }
+
+    /* Two choices, one of which is always on — a URL or a file. */
+    .segmented {
+      display: flex;
+      padding: 3px;
+      gap: 3px;
+      background: var(--surface-3);
+      border-radius: var(--radius-sm);
+    }
+    .segmented-option {
+      flex: 1;
+      padding: 6px 10px;
+      border: 0;
+      border-radius: calc(var(--radius-sm) - 2px);
+      background: none;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+    }
+    .segmented-option.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow-xs);
+    }
+    .segmented-option:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(var(--primary-rgb),0.4);
+    }
+
+    .my-link-file {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .my-link-file input[type="file"] { display: none; }
+    .my-link-file-name {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .my-link-hint { font-size: 0.75rem; color: var(--text-muted); }
+
+    .my-link-icon-row { display: flex; align-items: center; gap: 8px; }
+    .my-link-icon-preview {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+    }
+    .my-link-icon-preview img { width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
+
+    .my-link-actions { align-items: center; }
+    /* Delete stands apart from Cancel and Save: it is the one you do not want
+       to hit while reaching for the others. */
+    #myLinkDeleteBtn { margin-right: auto; }
+    .my-link-storage {
+      margin: -6px 0 0;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: right;
+    }
+    .my-link-storage:empty { display: none; }
+    .my-link-storage.is-near { color: var(--danger); }
+
+    /* ─── Your groups ─────────────────────────────────────────────────── */
+    .my-groups-body { padding: 0 22px 22px; display: flex; flex-direction: column; gap: 12px; }
+    .my-groups-list { display: flex; flex-direction: column; gap: 6px; }
+    .my-groups-empty { font-size: 0.875rem; color: var(--text-muted); line-height: 1.5; }
+
+    .my-group-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 4px 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+    }
+    .my-group-row input.my-group-name {
+      flex: 1;
+      min-width: 0;
+      border-color: transparent;
+      background: transparent;
+      padding: 6px 8px;
+    }
+    .my-group-row input.my-group-name:focus { border-color: var(--primary); background: var(--surface); }
+    .my-group-count { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+
+    .my-groups-add { display: flex; gap: 8px; padding: 0; flex-direction: row; }
+    .my-groups-add input { flex: 1; }
+
+    @media (max-width: 480px) {
+      .account-signin .admin-btn-label { display: none; }
+    }
 </style>
 </head>
 <body>
@@ -572,10 +803,15 @@
       <span class="admin-btn-label">Request link</span>
     </button>
 
-    <a href="/admin" class="admin-btn">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-      <span class="admin-btn-label">Admin</span>
-    </a>
+    <!-- Filled by renderAccountControl(): Sign in and Admin for a visitor, an
+         initial and a menu for a member. Starts with the Admin button so the
+         header looks exactly as it always did before the script runs. -->
+    <div class="account-slot" id="accountSlot">
+      <a href="/admin" class="admin-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <span class="admin-btn-label">Admin</span>
+      </a>
+    </div>
   </div>
 </header>
 
@@ -822,6 +1058,115 @@
 </div>
 
 <!-- Toast notifications (e.g. "Link copied") -->
+<!-- ── Your own link: adding and editing ─────────────────────────────── -->
+<div class="modal-overlay hidden" id="myLinkOverlay">
+  <div class="modal my-link-modal" role="dialog" aria-modal="true" aria-labelledby="myLinkTitle">
+    <div class="modal-header">
+      <h2 id="myLinkTitle">Add a link</h2>
+      <button type="button" class="modal-close" id="closeMyLinkBtn" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <form id="myLinkForm">
+      <p class="my-link-privacy">Only you can see links you add here.</p>
+
+      <div class="form-group">
+        <label for="myLinkName">Name</label>
+        <input type="text" id="myLinkName" maxlength="200" required />
+      </div>
+
+      <div class="segmented" role="group" aria-label="What the link opens">
+        <button type="button" class="segmented-option active" data-compose-mode="url" aria-pressed="true">A web address</button>
+        <button type="button" class="segmented-option" data-compose-mode="file" aria-pressed="false">A file</button>
+      </div>
+
+      <div class="form-group" id="myLinkUrlRow">
+        <label for="myLinkUrl">Web address</label>
+        <input type="url" id="myLinkUrl" placeholder="https://" maxlength="2048" />
+      </div>
+
+      <div class="form-group hidden" id="myLinkFileRow">
+        <label for="myLinkFileInput">File</label>
+        <label class="my-link-file">
+          <input type="file" id="myLinkFileInput" />
+          <span class="btn btn-ghost btn-sm">Choose…</span>
+          <span class="my-link-file-name" id="myLinkFileName">No file chosen</span>
+        </label>
+        <span class="my-link-hint">Up to 25 MB. A <code>.md</code> file opens as a page.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="myLinkDesc">Description <span class="label-opt">(optional)</span></label>
+        <textarea id="myLinkDesc" rows="2" maxlength="1000"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="myLinkGroup">Group</label>
+          <select id="myLinkGroup"></select>
+        </div>
+        <div class="form-group hidden" id="myLinkSectionRow">
+          <label for="myLinkSection">Section</label>
+          <select id="myLinkSection"></select>
+        </div>
+      </div>
+
+      <div class="form-group hidden" id="myLinkNewGroupRow">
+        <label for="myLinkNewGroup">New group's name</label>
+        <input type="text" id="myLinkNewGroup" maxlength="100" />
+      </div>
+
+      <div class="form-group">
+        <label>Icon <span class="label-opt">(optional)</span></label>
+        <div class="my-link-icon-row">
+          <span class="link-icon my-link-icon-preview" id="myLinkIconPreview"></span>
+          <label class="btn btn-ghost btn-sm">
+            Upload an image
+            <input type="file" id="myLinkIconInput" accept="image/png,image/jpeg,image/gif,image/webp" hidden />
+          </label>
+          <button type="button" class="btn btn-ghost btn-sm hidden" id="myLinkClearIcon">Remove</button>
+          <input type="checkbox" id="myLinkIconRemoved" hidden />
+        </div>
+        <span class="my-link-hint">Leave it, and the site's own icon is used.</span>
+      </div>
+
+      <div class="form-error hidden" id="myLinkError" role="alert"></div>
+
+      <p class="my-link-storage" id="myLinkStorage"></p>
+
+      <div class="form-actions my-link-actions">
+        <button type="button" class="btn btn-ghost-danger hidden" id="myLinkDeleteBtn">Delete</button>
+        <button type="button" class="btn btn-ghost" id="cancelMyLinkBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="myLinkSubmitBtn">Add link</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Your groups ──────────────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="myGroupsOverlay">
+  <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="myGroupsTitle">
+    <div class="modal-header">
+      <h2 id="myGroupsTitle">Your groups</h2>
+      <button type="button" class="modal-close" id="closeMyGroupsBtn" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="my-groups-body">
+      <div class="my-groups-list" id="myGroupsList"></div>
+      <form id="myGroupsAddForm" class="my-groups-add">
+        <input type="text" id="myGroupsNewName" placeholder="New group" maxlength="100"
+               aria-label="New group name" />
+        <button type="submit" class="btn btn-primary btn-sm">Add</button>
+      </form>
+      <div class="form-error hidden" id="myGroupsError" role="alert"></div>
+    </div>
+  </div>
+</div>
+
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="/admin/icon-presets.js"></script>

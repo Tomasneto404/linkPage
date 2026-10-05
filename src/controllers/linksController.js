@@ -18,12 +18,28 @@ const { ensureGroupByName, ensureSectionByName, filterVisibleLinks } = require('
 
 // ─── Public read ──────────────────────────────────────────────────────────────
 
+/**
+ * Whether this request should see every link, hidden and locked ones included.
+ *
+ * Being an administrator is not enough on its own, and that is deliberate.
+ * A session is a cookie, and a browser sends cookies on every request to this
+ * origin — including the public page's own fetch of the link list. Widening
+ * on the role alone meant an administrator who had signed in to the panel
+ * then saw hidden links on the public page, which is the one place they are
+ * promised never to appear.
+ *
+ * So the wide view needs to be asked for: the admin token (which a browser
+ * never sends unprompted), or an administrator's session adding ?view=admin,
+ * which only the admin panel does. An ordinary member never gets it either way.
+ */
+function wantsAdminView(req) {
+  if (req.isAdminToken) return true;
+  return req.user?.role === 'admin' && req.query.view === 'admin';
+}
+
 function list(req, res) {
   const links = db.getAllLinks();
-  // An administrator sees everything, by either route in. A signed-in ordinary
-  // user sees exactly what an anonymous visitor sees — being known is not the
-  // same as being privileged.
-  if (req.user?.role === 'admin') return res.json(links);
+  if (wantsAdminView(req)) return res.json(links);
 
   const visible  = links.filter(l => !l.is_hidden);
   const groups   = db.getAllGroups();

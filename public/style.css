@@ -932,6 +932,24 @@ select option { background: var(--surface); }
    (.req-upload-label is inline-flex, which would otherwise win on specificity). */
 [hidden] { display: none !important; }
 
+/* ── Button variants shared by both pages ── */
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 0.8125rem;
+  border-radius: 8px;
+}
+
+.btn-ghost-danger {
+  background: none;
+  color: var(--danger);
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  border-radius: 8px;
+}
+.btn-ghost-danger:hover {
+  background: rgba(255, 59, 48, 0.08);
+  border-color: var(--danger);
+}
+
 /* ── Gate (public password, and signing in to the admin) ── */
 .gate {
   position: fixed;
