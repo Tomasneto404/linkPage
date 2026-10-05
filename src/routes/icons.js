@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Tomás Neto
 const express = require('express');
+const { wrapAsync } = require('../middleware/error');
 const { requireAdmin } = require('../middleware/auth');
 const { upload } = require('../services/uploadService');
 const c = require('../controllers/iconsController');
@@ -17,6 +18,6 @@ router.post  ('/api/icons',     requireAdmin, upload.single('image'), c.create);
 router.delete('/api/icons/:id', requireAdmin,                        c.remove);
 
 // Live favicon preview for the link form.
-router.get('/api/favicon-preview', requireAdmin, c.faviconPreview);
+router.get('/api/favicon-preview', requireAdmin, wrapAsync(c.faviconPreview));
 
 module.exports = router;

@@ -28,9 +28,11 @@ interface reaches them.
       addresses against one account gets through. Add a per-account limit.
 - [ ] **Login throttling is forgotten on restart.** The counters live in
       memory. Keep the sign-in ones in the database.
-- [ ] **Three async handlers are not wrapped.** `linksController.create`,
-      `linksController.update`, `versionController.getVersion` — a failure
-      leaves the request hanging instead of answering with an error.
+- [x] **Async handlers that were not wrapped.** Four, not the three first
+      counted: `linksController.create` and `update`, `versionController.getVersion`
+      and `iconsController.faviconPreview` — a failure left the request hanging
+      instead of answering with an error. A test now walks the live router and
+      fails on any unwrapped async handler.
 
 ## 3 — Operations
 

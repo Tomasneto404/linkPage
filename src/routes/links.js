@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Tomás Neto
 const express = require('express');
+const { wrapAsync } = require('../middleware/error');
 const { requireAdmin, requirePublicAuth, requireLoginIfPrivate } = require('../middleware/auth');
 const { uploadLinkPayload } = require('../services/uploadService');
 const links = require('../controllers/linksController');
@@ -23,8 +24,8 @@ router.get   ('/api/links/:id/file',       requireAdmin, links.getFile);
 router.put   ('/api/links/:id/file',       requireAdmin, links.putFile);
 router.post  ('/api/links/:id/visibility', requireAdmin, links.setVisibility);
 
-router.post  ('/api/links',      requireAdmin, uploadLinkPayload, links.create);
-router.put   ('/api/links/:id',  requireAdmin, uploadLinkPayload, links.update);
+router.post  ('/api/links',      requireAdmin, uploadLinkPayload, wrapAsync(links.create));
+router.put   ('/api/links/:id',  requireAdmin, uploadLinkPayload, wrapAsync(links.update));
 router.delete('/api/links/:id',  requireAdmin,                    links.remove);
 
 module.exports = router;
