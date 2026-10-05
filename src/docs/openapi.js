@@ -741,6 +741,34 @@ const paths = {
       },
     }),
   },
+  '/api/settings/oidc': {
+    get: op({
+      tag: TAGS.settings,
+      summary: 'Single sign-on settings',
+      description: 'The client secret is never returned, only whether one is set.',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+    put: op({
+      tag: TAGS.settings,
+      summary: 'Change the single sign-on settings',
+      description: 'Fields left out are unchanged. `client_secret` is kept unless a new one is '
+                 + 'given, or `null` to remove it. Turning it on fetches the provider\'s '
+                 + 'discovery document first, and refuses when that fails.',
+      body: jsonBody({
+        enabled:       { type: 'boolean' },
+        issuer:        { type: 'string', example: 'https://authentik.example.com/application/o/linkpage/' },
+        client_id:     { type: 'string' },
+        client_secret: { type: 'string', nullable: true, format: 'password' },
+        label:         { type: 'string', description: 'The button on the sign-in page' },
+        auto_create:   { type: 'boolean', description: 'Create an account on first sign-in' },
+        link_by_email: { type: 'boolean', description: 'Connect an existing account with the same verified address' },
+      }),
+      responses: {
+        200: json({ type: 'object' }),
+        400: json(ref('Error'), 'Incomplete, or the provider could not be reached'),
+      },
+    }),
+  },
   '/api/settings/user-quota': {
     post: op({
       tag: TAGS.settings,
@@ -857,9 +885,63 @@ const paths = {
     get: op({
       tag: TAGS.auth, auth: 'open',
       summary: 'Ways to sign in',
-      description: 'One entry today, for a password. An external identity provider would '
-                 + 'appear here, so the sign-in page needs no change to offer it.',
+      description: 'Always a password; also single sign-on when it is set up, as an entry '
+                 + 'with a `url` to send the browser to.',
       responses: { 200: json({ type: 'object' }) },
+    }),
+  },
+  '/api/auth/oidc/start': {
+    get: op({
+      tag: TAGS.auth, auth: 'open',
+      summary: 'Sign in with single sign-on',
+      description: 'A browser navigation, not an API call: redirects to the identity provider '
+                 + 'with PKCE, a state value held in a short-lived cookie, and a nonce. With '
+                 + '`connect=1` and a session, connects the signed-in account instead of signing in.',
+      params: [
+        queryParam('next', 'A path on this site to land on afterwards'),
+        queryParam('connect', '`1` to connect the signed-in account'),
+      ],
+      responses: {
+        302: { description: 'To the provider, or back to the sign-in page when it is not set up' },
+        429: { description: 'Too many attempts from this address' },
+      },
+    }),
+  },
+  '/api/auth/oidc/callback': {
+    get: op({
+      tag: TAGS.auth, auth: 'open',
+      summary: 'Where the identity provider returns to',
+      description: 'Register this address with the provider as the redirect URI. Checks the '
+                 + 'state against the cookie, trades the code, verifies the ID token\'s signature, '
+                 + 'issuer, audience, expiry and nonce, and signs the account in. Failures land '
+                 + 'on the sign-in page with an `sso_error` code.',
+      params: [
+        queryParam('code', 'From the provider'),
+        queryParam('state', 'From the provider'),
+        queryParam('error', 'From the provider, when it declined'),
+      ],
+      responses: {
+        302: { description: 'Signed in and on the way, or back to the sign-in page' },
+        429: { description: 'Too many attempts from this address' },
+      },
+    }),
+  },
+  '/api/auth/identities': {
+    get: op({
+      tag: TAGS.auth, auth: 'user',
+      summary: 'Your connection to single sign-on',
+      description: 'Whether single sign-on is set up, whether this account is connected, and '
+                 + 'whether it has a password of its own.',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+    delete: op({
+      tag: TAGS.auth, auth: 'user',
+      summary: 'Disconnect your account from single sign-on',
+      description: 'Refused for an account with no password, which would be left with no way in.',
+      responses: {
+        200: json({ type: 'object' }),
+        409: json(ref('Error'), 'Single sign-on is this account\'s only way in'),
+      },
     }),
   },
   '/api/auth/password': {
@@ -988,6 +1070,14 @@ const paths = {
   '/api/users/{id}/logout-all': {
     post: op({
       tag: TAGS.users, summary: 'Sign somebody out everywhere',
+      params: [pathParam('id', 'User id.')],
+      responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) },
+    }),
+  },
+  '/api/users/{id}/identities': {
+    delete: op({
+      tag: TAGS.users, summary: 'Disconnect an account from single sign-on',
+      description: 'The account stays. Its next single sign-on is treated as a stranger\'s.',
       params: [pathParam('id', 'User id.')],
       responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) },
     }),

@@ -92,12 +92,17 @@ function publicUser(user) {
 /**
  * The ways to sign in, for the sign-in page to render buttons from.
  *
- * Exists from the first release with only one entry in it, so that adding an
- * identity provider later is a new element in this array rather than a
- * restructuring of the login UI.
+ * A provider with a `url` is one the browser is sent to; the sign-in page
+ * renders it as a button and appends where to come back to.
  */
 function listProviders() {
-  return [{ id: 'local', label: 'Password' }];
+  const providers = [{ id: 'local', label: 'Password' }];
+  // Required here rather than at the top: oidcService needs the models, which
+  // are what this module is loaded alongside.
+  const oidc = require('./oidcService');
+  const cfg  = oidc.readConfig();
+  if (oidc.isReady(cfg)) providers.push({ id: 'oidc', label: cfg.label, url: '/api/auth/oidc/start' });
+  return providers;
 }
 
 module.exports = { authenticateLocal, passwordProblem, publicUser, listProviders };

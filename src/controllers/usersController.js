@@ -27,6 +27,7 @@ const { hashPassword } = require('../utils/password');
 const { forgetInitialPassword } = require('../services/seedAdminUser');
 const { deletePrivateFiles } = require('../services/privateFiles');
 const { storageSummary } = require('../services/personalStorage');
+const { requestOrigin } = require('../utils/http');
 
 /** The account making this request, or null when it is the admin token. */
 const actingUserId = req => (req.user?.via === 'session' ? req.user.id : null);
@@ -42,6 +43,9 @@ function adminView(user) {
     session_count: db.countSessionsForUser(user.id),
     storage:       storageSummary(user.id),
     storage_quota: user.storage_quota,
+    // Connected to the identity provider. The subject is the provider's
+    // business; the admin panel only needs to know there is one.
+    sso:           db.getIdentitiesForUser(user.id).length > 0,
   };
 }
 
@@ -172,13 +176,24 @@ async function remove(req, res) {
   res.json({ ok: true });
 }
 
+/**
+ * Disconnects an account from the identity provider. The account stays; the
+ * next single sign-on as that person is treated as a stranger's, and is only
+ * let in again by whatever the settings say about strangers.
+ */
+function unlinkIdentities(req, res) {
+  const user = db.getUserById(Number(req.params.id));
+  if (!user) return res.status(404).json({ error: 'No such user' });
+  const removed = db.deleteIdentitiesForUser(user.id);
+  req._auditSummary = `Disconnected ${user.email} from single sign-on`;
+  res.json({ ok: true, removed });
+}
+
 // ─── Invites and resets ───────────────────────────────────────────────────────
 
 /** Builds the link to hand over, on the origin this request arrived at. */
 function tokenUrl(req, kind, token) {
-  const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
-  const host  = req.headers['x-forwarded-host'] || req.headers.host;
-  return `${proto}://${host}/login/?${kind}=${token}`;
+  return `${requestOrigin(req)}/login/?${kind}=${token}`;
 }
 
 function listInvites(req, res) {
@@ -336,6 +351,7 @@ async function redeemToken(req, res) {
 }
 
 module.exports = {
+  unlinkIdentities,
   list, get, update, remove, setPassword, logoutEverywhere,
   listInvites, createInvite, revokeInvite, createReset,
   inspectToken, redeemToken,

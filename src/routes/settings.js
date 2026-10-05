@@ -4,6 +4,8 @@ const express = require('express');
 const { requireAdmin } = require('../middleware/auth');
 const { upload, uploadWallpaper } = require('../services/uploadService');
 const c = require('../controllers/settingsController');
+const oidc = require('../controllers/oidcController');
+const { wrapAsync } = require('../middleware/error');
 
 const router = express.Router();
 
@@ -21,6 +23,8 @@ router.post  ('/api/settings/favicon',         requireAdmin, upload.single('favi
 router.delete('/api/settings/favicon',         requireAdmin,                           c.deleteFavicon);
 router.post  ('/api/settings/save-favicons',   requireAdmin,                           c.saveFavicons);
 router.post  ('/api/settings/require-login',   requireAdmin,                           c.setRequireLogin);
+router.get   ('/api/settings/oidc',            requireAdmin,                           oidc.getSettings);
+router.put   ('/api/settings/oidc',            requireAdmin,                           wrapAsync(oidc.saveSettings));
 router.post  ('/api/settings/footer-enabled',  requireAdmin,                           c.setFooterEnabled);
 router.post  ('/api/settings/group-tab-color', requireAdmin,                           c.setGroupTabColor);
 router.post  ('/api/settings/group-tabs-loop', requireAdmin,                           c.setGroupTabsLoop);

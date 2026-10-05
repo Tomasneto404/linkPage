@@ -27,6 +27,8 @@ const AUDIT_ONLY_PATHS = new Set([
   '/api/auth/logout',
   '/api/auth/logout-all',
   '/api/auth/password',
+  '/api/auth/identities',
+  '/api/settings/oidc',
 ]);
 
 /**

@@ -15,6 +15,7 @@ router.delete('/api/users/:id',          requireAdmin, wrapAsync(users.remove));
 router.post  ('/api/users/:id/password', requireAdmin, wrapAsync(users.setPassword));
 router.post  ('/api/users/:id/logout-all', requireAdmin, users.logoutEverywhere);
 router.post  ('/api/users/:id/reset-link', requireAdmin, users.createReset);
+router.delete('/api/users/:id/identities', requireAdmin, users.unlinkIdentities);
 
 router.get   ('/api/invites',     requireAdmin, users.listInvites);
 router.post  ('/api/invites',     requireAdmin, users.createInvite);

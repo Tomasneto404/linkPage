@@ -134,6 +134,10 @@ const userTokenLimiter      = createFailureRateLimiter('user-token',      10, 15
 const loginAccountLimiter = createFailureRateLimiter('login-account', 20, 15 * 60 * 1000,
                                                      { keyOf: loginAccountKey });
 
+// Trips to the identity provider and back. Each start writes a pending row and
+// each callback may reach out to the provider, so neither is free to repeat.
+const oidcLimiter = createRateLimiter(30, 60 * 1000);
+
 // Throttles public link-request submissions so the open endpoint can't be
 // spammed into filling the DB. 10 submissions per 10 minutes per IP.
 const requestSubmitLimiter = createRateLimiter(10, 10 * 60 * 1000);
@@ -151,4 +155,5 @@ module.exports = {
   passwordChangeLimiter,
   userTokenLimiter,
   requestSubmitLimiter,
+  oidcLimiter,
 };

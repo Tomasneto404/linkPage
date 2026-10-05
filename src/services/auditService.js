@@ -147,6 +147,7 @@ function deriveAuditEntry(req) {
   if (p === '/api/settings/theme')                       return { action: 'settings.theme', entityType: 'settings', entityId: null, summary: 'Updated theme & appearance' };
   if (p === '/api/settings/require-login')               return { action: 'settings.require_login', entityType: 'settings', entityId: null, summary: body.enabled ? 'Made the page members-only' : 'Opened the page to everyone' };
   if (p === '/api/settings/user-quota')                  return { action: 'settings.user_quota', entityType: 'settings', entityId: null, summary: 'Changed the storage allowance' };
+  if (p === '/api/settings/oidc')                        return { action: 'settings.oidc', entityType: 'settings', entityId: null, summary: 'Changed the single sign-on settings' };
   // Any other setting: named after its route rather than left to the fallback.
   if (/^\/api\/settings\/[a-z-]+$/.test(p)) {
     const what = p.slice('/api/settings/'.length);
@@ -161,6 +162,7 @@ function deriveAuditEntry(req) {
   if (/^\/api\/users\/\d+$/.test(p) && M === 'DELETE')      return { action: 'user.delete',     entityType: 'user',   entityId: id, summary: 'Deleted an account' };
   if (/^\/api\/users\/\d+\/password$/.test(p))              return { action: 'user.password',   entityType: 'user',   entityId: id, summary: "Set somebody's password" };
   if (/^\/api\/users\/\d+\/logout-all$/.test(p))            return { action: 'user.logout_all', entityType: 'user',   entityId: id, summary: 'Signed somebody out everywhere' };
+  if (/^\/api\/users\/\d+\/identities$/.test(p))            return { action: 'user.sso_disconnect', entityType: 'user', entityId: id, summary: 'Disconnected an account from single sign-on' };
   if (/^\/api\/users\/\d+\/reset-link$/.test(p))            return { action: 'user.reset_link', entityType: 'user',   entityId: id, summary: 'Issued a password reset link' };
   if (p === '/api/invites' && M === 'POST')                   return { action: 'invite.create',   entityType: 'invite', entityId: null, summary: 'Created an invite' };
   if (/^\/api\/invites\/\d+$/.test(p) && M === 'DELETE')    return { action: 'invite.revoke',   entityType: 'invite', entityId: id, summary: 'Revoked an invite' };
@@ -183,6 +185,7 @@ function deriveAuditEntry(req) {
   if (p === '/api/auth/logout')                          return { action: 'auth.logout',      entityType: 'auth', entityId: null, summary: 'Signed out' };
   if (p === '/api/auth/logout-all')                      return { action: 'auth.logout_all',  entityType: 'auth', entityId: null, summary: 'Signed out everywhere' };
   if (p === '/api/auth/password')                        return { action: 'auth.password',    entityType: 'auth', entityId: null, summary: 'Changed a password' };
+  if (p === '/api/auth/identities' && M === 'DELETE')    return { action: 'auth.sso_disconnect', entityType: 'auth', entityId: null, summary: 'Disconnected from single sign-on' };
   if (/^\/api\/auth\/sessions\//.test(p) && M === 'DELETE') return { action: 'auth.session_revoke', entityType: 'auth', entityId: null, summary: 'Ended a session' };
 
   // Audit log itself (clear/prune) — recorded so the clearing is traceable.

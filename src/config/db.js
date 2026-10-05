@@ -34,7 +34,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 17;
+const CURRENT_SCHEMA_VERSION = 18;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -548,6 +548,31 @@ const MIGRATIONS = [
         )
       `);
       db.exec('CREATE INDEX IF NOT EXISTS idx_auth_throttle_window ON auth_throttle(window_start)');
+    },
+  },
+  {
+    version: 18,
+    name:    'Sign-ins in flight at an identity provider',
+    apply: () => {
+      // One row per trip to the identity provider and back, from the moment the
+      // browser is sent there until it returns or ten minutes pass. It holds
+      // what must survive the round trip without being trusted to the browser:
+      // the PKCE verifier and the nonce. Keyed by a hash of the state value,
+      // which the browser carries in a cookie and the provider echoes back.
+      // link_user_id is set when a signed-in member is connecting their account
+      // rather than signing in.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS oidc_logins (
+          state_hash    TEXT PRIMARY KEY,
+          nonce         TEXT NOT NULL,
+          code_verifier TEXT NOT NULL,
+          redirect_uri  TEXT NOT NULL,
+          next_path     TEXT,
+          link_user_id  INTEGER,
+          created_at    INTEGER NOT NULL
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_oidc_logins_created ON oidc_logins(created_at)');
     },
   },
 ];

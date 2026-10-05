@@ -73,6 +73,20 @@ function parseCookies(cookieHeader) {
   return out;
 }
 
+/**
+ * The origin this request arrived at, as the browser sees it — behind a proxy,
+ * from the forwarded headers. Used to build addresses that are handed back to
+ * people or providers: invite links, and the sign-in callback an identity
+ * provider must have registered.
+ */
+function requestOrigin(req) {
+  const first = value => (typeof value === 'string' ? value.split(',')[0].trim() : '');
+  const proto = first(req.headers['x-forwarded-proto']) || (req.secure ? 'https' : 'http');
+  const host  = first(req.headers['x-forwarded-host']) || req.headers.host;
+  return `${proto}://${host}`;
+}
+
 module.exports = {
   getClientIp, isValidHttpUrl, normalizeUrlForCompare, isValidHexColor, parseCookies,
+  requestOrigin,
 };
