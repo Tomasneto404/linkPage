@@ -21,11 +21,13 @@ const analytics    = require('./analytics');
 const users        = require('./users');
 const sessions     = require('./sessions');
 const userTokens   = require('./userTokens');
+const personalGroups = require('./personalGroups');
+const personalLinks  = require('./personalLinks');
 
 const MODULES = {
   settings, links, groups, sections, clicks,
   icons, audit, linkRequests, ipTags, analytics,
-  users, sessions, userTokens,
+  users, sessions, userTokens, personalGroups, personalLinks,
 };
 
 /**

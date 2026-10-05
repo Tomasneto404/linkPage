@@ -11,7 +11,7 @@ const router = express.Router();
 router.get   ('/api/users',              requireAdmin, users.list);
 router.get   ('/api/users/:id',          requireAdmin, users.get);
 router.patch ('/api/users/:id',          requireAdmin, users.update);
-router.delete('/api/users/:id',          requireAdmin, users.remove);
+router.delete('/api/users/:id',          requireAdmin, wrapAsync(users.remove));
 router.post  ('/api/users/:id/password', requireAdmin, wrapAsync(users.setPassword));
 router.post  ('/api/users/:id/logout-all', requireAdmin, users.logoutEverywhere);
 router.post  ('/api/users/:id/reset-link', requireAdmin, users.createReset);

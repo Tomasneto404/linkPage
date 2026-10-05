@@ -14,6 +14,7 @@ const router = express.Router();
 router.use(require('./events'));
 router.use(require('./auth'));
 router.use(require('./users'));
+router.use(require('./personal'));
 router.use(require('./settings'));
 router.use(require('./version'));
 router.use(require('./icons'));

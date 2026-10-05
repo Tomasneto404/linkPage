@@ -17,6 +17,13 @@ const PORT = process.env.PORT || 3000;
 
 const DATA_DIR    = process.env.DATA_DIR    || path.join(__dirname, '..', '..', 'data');
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(DATA_DIR, 'uploads');
+
+// Members' own files: their attachments, their custom icons, and the favicons
+// fetched for their links. Deliberately never mounted as static — everything in
+// here is served through a route that checks who is asking. /uploads, by
+// contrast, is public to anyone who has the URL.
+const PRIVATE_UPLOADS_DIR = process.env.PRIVATE_UPLOADS_DIR
+                         || path.join(DATA_DIR, 'private-uploads');
 const PUBLIC_DIR  = path.join(__dirname, '..', '..', 'public');
 
 // Where to look for new releases. Overridable so forks/private mirrors can
@@ -49,6 +56,7 @@ function parseTrustProxy(raw) {
 const TRUST_PROXY = parseTrustProxy(process.env.TRUST_PROXY);
 
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+fs.mkdirSync(PRIVATE_UPLOADS_DIR, { recursive: true, mode: 0o700 });
 
 const divider = '─'.repeat(54);
 
@@ -56,6 +64,7 @@ module.exports = {
   PORT,
   DATA_DIR,
   UPLOADS_DIR,
+  PRIVATE_UPLOADS_DIR,
   PUBLIC_DIR,
   RELEASES_REPO,
   TRUST_PROXY,

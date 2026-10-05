@@ -34,7 +34,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 14;
+const CURRENT_SCHEMA_VERSION = 16;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -412,6 +412,120 @@ const MIGRATIONS = [
       // Unrelated to accounts, but this table has never had an index and every
       // analytics query groups over it.
       db.exec('CREATE INDEX IF NOT EXISTS idx_link_clicks_link ON link_clicks(link_id)');
+    },
+  },
+  {
+    version: 15,
+    name:    'Personal links, groups and favourites',
+    apply: () => {
+      // Each member's own links live in tables of their own, not in links and
+      // groups with an owner column.
+      //
+      // That is the whole design, so it is worth saying why. With an owner
+      // column, every query anyone ever writes against links has to remember to
+      // filter on it, and the failure mode of forgetting is publishing somebody's
+      // private links to the internet. Fifteen places in the shared models would
+      // need that filter today, and the list only grows. Separate tables make
+      // the mistake impossible for the shared set: the rows are not there.
+      //
+      // Every table below carries its owner on the row itself — user_sections
+      // included, though it could work it out from its group — so that no
+      // ownership check ever needs a join, and every statement that touches a
+      // row can say `AND owner_user_id = ?` in the same breath.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_groups (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_user_id INTEGER NOT NULL,
+          name          TEXT NOT NULL,
+          color         TEXT NOT NULL DEFAULT '#0071e3',
+          position      INTEGER NOT NULL DEFAULT 0,
+          created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_user_groups_owner ON user_groups(owner_user_id)');
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_sections (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_user_id     INTEGER NOT NULL,
+          group_id          INTEGER NOT NULL,
+          name              TEXT NOT NULL,
+          position          INTEGER NOT NULL DEFAULT 0,
+          parent_section_id INTEGER,
+          created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_user_sections_owner ON user_sections(owner_user_id)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_user_sections_group ON user_sections(group_id)');
+
+      // The file columns are bare filenames inside private-uploads/, never
+      // /uploads/ paths, and they are named differently from the shared table's
+      // on purpose. Identical names with different meanings is how a future
+      // "publish this to everyone" feature copies a private filename into a
+      // column the public static server will happily serve.
+      //
+      // image_path is the exception: it only ever holds a shared icon-library
+      // path, which is already public, so it means exactly what it means on
+      // links and keeps the name.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_links (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_user_id   INTEGER NOT NULL,
+          name            TEXT NOT NULL,
+          url             TEXT NOT NULL DEFAULT '',
+          description     TEXT,
+          image_path      TEXT,
+          icon_file       TEXT,
+          favicon_file    TEXT,
+          attachment_file TEXT,
+          file_name       TEXT,
+          stored_bytes    INTEGER NOT NULL DEFAULT 0,
+          position        INTEGER NOT NULL DEFAULT 0,
+          created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_user_links_owner ON user_links(owner_user_id)');
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_link_groups (
+          user_link_id  INTEGER NOT NULL,
+          group_id      INTEGER NOT NULL,
+          section_id    INTEGER,
+          owner_user_id INTEGER NOT NULL,
+          PRIMARY KEY (user_link_id, group_id)
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_user_link_groups_group ON user_link_groups(group_id)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_user_link_groups_owner ON user_link_groups(owner_user_id)');
+
+      // A favourite points at a *shared* link. Created now so the schema for
+      // personal content lands in one step; nothing writes to it yet.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_favorites (
+          user_id    INTEGER NOT NULL,
+          link_id    INTEGER NOT NULL,
+          position   INTEGER NOT NULL DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (user_id, link_id)
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_user_favorites_link ON user_favorites(link_id)');
+    },
+  },
+  {
+    version: 16,
+    name:    'Per-file sizes on personal links',
+    apply: () => {
+      // A link can hold up to three files — an icon, a fetched favicon, an
+      // attachment — and replacing one must free exactly what that one cost.
+      // v15 kept a single running total, which cannot say how much of it
+      // belonged to the file being replaced. One column per file can, and a
+      // person's usage is then simply their sum, with no total to drift.
+      //
+      // user_links.stored_bytes from v15 is left in place and no longer read.
+      addColumnIfMissing('user_links', 'icon_bytes',       'INTEGER NOT NULL DEFAULT 0');
+      addColumnIfMissing('user_links', 'favicon_bytes',    'INTEGER NOT NULL DEFAULT 0');
+      addColumnIfMissing('user_links', 'attachment_bytes', 'INTEGER NOT NULL DEFAULT 0');
     },
   },
 ];

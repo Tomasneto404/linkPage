@@ -7,7 +7,7 @@ const {
   LOGO_VARIANTS, THEME_LIGHT_VARIANTS, THEME_DARK_VARIANTS,
   DEFAULT_THEMES, MOBILE_NAV_POSITIONS, HEX_COLOR_RE,
   WALLPAPER_VARIANTS, DEFAULT_WALLPAPER_FOG, DEFAULT_BAR_OPACITY,
-  MARKDOWN_OPEN_MODES, DEFAULT_MARKDOWN_OPEN_MODE,
+  MARKDOWN_OPEN_MODES, DEFAULT_MARKDOWN_OPEN_MODE, DEFAULT_USER_STORAGE_QUOTA,
 } = require('../config/constants');
 const {
   safeDeleteFile, safeDeleteFileUnlessLibrary, resolveIconReference,
@@ -55,6 +55,7 @@ function getSettings(req, res) {
     wallpaper_dark:            db.readSetting('wallpaper_dark')  ?? null,
     wallpaper_fog:             readWallpaperFog(),
     bar_opacity:               readBarOpacity(),
+    user_storage_quota:        readUserQuota(),
   });
 }
 
@@ -185,6 +186,33 @@ function setBarOpacity(req, res) {
   else                                 db.writeSetting('bar_opacity', String(rounded));
 
   res.json({ bar_opacity: rounded });
+}
+
+/**
+ * How much each member may store, unless their own account says otherwise.
+ * Sent in megabytes — a person sets "250", not "262144000" — and kept in bytes.
+ * A value equal to the built-in default is forgotten rather than stored, like
+ * every other setting here.
+ */
+function setUserQuota(req, res) {
+  const raw = req.body?.megabytes;
+  const mb  = typeof raw === 'number' ? raw : NaN;
+  if (!Number.isFinite(mb) || mb < 0 || mb > 1024 * 1024) {
+    return res.status(400).json({ error: 'Send a number of megabytes, from 0 upwards' });
+  }
+
+  const bytes = Math.round(mb * 1024 * 1024);
+  if (bytes === DEFAULT_USER_STORAGE_QUOTA) db.deleteSetting('user_storage_quota');
+  else                                      db.writeSetting('user_storage_quota', String(bytes));
+
+  res.json({ user_storage_quota: bytes });
+}
+
+/** The instance-wide allowance in bytes, falling back to the built-in one. */
+function readUserQuota() {
+  const stored = db.readSetting('user_storage_quota');
+  const n = Number(stored);
+  return stored !== null && Number.isFinite(n) && n >= 0 ? n : DEFAULT_USER_STORAGE_QUOTA;
 }
 
 // ─── Logos ──────────────────────────────────────────────────────────────────
@@ -461,6 +489,7 @@ function setTheme(req, res) {
 }
 
 module.exports = {
+  setUserQuota,
   setMarkdownOpenMode,
   uploadWallpaperImage,
   deleteWallpaperImage,

@@ -162,6 +162,16 @@ const User = {
   },
 };
 
+const Storage = {
+  type: 'object',
+  description: 'Bytes kept on your behalf: attachments, icons, and fetched favicons.',
+  properties: {
+    used:      { type: 'integer', example: 1048576 },
+    quota:     { type: 'integer', example: 104857600 },
+    remaining: { type: 'integer', example: 103809024 },
+  },
+};
+
 const Settings = {
   type: 'object',
   description: 'Public settings. Readable without a token: the page needs them to render.',
@@ -196,6 +206,9 @@ const Settings = {
     wallpaper_fog:            {
       type: 'integer', minimum: 0, maximum: 100,
       description: 'How heavily the wallpaper is veiled and blurred.',
+    },
+    user_storage_quota:       {
+      type: 'integer', description: 'Bytes each member may store, unless their account says otherwise.',
     },
     bar_opacity:              {
       type: 'integer', minimum: 0, maximum: 100,
@@ -253,6 +266,6 @@ const GroupAssignment = {
 };
 
 module.exports = {
-  Link, LinkGroupMembership, Group, Section, Icon, LinkRequest, User,
+  Link, LinkGroupMembership, Group, Section, Icon, LinkRequest, User, Storage,
   Settings, AuditEntry, LinkStats, IpTag, Error, GroupAssignment,
 };

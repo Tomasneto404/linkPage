@@ -57,6 +57,10 @@ const faviconCalls = [];
  * write files late and emit stray SSE broadcasts mid-test. Tests can still
  * assert the pipeline was invoked via `faviconCalls`.
  */
+// What the stubbed fetchFaviconForUrl hands back. A test sets it through
+// c.setFaviconFixture() and clears it when done.
+let faviconFixture = null;
+
 function stubFaviconService() {
   const id = require.resolve('../../src/services/faviconService.js');
   require.cache[id] = {
@@ -65,7 +69,9 @@ function stubFaviconService() {
     loaded: true,
     exports: {
       cacheFavicon: async (linkId, url) => { faviconCalls.push({ linkId, url }); },
-      fetchFaviconForUrl: async () => null,
+      // Returns whatever a test put in faviconFixture, so the personal favicon
+      // path can be exercised without the network. Null by default, as before.
+      fetchFaviconForUrl: async url => { faviconCalls.push({ url }); return faviconFixture; },
     },
   };
 }
@@ -78,6 +84,7 @@ async function start({ stubFavicons = true } = {}) {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'linkpage-test-'));
   process.env.DATA_DIR    = dataDir;
   process.env.UPLOADS_DIR = path.join(dataDir, 'uploads');
+  process.env.PRIVATE_UPLOADS_DIR = path.join(dataDir, 'private-uploads');
   captureConsole();
   if (stubFavicons) stubFaviconService();
 
@@ -231,6 +238,7 @@ function client() {
     get logs()    { return logs; },
     /** Favicon fetches the app requested (see stubFaviconService). */
     get faviconCalls() { return faviconCalls; },
+    setFaviconFixture(value) { faviconFixture = value; },
     /** Re-reads the token after a rotation. */
     refreshToken() { token = require('../../src/config/secrets').getAdminToken(); return token; },
     trackReader(reader) { openReaders.add(reader); return reader; },

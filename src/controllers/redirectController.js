@@ -12,7 +12,7 @@ const { getUnlockedGroupIds } = require('../utils/groupCrypto');
 const { normalizeSlug } = require('../utils/slug');
 const { resolveStoredFilePath } = require('../services/uploadService');
 const { renderMarkdown } = require('../services/markdownService');
-const { renderMarkdownPage, MARKDOWN_CSP } = require('../services/markdownPage');
+const { renderMarkdownPage, MARKDOWN_CSP, instancePalette } = require('../services/markdownPage');
 const { truncate } = require('../services/auditService');
 
 // ─── Shared gate + tracking ───────────────────────────────────────────────────
@@ -132,12 +132,7 @@ function sendRenderedMarkdown(res, link, theme, embed = false) {
     embed,
     // The site's own palette, so the document is not merely light or dark but
     // the same light or dark the reader just came from.
-    palette: {
-      lightVariant:     db.readSetting('theme_light_variant') || 'default',
-      darkVariant:      db.readSetting('theme_dark_variant')  || 'default',
-      accent:           db.readSetting('accent_color') || null,
-      accentDarkAdjust: db.readSetting('accent_dark_adjust') === '1',
-    },
+    palette: instancePalette(),
   }));
 }
 

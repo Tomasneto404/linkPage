@@ -28,6 +28,7 @@ router.post  ('/api/settings/wallpaper/:variant', requireAdmin, uploadWallpaper,
 router.delete('/api/settings/wallpaper/:variant', requireAdmin,                  c.deleteWallpaperImage);
 router.post  ('/api/settings/wallpaper-fog',      requireAdmin,                  c.setWallpaperFog);
 router.post  ('/api/settings/bar-opacity',        requireAdmin,                  c.setBarOpacity);
+router.post  ('/api/settings/user-quota',         requireAdmin,                  c.setUserQuota);
 router.post  ('/api/settings/site-title',      requireAdmin,                           c.setSiteTitle);
 router.post  ('/api/settings/pinned-group',    requireAdmin,                           c.setPinnedGroup);
 router.post  ('/api/settings/public-password', requireAdmin,                           c.setPublicPassword);

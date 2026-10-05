@@ -123,6 +123,20 @@ const MAX_PASSWORD_LENGTH = 1024;
 const USER_TOKEN_TTL_DAYS = 7;
 const USER_TOKEN_KINDS = ['invite', 'reset'];
 
+// ─── Personal content ───────────────────────────────────────────────────────
+
+// How much a member may store, unless an administrator says otherwise for the
+// instance or for one account. Counts everything kept on their behalf —
+// attachments, icons, and the favicons fetched for their links.
+const DEFAULT_USER_STORAGE_QUOTA = 100 * 1024 * 1024;   // 100 MB
+
+// Ceilings on rows, independent of bytes. A link costs almost nothing to store,
+// which is exactly why a script could make a million of them; these are far
+// past anything a person does by hand.
+const MAX_USER_LINKS    = 2000;
+const MAX_USER_GROUPS   = 100;
+const MAX_USER_SECTIONS = 500;
+
 // ─── Icon library import/export ─────────────────────────────────────────────
 
 const ICON_IMPORT_MAX_BYTES = 3 * 1024 * 1024;   // per icon
@@ -167,6 +181,10 @@ module.exports = {
   MAX_PASSWORD_LENGTH,
   USER_TOKEN_TTL_DAYS,
   USER_TOKEN_KINDS,
+  DEFAULT_USER_STORAGE_QUOTA,
+  MAX_USER_LINKS,
+  MAX_USER_GROUPS,
+  MAX_USER_SECTIONS,
   ICON_IMPORT_MAX_BYTES,
   ICON_EXT_BY_MIME,
   EDITABLE_FILE_EXTENSIONS,

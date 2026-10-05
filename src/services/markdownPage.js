@@ -196,4 +196,19 @@ ${body || '<p><em>This document is empty.</em></p>'}
 </html>`;
 }
 
-module.exports = { renderMarkdownPage, MARKDOWN_CSP, normalizePageTheme };
+/**
+ * The instance's own palette, for a rendered document to wear. Read here once
+ * rather than at every call site, so a shared document and a member's private
+ * one cannot end up looking different.
+ */
+function instancePalette() {
+  const db = require('../models');   // lazy: this module is loaded by models' consumers
+  return {
+    lightVariant:     db.readSetting('theme_light_variant') || 'default',
+    darkVariant:      db.readSetting('theme_dark_variant')  || 'default',
+    accent:           db.readSetting('accent_color') || null,
+    accentDarkAdjust: db.readSetting('accent_dark_adjust') === '1',
+  };
+}
+
+module.exports = { renderMarkdownPage, MARKDOWN_CSP, normalizePageTheme, instancePalette };

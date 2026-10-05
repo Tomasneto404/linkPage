@@ -146,6 +146,7 @@ All persistent data lives in `/app/data` inside the container, mapped to `./link
 | `data/admin-initial-password.txt` | The first administrator's password, written only when one is generated. Deletes itself once that password is changed. |
 | `data/group-secret.txt` | Key used to sign group-unlock cookies and hash group passwords |
 | `data/uploads/` | Uploaded images, logos, favicons, and link file attachments |
+| `data/private-uploads/` | Members' own files — their attachments, icons, and the favicons fetched for their links. Never served as static; every file is read through a route that checks who is asking. |
 
 ### Authentication
 
@@ -402,6 +403,8 @@ All configuration is done via environment variables:
 | `PORT` | `3000` | Port the server listens on |
 | `DATA_DIR` | `./data` | Directory for the database and admin token file |
 | `UPLOADS_DIR` | `./data/uploads` | Directory for uploaded images and cached favicons |
+| `PRIVATE_UPLOADS_DIR` | `./data/private-uploads` | Directory for members' own files. Must not be exposed by a reverse proxy — the app serves these itself, to their owner only. |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@localhost` / generated | The first administrator account, created at boot when there is none. With `ADMIN_PASSWORD` set, no password is printed or written to disk. |
 | `RELEASES_REPO` | `Tomasneto404/linkPage` | GitHub `owner/repo` polled by the in-app update checker. Override to point at a fork or private mirror. |
 | `TRUST_PROXY` | `1` | How far to trust `X-Forwarded-For` when identifying a client. The default of one hop suits the shipped compose file, where a reverse proxy sits in front. **Set it to `0` if the container is exposed directly to the internet** — otherwise a caller can pick its own address, which is what the rate limiters count and what the audit log records. Also accepts a hop count, `loopback`, or a subnet list. |
 
@@ -476,6 +479,30 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | DELETE | `/api/invites/:id` | Admin | Revoke an invite |
 | GET | `/api/tokens/:token` | Public | Check an invite or reset link |
 | POST | `/api/tokens/:token/redeem` | Public | Accept an invite, or finish a reset |
+
+### Your own page
+
+Every route needs a signed-in member; the admin token has no personal page. Ids are your own, and an id that is not yours answers exactly as one that does not exist.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/my/data` | Your groups, links and storage use, in one response |
+| GET | `/api/my/storage` | How much of your allowance you are using |
+| GET | `/api/my/icons` | The shared icon library, to pick from |
+| POST | `/api/my/groups` | Add a group |
+| PUT/DELETE | `/api/my/groups/:id` | Change or delete a group (its links are unfiled, not deleted) |
+| POST | `/api/my/groups/reorder` | Put your groups in order |
+| POST | `/api/my/groups/:id/sections` | Add a section |
+| PUT/DELETE | `/api/my/sections/:id` | Rename or delete a section |
+| POST | `/api/my/sections/reorder` | Put your sections in order |
+| POST | `/api/my/links` | Add a link — a web address or a file (multipart) |
+| PUT/DELETE | `/api/my/links/:id` | Change or delete a link |
+| POST | `/api/my/links/reorder` | Put your links in order |
+| GET | `/api/my/links/:id/icon` · `/favicon` · `/file` | A link's private files. A markdown file renders as a page; `?raw=1` for the source. |
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/api/settings/user-quota` | Admin | How many megabytes each member may store |
 | POST | `/api/settings/wallpaper/:variant` | Admin | Upload the public page wallpaper (`light` or `dark`) |
 | DELETE | `/api/settings/wallpaper/:variant` | Admin | Remove a wallpaper |
 | POST | `/api/settings/wallpaper-fog` | Admin | How heavily the wallpaper is veiled and blurred (0–100) |

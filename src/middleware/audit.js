@@ -29,6 +29,14 @@ const AUDIT_ONLY_PATHS = new Set([
   '/api/auth/password',
 ]);
 
+/**
+ * A member's own links. Recorded, because the log is a security log, but never
+ * broadcast: the live-update channel is shared by every open page, and a
+ * private edit has nothing to show any of them. Broadcasting it would also let
+ * anyone watching the stream see when somebody else was busy.
+ */
+const isPersonal = p => p.startsWith('/api/my/');
+
 function auditAndBroadcast(req, res, next) {
   if (!req.path.startsWith('/api/')) return next();
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
@@ -38,7 +46,7 @@ function auditAndBroadcast(req, res, next) {
   res.on('finish', () => {
     if (res.statusCode < 200 || res.statusCode >= 300) return;
     writeAuditFromRequest(req);
-    if (!AUDIT_ONLY_PATHS.has(req.path)) broadcastDataUpdate();
+    if (!AUDIT_ONLY_PATHS.has(req.path) && !isPersonal(req.path)) broadcastDataUpdate();
   });
   next();
 }

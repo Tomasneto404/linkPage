@@ -100,6 +100,7 @@ const TAGS = {
   settings: 'Settings',
   auth:     'Authentication',
   users:    'Accounts',
+  mine:     'Your own page',
   insight:  'Analytics & audit',
   system:   'System',
   visitor:  'Visitor-facing',
@@ -722,6 +723,19 @@ const paths = {
       responses: { 200: json({ type: 'object' }) },
     }),
   },
+  '/api/settings/user-quota': {
+    post: op({
+      tag: TAGS.settings,
+      summary: 'How much each member may store',
+      description: 'In megabytes. Applies to every account without an allowance of its own. '
+                 + 'Counts attachments, icons and fetched favicons.',
+      body: jsonBody({ megabytes: { type: 'number', minimum: 0, example: 100 } }, ['megabytes']),
+      responses: {
+        200: json({ type: 'object', properties: { user_storage_quota: { type: 'integer' } } }),
+        400: json(ref('Error')),
+      },
+    }),
+  },
   '/api/settings/markdown-open-mode': {
     post: op({
       tag: TAGS.settings,
@@ -919,9 +933,11 @@ const paths = {
                  + 'administrator who can still sign in, and refuses to change your own role.',
       params: [pathParam('id', 'User id.')],
       body: jsonBody({
-        display_name: { type: 'string' },
-        role:         { type: 'string', enum: ['admin', 'user'] },
-        is_active:    { type: 'boolean' },
+        display_name:     { type: 'string' },
+        role:             { type: 'string', enum: ['admin', 'user'] },
+        is_active:        { type: 'boolean' },
+        storage_quota_mb: { type: 'number', nullable: true,
+                            description: "This account's own allowance, or null for the instance's." },
       }),
       responses: {
         200: json(ref('User')),
@@ -1028,6 +1044,179 @@ const paths = {
         409: json(ref('Error'), 'That address already has an account'),
         429: json(ref('Error'), 'Too many attempts'),
       },
+    }),
+  },
+
+  // ── Your own page ─────────────────────────────────────────────────────────
+  '/api/my/data': {
+    get: op({
+      tag: TAGS.mine, auth: 'user',
+      summary: 'Everything of yours, at once',
+      description: 'Your groups (with their sections), your links, and how much of your '
+                 + 'storage allowance they use. Shaped like the shared groups and links, '
+                 + 'with `owner: "me"`, so a page can merge the two and render them alike. '
+                 + 'Ids are your own and may coincide with shared ones.',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+  },
+  '/api/my/storage': {
+    get: op({
+      tag: TAGS.mine, auth: 'user', summary: 'How much of your allowance you are using',
+      responses: { 200: json(ref('Storage')) },
+    }),
+  },
+  '/api/my/icons': {
+    get: op({
+      tag: TAGS.mine, auth: 'user', summary: 'The shared icon library, to pick from',
+      description: 'Read-only. These images are already public under /uploads.',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+  },
+  '/api/my/groups': {
+    post: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Add a group of your own',
+      body: jsonBody({ name: { type: 'string' }, color: { type: 'string', example: '#0071e3' } }, ['name']),
+      responses: {
+        201: json({ type: 'object' }), 400: json(ref('Error')),
+        409: json(ref('Error'), 'You already have as many groups as allowed'),
+      },
+    }),
+  },
+  '/api/my/groups/reorder': {
+    post: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Put your groups in order',
+      description: 'Ids that are not yours are ignored, never written.',
+      body: jsonBody({ order: { type: 'array', items: { type: 'integer' } } }, ['order']),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')) },
+    }),
+  },
+  '/api/my/groups/{id}': {
+    put: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Rename or recolour one of your groups',
+      params: [pathParam('id', 'Id of one of your own')],
+      body: jsonBody({ name: { type: 'string' }, color: { type: 'string' } }, ['name']),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')), 404: json(ref('Error')) },
+    }),
+    delete: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Delete one of your groups',
+      description: 'Its sections go with it. Its links do not — they are only unfiled.',
+      params: [pathParam('id', 'Id of one of your own')],
+      responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) },
+    }),
+  },
+  '/api/my/groups/{id}/sections': {
+    post: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Add a section to one of your groups',
+      params: [pathParam('id', 'Id of one of your own')],
+      body: jsonBody({
+        name:              { type: 'string' },
+        parent_section_id: { type: 'integer', nullable: true, description: 'One level of nesting.' },
+      }, ['name']),
+      responses: {
+        201: json({ type: 'object' }), 400: json(ref('Error')),
+        404: json(ref('Error'), 'Not your group, or not a valid parent'),
+        409: json(ref('Error')),
+      },
+    }),
+  },
+  '/api/my/sections/reorder': {
+    post: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Put your sections in order',
+      body: jsonBody({ order: { type: 'array', items: { type: 'integer' } } }, ['order']),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')) },
+    }),
+  },
+  '/api/my/sections/{id}': {
+    put: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Rename one of your sections',
+      params: [pathParam('id', 'Id of one of your own')],
+      body: jsonBody({ name: { type: 'string' } }, ['name']),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')), 404: json(ref('Error')) },
+    }),
+    delete: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Delete one of your sections',
+      description: 'Links filed under it move up to the group rather than leaving it.',
+      params: [pathParam('id', 'Id of one of your own')],
+      responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) },
+    }),
+  },
+  '/api/my/links': {
+    post: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Add a link of your own',
+      description: 'A web address, or an attached file. Files are stored privately and '
+                 + 'count against your allowance. A favicon is fetched for a web address '
+                 + 'after the response, and stored privately too.',
+      body: formBody({
+        name:        { type: 'string' },
+        url:         { type: 'string', description: 'Omit when attaching a file.' },
+        description: { type: 'string' },
+        groups:      { type: 'string', description: 'JSON array of `{ group_id, section_id }`.' },
+        icon_id:     { type: 'integer', description: 'A shared library icon.' },
+        image:       { type: 'string', format: 'binary', description: 'Your own icon, under 2 MB.' },
+        file:        { type: 'string', format: 'binary', description: 'An attachment, under 25 MB.' },
+      }, ['name']),
+      responses: {
+        201: json({ type: 'object' }), 400: json(ref('Error')),
+        409: json(ref('Error'), 'You already have as many links as allowed'),
+        413: json(ref('Error'), 'Over your storage allowance'),
+      },
+    }),
+  },
+  '/api/my/links/reorder': {
+    post: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Put your links in order',
+      body: jsonBody({ order: { type: 'array', items: { type: 'integer' } } }, ['order']),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')) },
+    }),
+  },
+  '/api/my/links/{id}': {
+    put: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Change one of your links',
+      params: [pathParam('id', 'Id of one of your own')],
+      body: formBody({
+        name:         { type: 'string' },
+        url:          { type: 'string' },
+        description:  { type: 'string' },
+        groups:       { type: 'string' },
+        icon_id:      { type: 'integer' },
+        image:        { type: 'string', format: 'binary' },
+        file:         { type: 'string', format: 'binary' },
+        remove_image: { type: 'string', enum: ['1'] },
+        remove_file:  { type: 'string', enum: ['1'] },
+      }, ['name']),
+      responses: {
+        200: json({ type: 'object' }), 400: json(ref('Error')), 404: json(ref('Error')),
+        413: json(ref('Error'), 'Over your storage allowance'),
+      },
+    }),
+    delete: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Delete one of your links',
+      description: 'Its files go with it, and the space they used is freed.',
+      params: [pathParam('id', 'Id of one of your own')],
+      responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) },
+    }),
+  },
+  '/api/my/links/{id}/icon': {
+    get: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Your link\'s uploaded icon',
+      params: [pathParam('id', 'Id of one of your own')],
+      responses: { 200: { description: 'The image' }, 404: json(ref('Error')) },
+    }),
+  },
+  '/api/my/links/{id}/favicon': {
+    get: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Your link\'s fetched favicon',
+      params: [pathParam('id', 'Id of one of your own')],
+      responses: { 200: { description: 'The image' }, 404: json(ref('Error')) },
+    }),
+  },
+  '/api/my/links/{id}/file': {
+    get: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Your link\'s attached file',
+      description: 'A markdown file is rendered as a page, under the same no-script policy '
+                 + 'shared documents use. Add `?raw=1` for the source.',
+      params: [pathParam('id', 'Id of one of your own')],
+      responses: { 200: { description: 'The file' }, 404: json(ref('Error')) },
     }),
   },
 
@@ -1242,6 +1431,7 @@ function buildOpenApiSpec() {
       { name: TAGS.settings, description: 'Branding, theme, and the feature switches.' },
       { name: TAGS.auth,     description: 'Signing in, tokens and passwords.' },
       { name: TAGS.users,    description: 'Accounts, invites and password resets.' },
+      { name: TAGS.mine,     description: 'A signed-in member\'s own links, groups and sections.' },
       { name: TAGS.insight,  description: 'Clicks, analytics, the audit log and IP tags.' },
       { name: TAGS.system,   description: 'Version, changelog, markdown rendering and the event stream.' },
       { name: TAGS.visitor,  description: 'The addresses a visitor actually opens.' },

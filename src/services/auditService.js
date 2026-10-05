@@ -26,6 +26,33 @@ function truncate(s, n = 80) {
  * finished request, or null if this route shouldn't be audited. Runs on
  * 'finish', so req.body (JSON or multipart) is fully populated.
  */
+/** Audit entries for /api/my/* — the kind of change, never its contents. */
+function derivePersonalEntry(p, M, id) {
+  const kinds = [
+    [/^\/api\/my\/links\/reorder$/,          'my_link',    'reorder', 'Reordered their links'],
+    [/^\/api\/my\/links(\/\d+)?$/,             'my_link',    null,      'link'],
+    [/^\/api\/my\/groups\/reorder$/,         'my_group',   'reorder', 'Reordered their groups'],
+    [/^\/api\/my\/groups\/\d+\/sections$/,    'my_section', 'create',  'Added a section to their page'],
+    [/^\/api\/my\/groups(\/\d+)?$/,            'my_group',   null,      'group'],
+    [/^\/api\/my\/sections\/reorder$/,       'my_section', 'reorder', 'Reordered their sections'],
+    [/^\/api\/my\/sections\/\d+$/,            'my_section', null,      'section'],
+  ];
+  const verbFor = { POST: 'create', PUT: 'update', DELETE: 'delete' };
+  const said    = { create: 'Added a personal', update: 'Changed a personal', delete: 'Removed a personal' };
+
+  for (const [pattern, entityType, fixedVerb, noun] of kinds) {
+    if (!pattern.test(p)) continue;
+    const verb = fixedVerb || verbFor[M] || M.toLowerCase();
+    return {
+      action:   `${entityType}.${verb}`,
+      entityType,
+      entityId: id,
+      summary:  fixedVerb ? noun : `${said[verb] || 'Changed a personal'} ${noun}`,
+    };
+  }
+  return { action: 'my.other', entityType: 'my', entityId: null, summary: 'Changed their personal page' };
+}
+
 function deriveAuditEntry(req) {
   const p    = req.path;
   const body = req.body || {};
@@ -34,6 +61,12 @@ function deriveAuditEntry(req) {
   const idMatch = p.match(/\/(\d+)(?:\/|$)/);
   const id = idMatch ? Number(idMatch[1]) : null;
   const M = req.method;
+
+  // A member's own content. Answered here, before anything below can resolve a
+  // name: the log is read by whoever administers the instance, and a member's
+  // private link names and addresses are not theirs to read. What happened is
+  // recorded; what it was called is not.
+  if (p.startsWith('/api/my/')) return derivePersonalEntry(p, M, id);
 
   // Resolve a friendly entity name: prefer the request body's `name`, else
   // look it up live from the DB (the row still exists for non-delete actions).

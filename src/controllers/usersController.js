@@ -25,6 +25,8 @@ const { USER_ROLES } = require('../config/constants');
 const { publicUser, passwordProblem } = require('../services/authService');
 const { hashPassword } = require('../utils/password');
 const { forgetInitialPassword } = require('../services/seedAdminUser');
+const { deletePrivateFiles } = require('../services/privateFiles');
+const { storageSummary } = require('../services/personalStorage');
 
 /** The account making this request, or null when it is the admin token. */
 const actingUserId = req => (req.user?.via === 'session' ? req.user.id : null);
@@ -38,6 +40,8 @@ function adminView(user) {
     created_at:    user.created_at,
     last_login_at: user.last_login_at,
     session_count: db.countSessionsForUser(user.id),
+    storage:       storageSummary(user.id),
+    storage_quota: user.storage_quota,
   };
 }
 
@@ -75,6 +79,19 @@ function update(req, res) {
   }
 
   if (req.body?.is_active !== undefined) fields.isActive = !!req.body.is_active;
+
+  // A storage allowance of this account's own, in megabytes, or null to go back
+  // to the instance's.
+  if (req.body?.storage_quota_mb !== undefined) {
+    const mb = req.body.storage_quota_mb;
+    if (mb === null) {
+      fields.storageQuota = null;
+    } else if (typeof mb === 'number' && Number.isFinite(mb) && mb >= 0) {
+      fields.storageQuota = Math.round(mb * 1024 * 1024);
+    } else {
+      return res.status(400).json({ error: 'storage_quota_mb must be a number of megabytes, or null' });
+    }
+  }
 
   // Losing the last administrator is the one change that cannot be undone from
   // inside the panel, so it is refused however it is reached — a demotion or a
@@ -130,7 +147,7 @@ async function setPassword(req, res) {
   res.json({ ok: true });
 }
 
-function remove(req, res) {
+async function remove(req, res) {
   const id   = Number(req.params.id);
   const user = db.getUserById(id);
   if (!user) return res.status(404).json({ error: 'No such user' });
@@ -144,7 +161,13 @@ function remove(req, res) {
     });
   }
 
+  // Their own links go with them, files and all. No table declares a foreign
+  // key, so nothing would do this on its own — and a personal link left behind
+  // belongs to an id the next account to be created could be given.
+  const files = db.deleteAllPersonalContent(id);
   db.deleteUser(id);
+  await deletePrivateFiles(files);
+
   req._auditSummary = `Deleted ${user.email}`;
   res.json({ ok: true });
 }
