@@ -511,6 +511,71 @@
       box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.18);
     }
 
+    /* ─── Favourites ──────────────────────────────────────────────────── */
+
+    /* The star, beside copy. Same shape; it stays visible once a link is
+       starred, so a favourite can be recognised without hovering. */
+    .link-fav-btn {
+      flex-shrink: 0;
+      align-self: center;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity var(--transition), background var(--transition),
+                  border-color var(--transition), color var(--transition), transform var(--transition);
+    }
+    .link-card:hover .link-fav-btn,
+    .link-fav-btn:focus-visible,
+    .link-fav-btn.is-fav { opacity: 1; }
+    .link-fav-btn:hover {
+      background: var(--surface-3);
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+    .link-fav-btn:active { transform: scale(0.9); }
+    .link-fav-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--primary-rgb),0.18); }
+
+    .link-fav-btn .star-outline,
+    .link-fav-btn .star-filled { position: absolute; transition: opacity 0.16s ease, transform 0.16s ease; }
+    .link-fav-btn .star-filled { opacity: 0; transform: scale(0.6); color: #ffb340; }
+    .link-fav-btn.is-fav .star-outline { opacity: 0; transform: scale(0.6); }
+    .link-fav-btn.is-fav .star-filled  { opacity: 1; transform: scale(1); }
+    [data-theme="dark"] .link-fav-btn .star-filled { color: #ffc65c; }
+
+    @media (hover: none) {
+      .link-fav-btn { opacity: 0.55; width: 34px; height: 34px; }
+      .link-fav-btn.is-fav { opacity: 1; }
+    }
+
+    /* Unstarred while looking at Favourites: kept in place, dimmed, until the
+       next redraw, so the grid does not jump under the pointer.
+
+       Dimmed with filter, not opacity. Cards enter with the cardIn animation,
+       which runs with fill-mode both and so holds opacity at 1 for good — and
+       an animated value outranks an ordinary rule. Opacity here did nothing. */
+    .link-card.is-unfavourited { filter: grayscale(0.7) opacity(0.45); }
+
+    /* The pill beside All. */
+    .tab-fav { flex-shrink: 0; }
+    .tab-fav .star-glyph { width: 11px; height: 11px; color: #ffb340; }
+    .tab-fav.active .star-glyph { color: currentColor; }
+
+    /* Reordering by drag, in the Favourites view only. */
+    .link-card[draggable="true"] { cursor: grab; }
+    .link-card.is-dragging { filter: opacity(0.4); }   /* not opacity: see is-unfavourited */
+    .link-card.drop-before { box-shadow: -3px 0 0 0 var(--primary); }
+    .link-card.drop-after  { box-shadow:  3px 0 0 0 var(--primary); }
+
     /* A personal tab: the same pill, with a small mark that says only you see it. */
     .tab-mine-mark {
       width: 11px;
@@ -826,6 +891,9 @@
 <div class="tabs-wrap" id="tabsWrap">
   <div class="tabs" id="tabsRow">
     <button class="tab tab-all active" id="tabAll" data-group="all">All</button>
+    <!-- A member's starred links. Outside the scroller on purpose: the scroller
+         repeats its contents to loop, and this must appear exactly once. -->
+    <button class="tab tab-fav hidden" id="tabFav" data-group="fav">Favourites</button>
     <div class="tabs-strip" id="tabsStrip">
       <div class="tabs-viewport" id="tabsViewport">
         <div class="tabs-track" id="tabs"></div>

@@ -1076,6 +1076,37 @@ const paths = {
       responses: { 200: json({ type: 'object' }) },
     }),
   },
+  '/api/my/favorites': {
+    get: op({
+      tag: TAGS.mine, auth: 'user',
+      summary: 'Your favourites, in your order',
+      description: 'Ids of shared links. Filtered on every read through the rule the public '
+                 + 'listing uses, so a link the administrator has since hidden, deleted or put '
+                 + 'behind a password drops out — and comes back if that is undone.',
+      responses: { 200: json({ type: 'object', properties: { link_ids: { type: 'array', items: { type: 'integer' } } } }) },
+    }),
+  },
+  '/api/my/favorites/reorder': {
+    post: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Put your favourites in order',
+      description: 'Ids that are not among your favourites are ignored.',
+      body: jsonBody({ order: { type: 'array', items: { type: 'integer' } } }, ['order']),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')) },
+    }),
+  },
+  '/api/my/favorites/{linkId}': {
+    post: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Star a shared link',
+      description: 'Only a link you can see right now. Starring twice is not an error.',
+      params: [pathParam('linkId', 'The id of a shared link.')],
+      responses: { 200: json({ type: 'object' }), 404: json(ref('Error'), 'Not a link you can see') },
+    }),
+    delete: op({
+      tag: TAGS.mine, auth: 'user', summary: 'Unstar a link',
+      params: [pathParam('linkId', 'The id of a shared link.')],
+      responses: { 200: json({ type: 'object' }) },
+    }),
+  },
   '/api/my/favicon-preview': {
     get: op({
       tag: TAGS.mine, auth: 'user',

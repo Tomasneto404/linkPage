@@ -30,6 +30,7 @@ const { storageSummary, fitsInQuota, cachePersonalFavicon } =
   require('../services/personalStorage');
 const { renderMarkdown } = require('../services/markdownService');
 const { renderMarkdownPage, MARKDOWN_CSP, instancePalette } = require('../services/markdownPage');
+const { visibleSharedLinks } = require('../services/linkService');
 
 const DEFAULT_COLOR = '#0071e3';
 
@@ -85,9 +86,13 @@ function parseAssignments(raw) {
 function data(req, res) {
   res.set('Cache-Control', 'private, no-store');
   res.json({
-    groups:  db.getPersonalGroups(owner(req)),
-    links:   db.getPersonalLinks(owner(req)),
-    storage: storageSummary(owner(req)),
+    groups:    db.getPersonalGroups(owner(req)),
+    links:     db.getPersonalLinks(owner(req)),
+    storage:   storageSummary(owner(req)),
+    // Ids of shared links, which the page already has; sending the ids rather
+    // than the links keeps the shared listing the only place shared links come
+    // from, and saves the page a third request.
+    favorites: visibleFavoriteIds(req),
   });
 }
 
@@ -134,6 +139,53 @@ async function faviconPreview(req, res) {
   res.set('Cache-Control', 'private, no-store');
   res.set('X-Content-Type-Options', 'nosniff');
   res.type(type).send(found.buffer);
+}
+
+// ─── Favourites ───────────────────────────────────────────────────────────────
+
+/**
+ * This person's favourites that they may still see, in their order.
+ *
+ * Filtered on every read. A favourite points at a shared link, and the
+ * administrator can hide it, delete it, or move it behind a password at any
+ * time — the star must never become a way round that. Run through the exact
+ * rule the public listing uses, so a favourite can never show a link the
+ * listing would not.
+ */
+function visibleFavoriteIds(req) {
+  const visible = new Set(visibleSharedLinks(req).map(l => l.id));
+  return db.getFavoriteIds(owner(req)).filter(id => visible.has(id));
+}
+
+function favorites(req, res) {
+  res.set('Cache-Control', 'private, no-store');
+  res.json({ link_ids: visibleFavoriteIds(req) });
+}
+
+/**
+ * Stars a shared link. Only one this person can currently see: otherwise the
+ * star would confirm that a hidden or locked link with that id exists.
+ */
+function addFavorite(req, res) {
+  const linkId = Number.parseInt(req.params.linkId, 10);
+  if (!visibleSharedLinks(req).some(l => l.id === linkId)) {
+    return res.status(404).json({ error: 'No such link' });
+  }
+  db.addFavorite(owner(req), linkId);
+  res.json({ ok: true, link_ids: visibleFavoriteIds(req) });
+}
+
+/** Unstars a link. Always allowed, and harmless when it was not starred. */
+function removeFavorite(req, res) {
+  db.removeFavorite(owner(req), Number.parseInt(req.params.linkId, 10));
+  res.json({ ok: true, link_ids: visibleFavoriteIds(req) });
+}
+
+function reorderFavorites(req, res) {
+  const ids = orderFrom(req.body);
+  if (!ids) return res.status(400).json({ error: 'Send { order: [ids] }' });
+  db.reorderFavorites(owner(req), ids);
+  res.json({ ok: true, link_ids: visibleFavoriteIds(req) });
 }
 
 // ─── Groups ───────────────────────────────────────────────────────────────────
@@ -452,6 +504,7 @@ function file(req, res) {
 module.exports = {
   requireMember,
   data, storage, icons, faviconPreview,
+  favorites, addFavorite, removeFavorite, reorderFavorites,
   createGroup, updateGroup, deleteGroup, reorderGroups,
   createSection, updateSection, deleteSection, reorderSections,
   createLink, updateLink, deleteLink, reorderLinks,

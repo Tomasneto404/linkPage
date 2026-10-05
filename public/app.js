@@ -290,6 +290,12 @@ let currentUser = null;
 /** Bytes used against this member's allowance, for the composer to show. */
 let personalStorage = null;
 
+/**
+ * Shared link ids this member has starred, in their order. Already filtered by
+ * the server to links they may see right now.
+ */
+let favoriteIds = [];
+
 const isPersonal = item => item?.owner === 'me';
 
 /**
@@ -321,13 +327,14 @@ function adoptPersonal(data) {
  * breaking the page — the shared links are still perfectly good.
  */
 async function fetchPersonal() {
-  if (!currentUser) return { groups: [], links: [] };
+  if (!currentUser) { favoriteIds = []; return { groups: [], links: [] }; }
   try {
     const r = await fetch('/api/my/data', { credentials: 'same-origin' });
     if (r.status === 401) { sessionEnded(); return { groups: [], links: [] }; }
     if (!r.ok) return { groups: [], links: [] };
     const data = await r.json();
     personalStorage = data.storage || null;
+    favoriteIds = Array.isArray(data.favorites) ? data.favorites : [];
     return adoptPersonal(data);
   } catch {
     return { groups: [], links: [] };
@@ -339,6 +346,7 @@ function sessionEnded() {
   if (!currentUser) return;
   currentUser = null;
   personalStorage = null;
+  favoriteIds = [];
   renderAccountControl();
   showToast('You have been signed out', { type: 'info', detail: 'Sign in again to see your own links.' });
 }
@@ -451,7 +459,7 @@ const lastGroupKey = () => (currentUser ? `${LAST_GROUP_KEY}:${currentUser.id}` 
 
 /** A tab key from its stored or data-attribute form: 'all', 12, or 'u12'. */
 function parseGroupKey(raw) {
-  if (raw === 'all') return 'all';
+  if (raw === 'all' || raw === 'fav') return raw;
   if (typeof raw === 'string' && /^u\d+$/.test(raw)) return raw;
   const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : null;
@@ -485,6 +493,11 @@ const LOCK_SVG = `
        stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-label="Locked">
     <rect x="3" y="11" width="18" height="11" rx="2"/>
     <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+  </svg>`;
+
+const STAR_SVG = `
+  <svg class="star-glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M12 2.5l2.94 5.96 6.56.95-4.75 4.63 1.12 6.53L12 17.5l-5.87 3.07 1.12-6.53L2.5 9.41l6.56-.95z"/>
   </svg>`;
 
 /** The mark on a group or link only its owner can see. */
@@ -522,10 +535,26 @@ function groupTabHtml(g, dup) {
     </button>`;
 }
 
+/**
+ * The Favourites pill. Only for a member who has starred something, so a
+ * member who never uses favourites never sees an empty tab — the star on a card
+ * is what introduces it. It stays while it is the tab being looked at, so
+ * unstarring the last one does not pull the floor out from under the reader.
+ */
+function renderFavoritesTab() {
+  const btn = document.getElementById('tabFav');
+  if (!btn) return;
+  const count = favoriteLinks().length;
+  const show  = !!currentUser && (count > 0 || activeGroup === 'fav');
+  btn.className = `tab tab-fav${activeGroup === 'fav' ? ' active' : ''}${show ? '' : ' hidden'}`;
+  btn.innerHTML = `${STAR_SVG} Favourites <span class="tab-count">${count}</span>`;
+}
+
 function renderTabs() {
   const allBtn = document.getElementById('tabAll');
   allBtn.className = `tab tab-all${activeGroup === 'all' ? ' active' : ''}`;
   allBtn.innerHTML = `All <span class="tab-count">${links.length}</span>`;
+  renderFavoritesTab();
 
   const t = tabScroller();
   // Keep the reader where they were across re-renders (a tab click rebuilds the
@@ -1361,9 +1390,15 @@ function effectiveSearchTokens() {
   return Array.from(tokens);
 }
 
+/** The starred shared links, in the member's order. */
+function favoriteLinks() {
+  const byId = new Map(links.filter(l => !isPersonal(l)).map(l => [l.id, l]));
+  return favoriteIds.map(id => byId.get(id)).filter(Boolean);
+}
+
 function getFilteredLinks() {
-  let filtered = activeGroup !== 'all'
-    ? links.filter(l => linkBelongsToGroup(l, activeGroup))
+  let filtered = activeGroup === 'fav' ? favoriteLinks()
+    : activeGroup !== 'all' ? links.filter(l => linkBelongsToGroup(l, activeGroup))
     : links;
 
   const tokens = effectiveSearchTokens();
@@ -1700,6 +1735,9 @@ function buildLinkCard(link) {
 
   card.querySelector('.link-copy-btn').addEventListener('click', e => copyLinkFromCard(e, link));
 
+  if (currentUser && !isPersonal(link)) addStarButton(card, link);
+  if (activeGroup === 'fav' && favoriteIds.includes(link.id)) wireFavoriteDrag(card, link);
+
   if (isPersonal(link)) {
     card.classList.add('link-card-mine');
     const edit = document.createElement('button');
@@ -1723,6 +1761,134 @@ function buildLinkCard(link) {
   }
 
   return card;
+}
+
+/**
+ * The star on a shared card, for a signed-in member. Their own links already
+ * have a page of their own, so they get none.
+ */
+function addStarButton(card, link) {
+  const starred = favoriteIds.includes(link.id);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `link-fav-btn${starred ? ' is-fav' : ''}`;
+  btn.setAttribute('aria-pressed', String(starred));
+  btn.setAttribute('aria-label', starred ? `Remove ${link.name} from favourites` : `Add ${link.name} to favourites`);
+  btn.title = starred ? 'Remove from favourites' : 'Add to favourites';
+  btn.innerHTML = `
+    <svg class="star-outline" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.9" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 2.5l2.94 5.96 6.56.95-4.75 4.63 1.12 6.53L12 17.5l-5.87 3.07 1.12-6.53L2.5 9.41l6.56-.95z"/>
+    </svg>
+    <svg class="star-filled" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2.5l2.94 5.96 6.56.95-4.75 4.63 1.12 6.53L12 17.5l-5.87 3.07 1.12-6.53L2.5 9.41l6.56-.95z"/>
+    </svg>`;
+  btn.addEventListener('click', e => toggleFavorite(e, link));
+  card.insertBefore(btn, card.querySelector('.link-copy-btn'));
+}
+
+/**
+ * Stars or unstars, at once on screen and then on the server, rolled back if
+ * the server says no.
+ *
+ * Unstarring while looking at Favourites dims the card rather than removing it:
+ * pulling it out would shift the grid under the pointer mid-click, and leaving
+ * it there makes an accidental unstar one click to undo.
+ */
+async function toggleFavorite(e, link) {
+  e.preventDefault();
+  e.stopPropagation();
+  // Before any await: the browser clears currentTarget once the handler yields.
+  const btn  = e.currentTarget;
+  const card = btn.closest('.link-card');
+  const next = !favoriteIds.includes(link.id);
+
+  const paint = starred => {
+    btn.classList.toggle('is-fav', starred);
+    btn.setAttribute('aria-pressed', String(starred));
+    btn.title = starred ? 'Remove from favourites' : 'Add to favourites';
+    btn.setAttribute('aria-label', starred ? `Remove ${link.name} from favourites` : `Add ${link.name} to favourites`);
+    if (activeGroup === 'fav') card?.classList.toggle('is-unfavourited', !starred);
+  };
+
+  const before = favoriteIds;
+  favoriteIds = next ? [...favoriteIds, link.id] : favoriteIds.filter(id => id !== link.id);
+  paint(next);
+  renderFavoritesTab();
+
+  const res = await myRequest(`/api/my/favorites/${link.id}`, { method: next ? 'POST' : 'DELETE' });
+  if (!res.ok) {
+    favoriteIds = before;
+    paint(!next);
+    renderFavoritesTab();
+    showToast(next ? 'Could not add that to favourites' : 'Could not remove that', { type: 'error' });
+    return;
+  }
+  // The server's list is the one to keep — it is the filtered, ordered truth.
+  if (Array.isArray(res.body.link_ids)) favoriteIds = res.body.link_ids;
+  renderFavoritesTab();
+}
+
+// ─── Reordering favourites ────────────────────────────────────────────────────
+//
+// By dragging, in the Favourites view only, where the order is the member's
+// own. Everywhere else the order is the administrator's and is not theirs to
+// change. Pointer devices only: HTML drag and drop does not exist on touch.
+
+let draggingFavId = null;
+
+// A card is a link, and a dragged link carries its address. Let go of it
+// anywhere that is not another card and the browser's default is to open that
+// address in place of this page. While a reorder is in progress, nothing on
+// the page is a place to drop a link.
+document.addEventListener('dragover', e => { if (draggingFavId !== null) e.preventDefault(); });
+document.addEventListener('drop',     e => { if (draggingFavId !== null) e.preventDefault(); });
+
+function wireFavoriteDrag(card, link) {
+  card.draggable = true;
+  card.addEventListener('dragstart', e => {
+    draggingFavId = link.id;
+    card.classList.add('is-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    // Something has to be set or Firefox will not start the drag at all.
+    e.dataTransfer.setData('text/plain', String(link.id));
+  });
+  card.addEventListener('dragend', () => {
+    draggingFavId = null;
+    card.classList.remove('is-dragging');
+    document.querySelectorAll('.link-card.drop-before, .link-card.drop-after')
+      .forEach(c => c.classList.remove('drop-before', 'drop-after'));
+  });
+  card.addEventListener('dragover', e => {
+    if (draggingFavId === null || draggingFavId === link.id) return;
+    e.preventDefault();
+    const box = card.getBoundingClientRect();
+    const after = e.clientX > box.left + box.width / 2;
+    card.classList.toggle('drop-after', after);
+    card.classList.toggle('drop-before', !after);
+  });
+  card.addEventListener('dragleave', () => card.classList.remove('drop-before', 'drop-after'));
+  card.addEventListener('drop', async e => {
+    if (draggingFavId === null || draggingFavId === link.id) return;
+    e.preventDefault();
+    const after = card.classList.contains('drop-after');
+    card.classList.remove('drop-before', 'drop-after');
+
+    const moving = draggingFavId;
+    const order = favoriteIds.filter(id => id !== moving);
+    const at = order.indexOf(link.id) + (after ? 1 : 0);
+    order.splice(at, 0, moving);
+
+    const before = favoriteIds;
+    favoriteIds = order;
+    renderLinks();
+    const res = await myRequest('/api/my/favorites/reorder', { json: { order } });
+    if (!res.ok) {
+      favoriteIds = before;
+      renderLinks();
+      showToast('Could not save that order', { type: 'error' });
+    }
+  });
 }
 
 /**
@@ -1836,6 +2002,10 @@ function updateEmptyState() {
     document.getElementById('emptyMsg').textContent =
       `No results for ${tokens.map(t => `"${t}"`).join(' · ')}`;
     sub.textContent = 'Try removing a keyword or refining your search';
+    sub.classList.remove('hidden');
+  } else if (activeGroup === 'fav') {
+    document.getElementById('emptyMsg').textContent = 'Nothing starred yet';
+    sub.textContent = 'Star a link with ☆ on its card and it gathers here.';
     sub.classList.remove('hidden');
   } else if (activeGroup !== 'all') {
     document.getElementById('emptyMsg').textContent = 'No links in this group';
@@ -2728,6 +2898,9 @@ async function loadData({ transition = false } = {}) {
     const stored = loadStoredGroup();
     if (stored === 'all') {
       activeGroup = 'all';
+    } else if (stored === 'fav' && favoriteLinks().length > 0) {
+      // Somebody who reads from their favourites should come back to them.
+      activeGroup = 'fav';
     } else if (stored && groups.some(g => g.id === stored)) {
       activeGroup = stored;
     } else if (pinnedGroupId && groups.some(g => g.id === pinnedGroupId)) {
@@ -2738,7 +2911,10 @@ async function loadData({ transition = false } = {}) {
   // If the active tab was a now-locked group — or a personal one that has gone,
   // because it was deleted or because its owner signed out — fall back to "All"
   // rather than leave an empty grid with no explanation.
-  if (activeGroup !== 'all') {
+  if (activeGroup === 'fav') {
+    // Signed out, or every star gone since: there is no Favourites to be in.
+    if (!currentUser || favoriteLinks().length === 0) activeGroup = 'all';
+  } else if (activeGroup !== 'all') {
     const current = groups.find(g => g.id === activeGroup);
     if (!current || isGroupLocked(current)) activeGroup = 'all';
   }

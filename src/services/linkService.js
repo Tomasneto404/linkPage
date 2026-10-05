@@ -56,4 +56,16 @@ function filterVisibleLinks(links, groups, unlockedIds) {
   });
 }
 
-module.exports = { ensureGroupByName, ensureSectionByName, filterVisibleLinks };
+/**
+ * The shared links this request may see as a visitor: nothing hidden, nothing
+ * in a locked group it has not unlocked. The one definition of the public view,
+ * used by the listing itself and by anything that must agree with it — a
+ * member's favourites, which must never show a link the listing would not.
+ */
+function visibleSharedLinks(req) {
+  const { getUnlockedGroupIds } = require('../utils/groupCrypto');
+  const visible = db.getAllLinks().filter(l => !l.is_hidden);
+  return filterVisibleLinks(visible, db.getAllGroups(), getUnlockedGroupIds(req));
+}
+
+module.exports = { ensureGroupByName, ensureSectionByName, filterVisibleLinks, visibleSharedLinks };

@@ -276,6 +276,9 @@ function updateLink(id, { name, url, description, imagePath, groupIds, removeIma
 function deleteLink(id) {
   db.prepare('DELETE FROM link_clicks WHERE link_id = ?').run(id);
   db.prepare('DELETE FROM link_groups WHERE link_id = ?').run(id);
+  // Members' stars on it. No foreign key would do this, and a favourite of a
+  // deleted id is waiting for the next link to be given that id.
+  db.prepare('DELETE FROM user_favorites WHERE link_id = ?').run(id);
   return db.prepare('DELETE FROM links WHERE id = ?').run(id);
 }
 

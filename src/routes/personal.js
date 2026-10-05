@@ -31,6 +31,11 @@ router.get ('/api/my/icons',   ...member, my.icons);
 // call can open a dozen outbound connections while it hunts for an icon.
 router.get ('/api/my/favicon-preview', ...member, faviconPreviewLimit, wrapAsync(my.faviconPreview));
 
+router.get   ('/api/my/favorites',          ...member, my.favorites);
+router.post  ('/api/my/favorites/reorder',  ...member, my.reorderFavorites);
+router.post  ('/api/my/favorites/:linkId',  ...member, my.addFavorite);
+router.delete('/api/my/favorites/:linkId',  ...member, my.removeFavorite);
+
 router.post  ('/api/my/groups/reorder',     ...member, my.reorderGroups);
 router.post  ('/api/my/groups',             ...member, my.createGroup);
 router.put   ('/api/my/groups/:id',         ...member, my.updateGroup);

@@ -499,6 +499,10 @@ Every route needs a signed-in member; the admin token has no personal page. Ids 
 | PUT/DELETE | `/api/my/links/:id` | Change or delete a link |
 | POST | `/api/my/links/reorder` | Put your links in order |
 | GET | `/api/my/links/:id/icon` · `/favicon` · `/file` | A link's private files. A markdown file renders as a page; `?raw=1` for the source. |
+| GET | `/api/my/favicon-preview?url=` | The icon a web address would get, before saving. Public addresses only. |
+| GET | `/api/my/favorites` | Your starred shared links, in your order — filtered to what you can see now |
+| POST/DELETE | `/api/my/favorites/:linkId` | Star or unstar a shared link |
+| POST | `/api/my/favorites/reorder` | Put your favourites in order |
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|

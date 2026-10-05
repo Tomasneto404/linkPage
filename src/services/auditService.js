@@ -29,6 +29,10 @@ function truncate(s, n = 80) {
 /** Audit entries for /api/my/* — the kind of change, never its contents. */
 function derivePersonalEntry(p, M, id) {
   const kinds = [
+    // Which shared links somebody stars says something about them, so not
+    // even those — public as they are — are named.
+    [/^\/api\/my\/favorites\/reorder$/,      'my_favorite', 'reorder', 'Reordered their favourites'],
+    [/^\/api\/my\/favorites\/\d+$/,           'my_favorite', null,      'favourite'],
     [/^\/api\/my\/links\/reorder$/,          'my_link',    'reorder', 'Reordered their links'],
     [/^\/api\/my\/links(\/\d+)?$/,             'my_link',    null,      'link'],
     [/^\/api\/my\/groups\/reorder$/,         'my_group',   'reorder', 'Reordered their groups'],
@@ -39,16 +43,16 @@ function derivePersonalEntry(p, M, id) {
   ];
   const verbFor = { POST: 'create', PUT: 'update', DELETE: 'delete' };
   const said    = { create: 'Added a personal', update: 'Changed a personal', delete: 'Removed a personal' };
+  // A favourite is starred and unstarred rather than added and removed.
+  const starred = { create: 'Starred a link', delete: 'Unstarred a link' };
 
   for (const [pattern, entityType, fixedVerb, noun] of kinds) {
     if (!pattern.test(p)) continue;
     const verb = fixedVerb || verbFor[M] || M.toLowerCase();
-    return {
-      action:   `${entityType}.${verb}`,
-      entityType,
-      entityId: id,
-      summary:  fixedVerb ? noun : `${said[verb] || 'Changed a personal'} ${noun}`,
-    };
+    const summary = fixedVerb ? noun
+                  : entityType === 'my_favorite' ? (starred[verb] || 'Changed a favourite')
+                  : `${said[verb] || 'Changed a personal'} ${noun}`;
+    return { action: `${entityType}.${verb}`, entityType, entityId: id, summary };
   }
   return { action: 'my.other', entityType: 'my', entityId: null, summary: 'Changed their personal page' };
 }
