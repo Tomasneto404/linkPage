@@ -1860,6 +1860,13 @@ async function toggleFavorite(e, link) {
 // below: press and hold a card, then slide it. Both end in dropOnCard().
 
 let dragging = null;   // { id, zone } while a reorder is in progress
+let touchHolding = false;   // a finger is down on a card that may become a reorder
+
+/**
+ * Whether a card is in somebody's hand. A live update re-renders the grid, and
+ * doing that now would pull the card out from under them; it waits instead.
+ */
+const reorderInProgress = () => dragging !== null || touchHolding;
 
 // Each wired card's zone and callbacks, so the touch layer — which finds the
 // card under a finger with elementFromPoint — can ask the same questions the
@@ -1953,6 +1960,7 @@ function wireTouchDrag(card) {
 
   const stop = () => {
     clearTimeout(timer); timer = null;
+    touchHolding = false;
     cancelAnimationFrame(scrollRaf); scrollRaf = 0;
     if (active) {
       active = false;
@@ -1976,6 +1984,7 @@ function wireTouchDrag(card) {
     const t = e.touches[0];
     start = { x: t.clientX, y: t.clientY };
     lastY = t.clientY;
+    touchHolding = true;
     timer = setTimeout(() => {
       const { link, zone } = dragWiring.get(card) || {};
       if (!link) return;
@@ -3614,6 +3623,9 @@ function connectLiveUpdates() {
   const refresh = () => {
     clearTimeout(liveUpdateTimer);
     liveUpdateTimer = setTimeout(() => {
+      // Not while a card is being moved: the re-render would take it away.
+      // Asked again shortly, so the update lands as soon as it is let go.
+      if (reorderInProgress()) { refresh(); return; }
       // Don't fight a typing user: skip the fade while they're searching.
       const inSearch = !!searchQuery || searchChips.length > 0;
       loadData({ transition: !inSearch }).catch(() => {});
