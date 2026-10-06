@@ -22,6 +22,12 @@ One setting in Settings → Public Access turns the public page into a private o
 ### Who did it
 Every audit entry records who made the change — an account, the admin token, a visitor or the system — and the Audit Log shows and filters by it. Failed sign-ins are recorded too. Invite and reset links never reach the log.
 
+### Your own links, anywhere
+Export your groups, links and favourites from Your account, and import them into another account or another LinkPage; importing the same file twice adds nothing. Favourites and your own links can now be reordered on a touch screen too: press and hold a card, then slide it.
+
+### Password reset by email
+With an SMTP server set up in Settings → Email, the sign-in page offers to email a reset link that works once, for an hour. It answers alike whether or not an account exists, cannot be used to fill somebody's inbox, and builds its links only from the address you configure. Without one, reset links are handed over by an administrator as before.
+
 ### Single sign-on
 Sign in through Authentik, or any OpenID Connect provider, from a button on the sign-in page and the admin gate. Set it up in Settings → Single Sign-On, which shows the redirect URI to register and checks the provider before turning it on. Accounts can be created on first sign-in, matched to existing ones by a verified address, or connected by their owners from Your account. Every ID token's signature, issuer, audience, expiry and nonce is checked, and the flow uses PKCE.
 

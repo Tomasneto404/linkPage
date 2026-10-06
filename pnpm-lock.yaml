@@ -14,6 +14,9 @@ importers:
       multer:
         specifier: ^2.1.1
         version: 2.2.0
+      nodemailer:
+        specifier: ^10.0.15
+        version: 10.0.15
       swagger-ui-dist:
         specifier: ^5.33.0
         version: 5.33.1
@@ -219,6 +222,10 @@ packages:
   negotiator@0.6.3:
     resolution: {integrity: sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg==}
     engines: {node: '>= 0.6'}
+
+  nodemailer@10.0.15:
+    resolution: {integrity: sha512-EUqp5PhtcsYXs9Fq/lS7s/8zlTrnBqmzZWzFFROrNikMiz+om/YRKMwqN907t+0A1KKyT8jd39CBUbFZmaZmcA==}
+    engines: {node: '>=20.0.0'}
 
   object-inspect@1.13.4:
     resolution: {integrity: sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew==}
@@ -551,6 +558,8 @@ snapshots:
       type-is: 1.6.18
 
   negotiator@0.6.3: {}
+
+  nodemailer@10.0.15: {}
 
   object-inspect@1.13.4: {}
 

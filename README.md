@@ -154,7 +154,9 @@ Two ways in, and both work everywhere.
 
 **Accounts.** On first startup the server creates an administrator account and prints its email and password in the startup banner; the password is also written to `data/admin-initial-password.txt`, which deletes itself once you change it. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` to choose them yourself. Signing in sets an HttpOnly, SameSite=Lax session cookie; the session lives in the database, so it can be revoked, and it is keyed by a hash of the cookie rather than the cookie itself.
 
-Further accounts come from **invite links** — Settings → Accounts. There is no open sign-up. The link is shown once, works once, and expires. The app sends no email, so you hand the link over yourself, and a forgotten password is a reset link issued from the same place.
+Further accounts come from **invite links** — Settings → Accounts. There is no open sign-up. The link is shown once, works once, and expires. You hand the link over yourself, and a forgotten password is a reset link issued from the same place.
+
+**Email, optionally.** Give LinkPage an SMTP server in Settings → Email and turn on *Password reset by email*, and the sign-in page offers to email a reset link. The link works once, for an hour. The endpoint answers the same whether or not an address has an account, is limited per address and to three emails an hour per account, and builds every link from the *Page address* you set rather than from the request, so a forged `Host` header cannot redirect a reset. *Send me a test* checks the settings against the real server.
 
 **The admin token.** A 64-character hex token in `data/admin-token.txt`, generated on first startup and printed at every start. It predates accounts and remains the way back in when nobody can sign in — choose *Use an admin token instead* on the sign-in screen. It can be rotated from Settings → Security at any time, which invalidates the old one immediately.
 
@@ -485,6 +487,9 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | GET | `/api/auth/oidc/callback` | Public | Where the identity provider returns to |
 | GET/DELETE | `/api/auth/identities` | User | Your connection to single sign-on, or disconnect it |
 | GET/PUT | `/api/settings/oidc` | Admin | Single sign-on settings |
+| POST | `/api/auth/forgot-password` | Public | Email yourself a reset link, when email is set up |
+| GET/PUT | `/api/settings/mail` | Admin | Email (SMTP) settings |
+| POST | `/api/settings/mail/test` | Admin | Send a test email |
 | DELETE | `/api/users/:id/identities` | Admin | Disconnect an account from single sign-on |
 | GET | `/api/users` | Admin | List accounts |
 | PATCH | `/api/users/:id` | Admin | Change a name, role, or whether the account is active |

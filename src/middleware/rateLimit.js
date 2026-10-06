@@ -134,6 +134,14 @@ const userTokenLimiter      = createFailureRateLimiter('user-token',      10, 15
 const loginAccountLimiter = createFailureRateLimiter('login-account', 20, 15 * 60 * 1000,
                                                      { keyOf: loginAccountKey });
 
+// Asking for a reset link by email. Per address, so one person cannot have the
+// server send mail all day; and per account, so nobody's inbox can be filled
+// with resets they did not ask for — counted on every request, not failures,
+// since every request is a send.
+const forgotIpLimiter      = createFailureRateLimiter('forgot-ip',      5, 15 * 60 * 1000);
+const forgotAccountLimiter = createFailureRateLimiter('forgot-account', 3, 60 * 60 * 1000,
+                                                      { keyOf: loginAccountKey });
+
 // Trips to the identity provider and back. Each start writes a pending row and
 // each callback may reach out to the provider, so neither is free to repeat.
 const oidcLimiter = createRateLimiter(30, 60 * 1000);
@@ -156,4 +164,6 @@ module.exports = {
   userTokenLimiter,
   requestSubmitLimiter,
   oidcLimiter,
+  forgotIpLimiter,
+  forgotAccountLimiter,
 };

@@ -57,6 +57,8 @@ function getSettings(req, res) {
     bar_opacity:               readBarOpacity(),
     user_storage_quota:        readUserQuota(),
     require_login:             db.readSetting('require_login') === '1',
+    // Whether the sign-in page may offer to email a reset link.
+    password_reset_email:      require('../services/mailService').offersPasswordReset(),
   });
 }
 

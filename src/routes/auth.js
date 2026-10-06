@@ -5,6 +5,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { wrapAsync } = require('../middleware/error');
 const authController = require('../controllers/authController');
 const oidcController = require('../controllers/oidcController');
+const mailController = require('../controllers/mailController');
 const { oidcLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
@@ -14,6 +15,7 @@ router.post('/api/auth/login',      wrapAsync(authController.login));          /
 router.post('/api/auth/logout',     authController.logout);         // public: always safe
 router.get ('/api/auth/me',         authController.me);             // public: answers "nobody"
 router.get ('/api/auth/providers',  authController.providers);      // public
+router.post('/api/auth/forgot-password', mailController.forgotPassword); // public: answers alike
 
 router.post('/api/auth/logout-all', requireAuth, authController.logoutEverywhere);
 router.post('/api/auth/password',   requireAuth, wrapAsync(authController.changePassword));

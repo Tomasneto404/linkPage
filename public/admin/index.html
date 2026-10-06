@@ -549,6 +549,7 @@
           <button type="button" class="settings-tab" data-tab="public">Public Access</button>
           <button type="button" class="settings-tab" data-tab="users">Accounts</button>
           <button type="button" class="settings-tab" data-tab="sso">Single Sign-On</button>
+          <button type="button" class="settings-tab" data-tab="mail">Email</button>
           <button type="button" class="settings-tab" data-tab="requests">Link Requests</button>
           <button type="button" class="settings-tab" data-tab="ipattribution">IP Attribution</button>
           <button type="button" class="settings-tab" data-tab="security">Security</button>
@@ -1073,6 +1074,95 @@
           <div class="form-error hidden" id="ssoError"></div>
           <div style="display:flex; justify-content:flex-end; margin-top:12px">
             <button class="btn btn-primary btn-sm" id="saveSsoBtn">Save</button>
+          </div>
+        </div>
+
+        <!-- ── Email ────────────────────────────── -->
+        <div class="settings-panel" data-panel="mail">
+          <div class="settings-section-title">Email</div>
+          <div class="settings-row-desc" style="margin-bottom:14px">
+            An SMTP server lets people email themselves a password reset link. Without one,
+            resets are links an administrator hands over from Accounts, as before.
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Page Address</div>
+              <div class="settings-row-desc">
+                This page's public address. Links in emails are built from it, never from
+                whoever asked.
+              </div>
+            </div>
+            <div class="sso-field">
+              <input type="url" id="mailSiteUrl" spellcheck="false" />
+              <button class="btn btn-ghost btn-sm" id="mailUseOriginBtn" title="Use the address you are on">This one</button>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div><div class="settings-row-label">Server</div></div>
+            <div class="sso-field">
+              <input type="text" id="mailHost" spellcheck="false" placeholder="smtp.example.com" />
+              <input type="number" id="mailPort" min="1" max="65535" style="flex:0 0 76px" aria-label="Port" />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Security</div>
+              <div class="settings-row-desc">STARTTLS on 587 is the usual; TLS on 465 for some providers.</div>
+            </div>
+            <div class="sso-field">
+              <select id="mailSecurity" class="bulk-group-select" style="flex:1">
+                <option value="starttls">STARTTLS</option>
+                <option value="tls">TLS</option>
+                <option value="none">None (local relay only)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div><div class="settings-row-label">Username</div></div>
+            <div class="sso-field">
+              <input type="text" id="mailUser" spellcheck="false" autocomplete="off" placeholder="None" />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Password</div>
+              <div class="settings-row-desc">Kept on the server and never shown again.</div>
+            </div>
+            <div class="sso-field">
+              <input type="password" id="mailPassword" autocomplete="new-password" />
+              <button class="btn btn-ghost-danger btn-sm hidden" id="removeMailPasswordBtn">Remove</button>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div><div class="settings-row-label">Sender</div></div>
+            <div class="sso-field">
+              <input type="text" id="mailFrom" spellcheck="false" placeholder="LinkPage &lt;links@example.com&gt;" />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Password Reset by Email</div>
+              <div class="settings-row-desc">
+                The sign-in page offers to email a reset link. It works once, for an hour.
+              </div>
+            </div>
+            <label class="switch" for="mailResetToggle">
+              <input type="checkbox" id="mailResetToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="form-error hidden" id="mailError"></div>
+          <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:12px">
+            <button class="btn btn-ghost btn-sm" id="mailTestBtn">Send me a test</button>
+            <button class="btn btn-primary btn-sm" id="saveMailBtn">Save</button>
           </div>
         </div>
 

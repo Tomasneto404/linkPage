@@ -148,6 +148,8 @@ function deriveAuditEntry(req) {
   if (p === '/api/settings/theme')                       return { action: 'settings.theme', entityType: 'settings', entityId: null, summary: 'Updated theme & appearance' };
   if (p === '/api/settings/require-login')               return { action: 'settings.require_login', entityType: 'settings', entityId: null, summary: body.enabled ? 'Made the page members-only' : 'Opened the page to everyone' };
   if (p === '/api/settings/user-quota')                  return { action: 'settings.user_quota', entityType: 'settings', entityId: null, summary: 'Changed the storage allowance' };
+  if (p === '/api/settings/mail')                        return { action: 'settings.mail', entityType: 'settings', entityId: null, summary: 'Changed the email settings' };
+  if (p === '/api/settings/mail/test')                   return { action: 'settings.mail_test', entityType: 'settings', entityId: null, summary: 'Sent a test email' };
   if (p === '/api/settings/oidc')                        return { action: 'settings.oidc', entityType: 'settings', entityId: null, summary: 'Changed the single sign-on settings' };
   // Any other setting: named after its route rather than left to the fallback.
   if (/^\/api\/settings\/[a-z-]+$/.test(p)) {

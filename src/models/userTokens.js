@@ -33,12 +33,16 @@ const sqlTime = ms => new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
  * the only moment it is available.
  */
 function createUserToken({ kind, label = null, role = 'user', userId = null,
-                           createdByUserId = null, ttlDays = USER_TOKEN_TTL_DAYS }) {
+                           createdByUserId = null, ttlDays = USER_TOKEN_TTL_DAYS, ttlMinutes = null }) {
   if (!KINDS.includes(kind)) throw new Error(`Unknown token kind: ${kind}`);
 
   const token = crypto.randomBytes(32).toString('base64url');
-  const days  = Math.min(Math.max(Number(ttlDays) || USER_TOKEN_TTL_DAYS, 1), 30);
-  const expiresAt = sqlTime(Date.now() + days * 24 * 60 * 60 * 1000);
+  // Minutes, for a link sent by email, which should not outlive the hour it
+  // was asked for in; days otherwise, for one an administrator hands over.
+  const lifetimeMs = ttlMinutes != null
+    ? Math.min(Math.max(Number(ttlMinutes) || 60, 5), 24 * 60) * 60 * 1000
+    : Math.min(Math.max(Number(ttlDays) || USER_TOKEN_TTL_DAYS, 1), 30) * 24 * 60 * 60 * 1000;
+  const expiresAt = sqlTime(Date.now() + lifetimeMs);
 
   const result = db.prepare(`
     INSERT INTO user_tokens (kind, token_hash, label, role, user_id, created_by_user_id, expires_at)

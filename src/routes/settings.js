@@ -5,6 +5,7 @@ const { requireAdmin } = require('../middleware/auth');
 const { upload, uploadWallpaper } = require('../services/uploadService');
 const c = require('../controllers/settingsController');
 const oidc = require('../controllers/oidcController');
+const mail = require('../controllers/mailController');
 const { wrapAsync } = require('../middleware/error');
 
 const router = express.Router();
@@ -25,6 +26,9 @@ router.post  ('/api/settings/save-favicons',   requireAdmin,                    
 router.post  ('/api/settings/require-login',   requireAdmin,                           c.setRequireLogin);
 router.get   ('/api/settings/oidc',            requireAdmin,                           oidc.getSettings);
 router.put   ('/api/settings/oidc',            requireAdmin,                           wrapAsync(oidc.saveSettings));
+router.get   ('/api/settings/mail',            requireAdmin,                           mail.getSettings);
+router.put   ('/api/settings/mail',            requireAdmin,                           mail.saveSettings);
+router.post  ('/api/settings/mail/test',       requireAdmin,                           wrapAsync(mail.sendTest));
 router.post  ('/api/settings/footer-enabled',  requireAdmin,                           c.setFooterEnabled);
 router.post  ('/api/settings/group-tab-color', requireAdmin,                           c.setGroupTabColor);
 router.post  ('/api/settings/group-tabs-loop', requireAdmin,                           c.setGroupTabsLoop);

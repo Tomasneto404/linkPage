@@ -741,6 +741,42 @@ const paths = {
       },
     }),
   },
+  '/api/settings/mail': {
+    get: op({
+      tag: TAGS.settings,
+      summary: 'Email settings',
+      description: 'The SMTP password is never returned, only whether one is set.',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+    put: op({
+      tag: TAGS.settings,
+      summary: 'Change the email settings',
+      description: 'Fields left out are unchanged. `password` is kept unless a new one is given, '
+                 + 'or `null` to remove it. `site_url` is this page\'s public address: every link '
+                 + 'in an email is built from it, never from the request.',
+      body: jsonBody({
+        site_url:       { type: 'string', example: 'https://links.example.com' },
+        host:           { type: 'string', example: 'smtp.example.com' },
+        port:           { type: 'integer', example: 587 },
+        security:       { type: 'string', enum: ['starttls', 'tls', 'none'] },
+        user:           { type: 'string' },
+        password:       { type: 'string', nullable: true, format: 'password' },
+        from:           { type: 'string', example: 'LinkPage <links@example.com>' },
+        password_reset: { type: 'boolean', description: 'Offer reset links by email on the sign-in page' },
+      }),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')) },
+    }),
+  },
+  '/api/settings/mail/test': {
+    post: op({
+      tag: TAGS.settings,
+      summary: 'Send a test email',
+      description: 'To `to`, or to the administrator asking. Answers with the mail server\'s own '
+                 + 'words when it refuses.',
+      body: jsonBody({ to: { type: 'string', format: 'email' } }),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')) },
+    }),
+  },
   '/api/settings/oidc': {
     get: op({
       tag: TAGS.settings,
@@ -888,6 +924,23 @@ const paths = {
       description: 'Always a password; also single sign-on when it is set up, as an entry '
                  + 'with a `url` to send the browser to.',
       responses: { 200: json({ type: 'object' }) },
+    }),
+  },
+  '/api/auth/forgot-password': {
+    post: op({
+      tag: TAGS.auth, auth: 'open',
+      summary: 'Email yourself a password reset link',
+      description: 'Only when an administrator has set up email and turned this on. Answers the '
+                 + 'same whether or not the address has an account, and before looking; the link, '
+                 + 'if there is one to send, works once for an hour. Rate-limited per address and '
+                 + 'per account.',
+      body: jsonBody({ email: { type: 'string', format: 'email' } }, ['email']),
+      responses: {
+        200: json({ type: 'object' }),
+        400: json(ref('Error'), 'Not an email address'),
+        404: json(ref('Error'), 'Not offered here'),
+        429: json(ref('Error'), 'Too many requests'),
+      },
     }),
   },
   '/api/auth/oidc/start': {

@@ -84,8 +84,9 @@ async function start() {
   // The instance's own look — palette, accent, wallpaper and its fog, and how
   // solid the bars are — so signing in happens on the same page, visibly, as
   // the one it leads back to.
+  let settings = {};
   try {
-    const settings = await fetch('/api/settings').then(r => r.json());
+    settings = await fetch('/api/settings').then(r => r.json());
     window.LinkPageTheme?.applyAppearance(settings);
     if (settings.site_title) document.title = `Sign in · ${settings.site_title}`;
     // Members-only: the links are behind this page, so "back to them" would
@@ -100,7 +101,9 @@ async function start() {
       if (me.authenticated) { location.replace(destination()); return; }
     } catch { /* carry on and show the form */ }
 
-    el('forgotNote').classList.remove('hidden');
+    // An instance that sends mail offers to send the link; one that does not
+    // says who to ask instead.
+    el(settings.password_reset_email ? 'forgotLink' : 'forgotNote').classList.remove('hidden');
     await showProviders();
     showSsoError();
     el('signInEmail').focus();
@@ -250,6 +253,65 @@ el('signInForm').addEventListener('submit', async e => {
         ? 'Too many attempts. Try again in a few minutes.'
         : 'Wrong email or password.');
       el('signInPassword').select();
+    } catch {
+      showError(error, 'Could not reach the server.');
+    }
+  });
+});
+
+// ─── Asking for a reset link ──────────────────────────────────────────────────
+
+/** Swaps the sign-in form for the "email me a link" one, and back. */
+function showForgot(show) {
+  for (const id of ['signInForm', 'forgotLink', 'providerSection']) {
+    if (show) el(id).dataset.wasHidden = el(id).classList.contains('hidden') ? '1' : '';
+    el(id).classList.toggle('hidden', show || el(id).dataset.wasHidden === '1');
+  }
+  el('forgotForm').classList.toggle('hidden', !show);
+  el('gateTitle').textContent = show ? 'Reset your password' : 'Sign in';
+  el('gateSubtitle').textContent = show
+    ? 'We will email you a link to choose a new one.'
+    : 'Sign in to manage this page.';
+  if (show) {
+    el('forgotEmail').value = el('signInEmail').value.trim();
+    el('forgotSent').classList.add('hidden');
+    el('forgotError').classList.add('hidden');
+    el('forgotBtn').classList.remove('hidden');
+    el('forgotEmail').focus();
+  } else {
+    el('signInEmail').focus();
+  }
+}
+
+el('forgotLink').addEventListener('click', () => showForgot(true));
+el('forgotBack').addEventListener('click', () => showForgot(false));
+
+el('forgotForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const error = el('forgotError');
+  error.classList.add('hidden');
+
+  await whileSubmitting(el('forgotBtn'), 'Sending…', async () => {
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: el('forgotEmail').value.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(error, res.status === 429
+          ? 'Too many requests. Try again in a few minutes.'
+          : data.error || 'That did not work. Try again.');
+        return;
+      }
+      // The same words whether or not there is an account: the server answers
+      // alike on purpose, and so does this page.
+      const sent = el('forgotSent');
+      sent.textContent = `If there is an account for ${el('forgotEmail').value.trim()}, a link is on its way. `
+                       + `It works once, for ${data.minutes || 60} minutes. Check your spam folder if it does not arrive.`;
+      sent.classList.remove('hidden');
+      el('forgotBtn').classList.add('hidden');
     } catch {
       showError(error, 'Could not reach the server.');
     }

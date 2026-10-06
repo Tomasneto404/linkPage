@@ -69,6 +69,20 @@
       <button type="submit" class="btn btn-primary gate-submit" id="signInBtn">Sign in</button>
     </form>
 
+    <!-- ── Asking for a reset link by email, when the instance sends mail ── -->
+    <form id="forgotForm" class="hidden">
+      <div class="field-stack">
+        <div class="field-row">
+          <input type="email" id="forgotEmail" placeholder="you@example.com"
+                 aria-label="Email" autocomplete="username" required />
+        </div>
+      </div>
+      <div class="form-error hidden" id="forgotError"></div>
+      <p class="login-note hidden" id="forgotSent" role="status"></p>
+      <button type="submit" class="btn btn-primary gate-submit" id="forgotBtn">Email me a link</button>
+      <button type="button" class="gate-alt" id="forgotBack">Back to sign in</button>
+    </form>
+
     <!-- ── Accepting an invite, or finishing a reset ──────────────────── -->
     <form id="redeemForm" class="hidden">
       <div class="field-stack">
@@ -123,6 +137,7 @@
       Forgotten your password? This instance sends no email — ask an
       administrator for a reset link.
     </p>
+    <button type="button" class="gate-alt hidden" id="forgotLink">Forgotten your password?</button>
 
     <a href="/" class="gate-back">← Back to the links</a>
   </div>

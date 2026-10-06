@@ -15,6 +15,9 @@ const SSE_BROADCAST_SKIP = new Set([
   '/api/events',
   '/api/auth/verify',
   '/api/auth/verify-public',
+  // Recorded by the controller when a link is actually sent; an entry for every
+  // request would be a log of strangers typing addresses.
+  '/api/auth/forgot-password',
 ]);
 // These mutate but should NOT broadcast a public data refresh (no public
 // effect) — they're still audited.
@@ -29,6 +32,8 @@ const AUDIT_ONLY_PATHS = new Set([
   '/api/auth/password',
   '/api/auth/identities',
   '/api/settings/oidc',
+  '/api/settings/mail',
+  '/api/settings/mail/test',
 ]);
 
 /**

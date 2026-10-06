@@ -3788,7 +3788,7 @@ a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline
 .user-quota-form input { width: 90px; padding: 5px 8px; font-size: 0.8125rem; }
 
 /* ── Single sign-on settings ───────────────── */
-.settings-panel[data-panel="sso"] .settings-row > div:first-child { flex: 1; min-width: 0; }
+.settings-panel:is([data-panel="sso"], [data-panel="mail"]) .settings-row > div:first-child { flex: 1; min-width: 0; }
 .sso-field {
   display: flex;
   gap: 6px;
@@ -3803,8 +3803,8 @@ a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline
   font-size: 0.875rem;
 }
 #ssoRedirectUri { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.8125rem; }
-#ssoError { margin-top: 12px; }
+#ssoError, #mailError { margin-top: 12px; }
 @media (max-width: 640px) {
-  .settings-panel[data-panel="sso"] .settings-row { flex-wrap: wrap; }
+  .settings-panel:is([data-panel="sso"], [data-panel="mail"]) .settings-row { flex-wrap: wrap; }
   .sso-field { flex-basis: 100%; }
 }
