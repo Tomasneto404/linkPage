@@ -1856,9 +1856,15 @@ async function toggleFavorite(e, link) {
 // another section would not move it to that section, so it would only appear to
 // snap back.
 //
-// Pointer devices only: HTML drag and drop does not exist on touch.
+// HTML drag and drop does not exist on touch, so touch has a layer of its own
+// below: press and hold a card, then slide it. Both end in dropOnCard().
 
 let dragging = null;   // { id, zone } while a reorder is in progress
+
+// Each wired card's zone and callbacks, so the touch layer — which finds the
+// card under a finger with elementFromPoint — can ask the same questions the
+// mouse handlers answer from their closures.
+const dragWiring = new WeakMap();
 
 // A card is a link, and a dragged link carries its address. Let go of it
 // anywhere that is not another card and the browser's default is to open that
@@ -1874,6 +1880,8 @@ document.addEventListener('drop',     e => { if (dragging) e.preventDefault(); }
  */
 function wireCardDrag(card, link, { zone, order, save }) {
   card.draggable = true;
+  dragWiring.set(card, { link, zone, order, save });
+  wireTouchDrag(card);
   card.addEventListener('dragstart', e => {
     dragging = { id: link.id, zone };
     card.classList.add('is-dragging');
@@ -1899,18 +1907,127 @@ function wireCardDrag(card, link, { zone, order, save }) {
     card.classList.toggle('drop-before', !after);
   });
   card.addEventListener('dragleave', () => card.classList.remove('drop-before', 'drop-after'));
-  card.addEventListener('drop', async e => {
+  card.addEventListener('drop', e => {
     if (!accepts()) return;
     e.preventDefault();
-    const after = card.classList.contains('drop-after');
-    card.classList.remove('drop-before', 'drop-after');
-
-    const moving = dragging.id;
-    const next = order().filter(id => id !== moving);
-    next.splice(next.indexOf(link.id) + (after ? 1 : 0), 0, moving);
-
-    if (!await save(next)) showToast('Could not save that order', { type: 'error' });
+    dropOnCard(card, dragging.id);
   });
+}
+
+/** Moves `movingId` next to `card`, on whichever side its marker says, and saves. */
+async function dropOnCard(card, movingId) {
+  const target = dragWiring.get(card);
+  const after = card.classList.contains('drop-after');
+  card.classList.remove('drop-before', 'drop-after');
+  if (!target) return;
+
+  const next = target.order().filter(id => id !== movingId);
+  next.splice(next.indexOf(target.link.id) + (after ? 1 : 0), 0, movingId);
+
+  if (!await target.save(next)) showToast('Could not save that order', { type: 'error' });
+}
+
+/**
+ * Reordering by touch: hold a card still for a moment, then slide it.
+ *
+ * The hold is what tells a reorder from a scroll. A finger that moves before
+ * the hold completes is scrolling the page, and is left alone; one that stays
+ * put is picking the card up, and from then on the page stops scrolling under
+ * it. Touch events rather than pointer events for the moves, because only a
+ * non-passive touchmove can stop a scroll that the browser has already begun
+ * to consider.
+ */
+const TOUCH_HOLD_MS    = 380;
+const TOUCH_SLOP_PX    = 10;
+const TOUCH_EDGE_PX    = 70;    // how close to the top or bottom starts scrolling
+
+function wireTouchDrag(card) {
+  let timer = null;
+  let start = null;
+  let active = false;
+  let over = null;
+  let scrollRaf = 0;
+  let lastY = 0;
+
+  const clearMarker = () => { over?.classList.remove('drop-before', 'drop-after'); over = null; };
+
+  const stop = () => {
+    clearTimeout(timer); timer = null;
+    cancelAnimationFrame(scrollRaf); scrollRaf = 0;
+    if (active) {
+      active = false;
+      dragging = null;
+      card.classList.remove('is-dragging');
+      document.body.classList.remove('is-touch-reordering');
+    }
+  };
+
+  // Near the top or bottom edge, the page scrolls so a card can travel further
+  // than one screen.
+  const edgeScroll = () => {
+    const speed = lastY < TOUCH_EDGE_PX ? -(TOUCH_EDGE_PX - lastY) / 4
+                : lastY > innerHeight - TOUCH_EDGE_PX ? (lastY - (innerHeight - TOUCH_EDGE_PX)) / 4 : 0;
+    if (speed) window.scrollBy(0, speed);
+    scrollRaf = active ? requestAnimationFrame(edgeScroll) : 0;
+  };
+
+  card.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return stop();
+    const t = e.touches[0];
+    start = { x: t.clientX, y: t.clientY };
+    lastY = t.clientY;
+    timer = setTimeout(() => {
+      const { link, zone } = dragWiring.get(card) || {};
+      if (!link) return;
+      active = true;
+      dragging = { id: link.id, zone };
+      card.classList.add('is-dragging');
+      document.body.classList.add('is-touch-reordering');
+      navigator.vibrate?.(10);
+      scrollRaf = requestAnimationFrame(edgeScroll);
+    }, TOUCH_HOLD_MS);
+  }, { passive: true });
+
+  card.addEventListener('touchmove', e => {
+    const t = e.touches[0];
+    if (!active) {
+      if (Math.hypot(t.clientX - start.x, t.clientY - start.y) > TOUCH_SLOP_PX) stop();
+      return;
+    }
+    e.preventDefault();
+    lastY = t.clientY;
+
+    const under = document.elementFromPoint(t.clientX, t.clientY)?.closest('.link-card');
+    const target = under && dragWiring.get(under);
+    if (!target || target.zone !== dragging.zone || target.link.id === dragging.id) {
+      clearMarker();
+      return;
+    }
+    if (under !== over) clearMarker();
+    over = under;
+    const box = under.getBoundingClientRect();
+    const after = t.clientX > box.left + box.width / 2;
+    under.classList.toggle('drop-after', after);
+    under.classList.toggle('drop-before', !after);
+  }, { passive: false });
+
+  card.addEventListener('touchend', e => {
+    if (!active) return stop();
+    // The lift that ends a reorder is not a tap: without this the card it was
+    // let go on opens.
+    e.preventDefault();
+    const target = over;
+    const movingId = dragging.id;
+    over = null;
+    stop();
+    if (target) dropOnCard(target, movingId);
+  });
+
+  card.addEventListener('touchcancel', () => { clearMarker(); stop(); });
+
+  // A long press on a link is also the browser's cue for its own menu. While
+  // the press is becoming a reorder, that menu would only get in the way.
+  card.addEventListener('contextmenu', e => { if (timer || active) e.preventDefault(); });
 }
 
 /** Favourites: their own list, saved as it is. */

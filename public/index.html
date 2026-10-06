@@ -573,6 +573,10 @@
     /* Reordering by drag, in the Favourites view only. */
     .link-card[draggable="true"] { cursor: grab; }
     .link-card.is-dragging { filter: opacity(0.4); }   /* not opacity: see is-unfavourited */
+    /* Reorderable cards on touch: hold to pick up, so the browser's own
+       long-press preview and text selection must not claim the hold first. */
+    .link-card[draggable="true"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    body.is-touch-reordering .link-card.is-dragging { filter: opacity(0.55); transform: scale(0.97); }
     .link-card.drop-before { box-shadow: -3px 0 0 0 var(--primary); }
     .link-card.drop-after  { box-shadow:  3px 0 0 0 var(--primary); }
 

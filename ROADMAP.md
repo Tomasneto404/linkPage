@@ -62,12 +62,17 @@ interface reaches them.
       members connecting their own account, and a fake provider in the tests
       that every check is proven against.
 
+## 5 — From the later list
+
+- [x] **Reordering on touch screens.** HTML drag and drop does not exist on
+      touch. Press and hold a favourite or one of your own links, then slide
+      it; the page scrolls near the edges, and a finger that moves before the
+      hold completes is still a scroll.
+
 ## Later
 
 Not started; written down so they are not lost.
 
-- **Reordering favourites on touch screens.** HTML drag and drop does not exist
-  on touch; needs a pointer-events implementation or move-up/down controls.
 - **Exporting and importing personal links**, as the administrator can for
   shared ones.
 - **Password reset by email**, with SMTP as an optional setting. Today a reset
