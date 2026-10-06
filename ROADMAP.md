@@ -80,6 +80,11 @@ interface reaches them.
       single sign-on in both directions; never demotes the last administrator.
 - [x] **Single sign-on only.** Hides the password form and refuses passwords;
       the admin token is untouched. Switches itself off with single sign-on.
+- [x] **Browser tests.** `npm run test:browser`, in headless Chromium through
+      playwright-core: sign-in, the admin gate, the composer, favourites with a
+      touch reorder, members-only, single sign-on and an emailed reset. They
+      found a real bug on their first run — a live update re-rendering the grid
+      mid-drag took the card out of the person's hand — now fixed. In CI too.
 
 ## Later
 
@@ -87,6 +92,3 @@ Not started; written down so they are not lost.
 
 - **Splitting the two big scripts.** `public/app.js` is ~3,300 lines and
   `public/admin/admin.js` ~6,400; both want to be modules.
-- **Browser tests.** Every browser check during the accounts work was done by
-  hand: sign-in, the composer, favourites, members-only. They deserve automated
-  coverage.

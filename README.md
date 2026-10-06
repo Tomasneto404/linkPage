@@ -375,8 +375,21 @@ Each file under [`tests/`](tests/) covers one resource (`auth`, `settings`, `lin
 throwaway SQLite database in the system temp directory — your own `data/` is never touched —
 and stubs the favicon fetcher so the suite never reaches the network.
 
-CI runs the same command on every push to `main`, every `v*` tag and every pull request; the
-Docker image is only built and pushed when the suite is green.
+**Browser tests** click through the pages in headless Chromium: signing in, the admin panel,
+the composer, favourites (including reordering by touch), members-only, single sign-on and a
+password reset by email. They use the dev dependency `playwright-core`; the browser itself is a
+one-time download:
+
+```bash
+npx playwright-core install chromium-headless-shell
+npm run test:browser
+```
+
+Without a browser they skip, saying how to get one. `LINKPAGE_BROWSER_PATH` points them at any
+other Chromium-based executable instead.
+
+CI runs both suites on every push to `main`, every `v*` tag and every pull request; the
+Docker image is only built and pushed when they are green.
 
 ---
 

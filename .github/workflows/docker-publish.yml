@@ -42,6 +42,14 @@ jobs:
       - name: Run API tests
         run: npm test
 
+      # Headless Chromium for the browser tests. A missing browser fails the
+      # run here (CI is set), rather than skipping quietly as it does locally.
+      - name: Install a headless browser
+        run: npx playwright-core install --with-deps chromium-headless-shell
+
+      - name: Run browser tests
+        run: npm run test:browser
+
   # A release is nothing but a tag: everything else is derived. This job proves
   # the three sources agree before anything is published, so a mistyped tag
   # fails in seconds instead of shipping a mislabelled image.

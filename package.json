@@ -17,7 +17,8 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "test:watch": "node --test --watch"
+    "test:watch": "node --test --watch",
+    "test:browser": "node --test --test-concurrency=1 \"tests/browser/*.browser.js\""
   },
   "engines": {
     "node": ">=22.13"
@@ -28,5 +29,8 @@
     "nodemailer": "^10.0.15",
     "swagger-ui-dist": "^5.33.1",
     "undici": "^7.30.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
   }
 }
