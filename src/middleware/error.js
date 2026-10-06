@@ -14,6 +14,11 @@ function errorHandler(err, req, res, next) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(413).json({ error: 'File is too large' });
     }
+    // Our own words, keyed on multer's code: its messages change between
+    // releases ("Unexpected field" became "Unexpected file field" in 2.4).
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({ error: `Unexpected field "${err.field}"` });
+    }
     return res.status(400).json({ error: err.message });
   }
 
