@@ -2990,6 +2990,7 @@ async function openAccount({ focusPassword = false, ssoNotice = null } = {}) {
   el('accountMustChange').classList.toggle('hidden', !currentUser.must_change_password);
   el('accountPasswordForm').reset();
   el('accountPasswordError').classList.add('hidden');
+  el('accountImportResult').classList.add('hidden');
   el('accountOverlay').classList.remove('hidden');
   (focusPassword || currentUser.must_change_password ? el('accountCurrentPw') : el('closeAccountBtn')).focus();
   await Promise.all([renderSessions(), renderSso(ssoNotice)]);
@@ -3028,6 +3029,38 @@ async function renderSso(notice) {
   box.classList.toggle('hidden', !notice);
   box.textContent = notice || '';
 }
+
+// ─── Export and import ────────────────────────────────────────────────────────
+
+el('accountImport')?.addEventListener('click', () => el('accountImportFile').click());
+
+el('accountImportFile')?.addEventListener('change', async e => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  const box = el('accountImportResult');
+
+  let payload;
+  try { payload = JSON.parse(await file.text()); } catch {
+    showToast('That file is not a LinkPage export', { type: 'error' });
+    return;
+  }
+
+  const res  = await myRequest('/api/my/import', { json: payload });
+  const data = res.body;
+  if (!res.ok) { showToast(data.error || 'Could not import that file', { type: 'error' }); return; }
+
+  const parts = [
+    `${data.links_imported} link${data.links_imported === 1 ? '' : 's'} imported`,
+    data.groups_created   ? `${data.groups_created} new group${data.groups_created === 1 ? '' : 's'}` : '',
+    data.favorites_added  ? `${data.favorites_added} favourite${data.favorites_added === 1 ? '' : 's'}` : '',
+    data.links_skipped    ? `${data.links_skipped} already here or skipped` : '',
+  ].filter(Boolean);
+  box.textContent = `${parts.join(', ')}.${data.problems.length ? ` ${data.problems.slice(0, 3).join(' · ')}` : ''}`;
+  box.classList.remove('hidden');
+  showToast('Import finished');
+  await loadData();
+});
 
 el('accountSsoDisconnect')?.addEventListener('click', async () => {
   const r = await fetch('/api/auth/identities', { method: 'DELETE', credentials: 'same-origin' }).catch(() => null);

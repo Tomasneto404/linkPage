@@ -506,6 +506,8 @@ Every route needs a signed-in member; the admin token has no personal page. Ids 
 | GET | `/api/my/data` | Your groups, links and storage use, in one response |
 | GET | `/api/my/storage` | How much of your allowance you are using |
 | GET | `/api/my/icons` | The shared icon library, to pick from |
+| GET | `/api/my/export` | Your page as a file: groups, links and favourites (files stay here) |
+| POST | `/api/my/import` | Merge an exported file into your page; repeats add nothing |
 | POST | `/api/my/groups` | Add a group |
 | PUT/DELETE | `/api/my/groups/:id` | Change or delete a group (its links are unfiled, not deleted) |
 | POST | `/api/my/groups/reorder` | Put your groups in order |

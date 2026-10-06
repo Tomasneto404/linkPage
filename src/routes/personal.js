@@ -19,6 +19,8 @@ const { createRateLimiter } = require('../middleware/rateLimit');
 const my = require('../controllers/personalController');
 
 const faviconPreviewLimit = createRateLimiter(30, 60 * 1000);
+// An import can create thousands of rows and queue as many favicon fetches.
+const importLimit = createRateLimiter(10, 10 * 60 * 1000);
 
 const router = express.Router();
 const member = [requireAuth, my.requireMember];
@@ -26,6 +28,8 @@ const member = [requireAuth, my.requireMember];
 router.get ('/api/my/data',    ...member, my.data);
 router.get ('/api/my/storage', ...member, my.storage);
 router.get ('/api/my/icons',   ...member, my.icons);
+router.get ('/api/my/export',  ...member, my.exportData);
+router.post('/api/my/import',  ...member, importLimit, my.importData);
 
 // Makes this server fetch an address a member typed, so it is throttled: each
 // call can open a dozen outbound connections while it hunts for an icon.

@@ -31,6 +31,7 @@ const { storageSummary, fitsInQuota, cachePersonalFavicon } =
 const { renderMarkdown } = require('../services/markdownService');
 const { renderMarkdownPage, MARKDOWN_CSP, instancePalette } = require('../services/markdownPage');
 const { visibleSharedLinks } = require('../services/linkService');
+const { buildExport, importInto } = require('../services/personalTransfer');
 
 const DEFAULT_COLOR = '#0071e3';
 
@@ -186,6 +187,24 @@ function reorderFavorites(req, res) {
   if (!ids) return res.status(400).json({ error: 'Send { order: [ids] }' });
   db.reorderFavorites(owner(req), ids);
   res.json({ ok: true, link_ids: visibleFavoriteIds(req) });
+}
+
+// ─── Export and import ────────────────────────────────────────────────────────
+
+/** This person's page as a file to keep, or to bring to another instance. */
+function exportData(req, res) {
+  const day = new Date().toISOString().slice(0, 10);
+  res.set('Cache-Control', 'private, no-store');
+  res.set('Content-Disposition', `attachment; filename="linkpage-my-links-${day}.json"`);
+  res.json(buildExport(req));
+}
+
+/** Merges an exported file into this person's page. */
+function importData(req, res) {
+  const result = importInto(req, req.body);
+  if (result.error) return res.status(400).json({ error: result.error });
+  req._auditSummary = `Imported ${result.links_imported} link(s) into their page`;
+  res.json(result);
 }
 
 // ─── Groups ───────────────────────────────────────────────────────────────────
@@ -502,6 +521,7 @@ function file(req, res) {
 }
 
 module.exports = {
+  exportData, importData,
   requireMember,
   data, storage, icons, faviconPreview,
   favorites, addFavorite, removeFavorite, reorderFavorites,

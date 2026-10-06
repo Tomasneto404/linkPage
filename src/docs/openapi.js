@@ -1173,6 +1173,31 @@ const paths = {
       responses: { 200: json(ref('Storage')) },
     }),
   },
+  '/api/my/export': {
+    get: op({
+      tag: TAGS.mine, auth: 'user',
+      summary: 'Export your own page',
+      description: 'Groups with their colours and sections, links with where they are filed, and '
+                 + 'favourites by address. Files are not included: an attachment-only link is '
+                 + 'listed by name and skipped on import.',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+  },
+  '/api/my/import': {
+    post: op({
+      tag: TAGS.mine, auth: 'user',
+      summary: 'Import into your own page',
+      description: 'Merges, never replaces: groups and sections are matched by name, links by '
+                 + 'address, and favourites by the address of a shared link you can see. '
+                 + 'Importing the same file twice adds nothing the second time.',
+      body: jsonBody({ links: { type: 'array', items: { type: 'object' } } }, ['links']),
+      responses: {
+        200: json({ type: 'object' }),
+        400: json(ref('Error'), 'Not an export of personal links'),
+        429: { description: 'Too many imports' },
+      },
+    }),
+  },
   '/api/my/icons': {
     get: op({
       tag: TAGS.mine, auth: 'user', summary: 'The shared icon library, to pick from',

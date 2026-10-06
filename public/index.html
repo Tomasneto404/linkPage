@@ -763,6 +763,8 @@
     .account-section { display: flex; flex-direction: column; gap: 10px; }
     .account-section h3 { font-size: 0.875rem; font-weight: 600; margin: 0; }
     .account-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .account-transfer { display: flex; gap: 6px; }
+    .account-transfer a { text-decoration: none; }
     .account-password { padding: 0; gap: 8px; }
 
     .account-sessions { display: flex; flex-direction: column; gap: 6px; }
@@ -1392,6 +1394,22 @@
             <button type="submit" class="btn btn-primary btn-sm" id="accountPasswordBtn">Change password</button>
           </div>
         </form>
+      </section>
+
+      <section class="account-section">
+        <div class="account-section-head">
+          <h3>Your links</h3>
+          <div class="account-transfer">
+            <a class="btn btn-ghost btn-sm" id="accountExport" href="/api/my/export" download>Export</a>
+            <button type="button" class="btn btn-ghost btn-sm" id="accountImport">Import</button>
+            <input type="file" id="accountImportFile" accept="application/json,.json" hidden />
+          </div>
+        </div>
+        <p class="account-session-when">
+          Your groups, links and favourites as a file, to keep or to bring to another LinkPage.
+          Attached files and uploaded icons stay here.
+        </p>
+        <div class="account-notice hidden" id="accountImportResult" role="status"></div>
       </section>
 
       <!-- Only when the instance has single sign-on, or this account is connected to it. -->

@@ -29,6 +29,7 @@ function truncate(s, n = 80) {
 /** Audit entries for /api/my/* — the kind of change, never its contents. */
 function derivePersonalEntry(p, M, id) {
   const kinds = [
+    [/^\/api\/my\/import$/,                  'my_link',    'import',  'Imported links into their page'],
     // Which shared links somebody stars says something about them, so not
     // even those — public as they are — are named.
     [/^\/api\/my\/favorites\/reorder$/,      'my_favorite', 'reorder', 'Reordered their favourites'],

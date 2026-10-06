@@ -68,13 +68,15 @@ interface reaches them.
       touch. Press and hold a favourite or one of your own links, then slide
       it; the page scrolls near the edges, and a finger that moves before the
       hold completes is still a scroll.
+- [x] **Exporting and importing personal links.** From *Your account*: groups,
+      sections, links and favourites as JSON. Imports merge by name and
+      address, so a repeat adds nothing; files and uploaded icons are not
+      carried, and favourites are only restored for links the importer can see.
 
 ## Later
 
 Not started; written down so they are not lost.
 
-- **Exporting and importing personal links**, as the administrator can for
-  shared ones.
 - **Password reset by email**, with SMTP as an optional setting. Today a reset
   is a link an administrator issues.
 - **Splitting the two big scripts.** `public/app.js` is ~3,300 lines and

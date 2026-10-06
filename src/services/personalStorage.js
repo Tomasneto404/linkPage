@@ -69,6 +69,21 @@ function cachePersonalFavicon(ownerId, linkId, siteUrl) {
   return job;
 }
 
+/**
+ * The same for many links at once — an import — one after another. Hundreds of
+ * fetches started together would be this server hammering hundreds of other
+ * people's servers on one member's behalf.
+ */
+function cachePersonalFavicons(ownerId, items) {
+  const job = (async () => {
+    for (const { linkId, url } of items) {
+      await fetchAndStoreFavicon(ownerId, linkId, url).catch(() => {});
+    }
+  })().finally(() => inFlight.delete(job));
+  inFlight.add(job);
+  return job;
+}
+
 function settlePersonalFavicons() {
   return Promise.all([...inFlight]);
 }
@@ -114,5 +129,5 @@ async function fetchAndStoreFavicon(ownerId, linkId, siteUrl) {
 
 module.exports = {
   storageQuotaFor, storageSummary, fitsInQuota,
-  cachePersonalFavicon, settlePersonalFavicons,
+  cachePersonalFavicon, cachePersonalFavicons, settlePersonalFavicons,
 };
