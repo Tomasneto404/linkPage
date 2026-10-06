@@ -1062,6 +1062,34 @@
 
           <div class="settings-row">
             <div>
+              <div class="settings-row-label">Administrator Group</div>
+              <div class="settings-row-desc">
+                Members of this provider group are made administrators when they sign in, and
+                made members again when they leave it. Empty, roles are set here by hand.
+                Authentik sends groups in its <em>profile</em> scope.
+              </div>
+            </div>
+            <div class="sso-field">
+              <input type="text" id="ssoAdminGroup" spellcheck="false" placeholder="None" maxlength="200" />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Single Sign-On Only</div>
+              <div class="settings-row-desc">
+                Hide the password form and refuse passwords. The admin token still works, and
+                is the way back in if the provider is ever down.
+              </div>
+            </div>
+            <label class="switch" for="ssoOnlyToggle">
+              <input type="checkbox" id="ssoOnlyToggle" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-row">
+            <div>
               <div class="settings-row-label">Single Sign-On</div>
               <div class="settings-row-desc" id="ssoStatusDesc">Off.</div>
             </div>

@@ -106,7 +106,7 @@ async function start() {
     el(settings.password_reset_email ? 'forgotLink' : 'forgotNote').classList.remove('hidden');
     await showProviders();
     showSsoError();
-    el('signInEmail').focus();
+    if (!el('signInForm').classList.contains('hidden')) el('signInEmail').focus();
     return;
   }
 
@@ -190,6 +190,14 @@ async function showProviders() {
   try {
     providers = (await fetch('/api/auth/providers').then(r => r.json())).providers || [];
   } catch { return; }
+
+  // Single sign-on only: the password form, its "or" and the forgotten
+  // password help all go, and the provider's button is the page.
+  if (!providers.some(p => p.id === 'local')) {
+    for (const id of ['signInForm', 'forgotLink', 'forgotNote']) el(id).classList.add('hidden');
+    document.querySelector('#providerSection .gate-divider')?.classList.add('hidden');
+    el('gateSubtitle').textContent = 'Sign in with your organisation\'s account.';
+  }
 
   const external = providers.filter(p => p.url);
   if (external.length === 0) return;

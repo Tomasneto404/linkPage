@@ -76,6 +76,10 @@ interface reaches them.
       One-hour links built from a configured page address, never the request;
       the same answer whether or not the account exists; three emails an hour
       per account at most; a link that failed to send is revoked.
+- [x] **Roles from the provider.** An administrator group, synced at every
+      single sign-on in both directions; never demotes the last administrator.
+- [x] **Single sign-on only.** Hides the password form and refuses passwords;
+      the admin token is untouched. Switches itself off with single sign-on.
 
 ## Later
 
@@ -83,10 +87,6 @@ Not started; written down so they are not lost.
 
 - **Splitting the two big scripts.** `public/app.js` is ~3,300 lines and
   `public/admin/admin.js` ~6,400; both want to be modules.
-- **Roles from the provider.** Single sign-on creates members only; mapping
-  an Authentik group to the administrator role would save a manual promotion.
-- **Single sign-on only.** A setting to hide the password form once everyone
-  signs in through the provider.
 - **Browser tests.** Every browser check during the accounts work was done by
   hand: sign-in, the composer, favourites, members-only. They deserve automated
   coverage.

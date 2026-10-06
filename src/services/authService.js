@@ -96,13 +96,22 @@ function publicUser(user) {
  * renders it as a button and appends where to come back to.
  */
 function listProviders() {
-  const providers = [{ id: 'local', label: 'Password' }];
   // Required here rather than at the top: oidcService needs the models, which
   // are what this module is loaded alongside.
   const oidc = require('./oidcService');
   const cfg  = oidc.readConfig();
+  const providers = passwordSignInAllowed(cfg) ? [{ id: 'local', label: 'Password' }] : [];
   if (oidc.isReady(cfg)) providers.push({ id: 'oidc', label: cfg.label, url: '/api/auth/oidc/start' });
   return providers;
 }
 
-module.exports = { authenticateLocal, passwordProblem, publicUser, listProviders };
+/**
+ * False when an administrator has made single sign-on the only way in. The
+ * admin token is not a password sign-in and is never affected: it is the way
+ * back when the provider is down.
+ */
+function passwordSignInAllowed(cfg = require('./oidcService').readConfig()) {
+  return !(cfg.ssoOnly && require('./oidcService').isReady(cfg));
+}
+
+module.exports = { authenticateLocal, passwordProblem, publicUser, listProviders, passwordSignInAllowed };

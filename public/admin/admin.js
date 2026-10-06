@@ -189,9 +189,18 @@ async function dressGate() {
  * A button for each single sign-on provider, coming back to this panel. The
  * trip and its failures belong to the sign-in page; this only starts it.
  */
+let gatePasswordSignIn = true;   // false when single sign-on is the only way in
+
 function showGateProviders(providers = []) {
   const box = document.getElementById('adminProviderButtons');
   if (!box) return;
+  // Single sign-on only: no password form, and no "or" before the button.
+  const passwords = providers.some(p => p.id === 'local');
+  gatePasswordSignIn = passwords;
+  document.getElementById('adminLoginForm').classList.toggle('hidden', !passwords);
+  document.getElementById('usePasswordBtn').textContent =
+    passwords ? 'Sign in with a password' : 'Back to single sign-on';
+  document.querySelector('#adminProviderSection .gate-divider')?.classList.toggle('hidden', !passwords);
   box.replaceChildren(...providers.filter(p => p.url).map(p => {
     const a = document.createElement('a');
     a.className = 'btn btn-ghost gate-submit gate-provider';
@@ -284,7 +293,7 @@ document.getElementById('togglePasswordBtn').addEventListener('click', e => {
 /** Swaps between the password form and the token form. */
 function showGateForm(which) {
   const password = which === 'password';
-  document.getElementById('adminLoginForm').classList.toggle('hidden', !password);
+  document.getElementById('adminLoginForm').classList.toggle('hidden', !password || !gatePasswordSignIn);
   document.getElementById('useTokenBtn').classList.toggle('hidden', !password);
   // Single sign-on belongs with the account sign-in, not the break-glass token.
   const providers = document.getElementById('adminProviderSection');
@@ -293,7 +302,10 @@ function showGateForm(which) {
   }
   document.getElementById('gateForm').classList.toggle('hidden', password);
   document.getElementById('usePasswordBtn').classList.toggle('hidden', password);
-  document.getElementById(password ? 'adminEmail' : 'tokenInput').focus();
+  (password
+    ? (gatePasswordSignIn ? document.getElementById('adminEmail')
+                          : document.querySelector('#adminProviderButtons a'))
+    : document.getElementById('tokenInput'))?.focus();
 }
 document.getElementById('useTokenBtn').addEventListener('click', () => showGateForm('token'));
 document.getElementById('usePasswordBtn').addEventListener('click', () => showGateForm('password'));
@@ -6503,7 +6515,7 @@ let ssoSecretSet = false;
 function describeSso(s) {
   const desc = document.getElementById('ssoStatusDesc');
   desc.textContent = s.enabled
-    ? `On. The sign-in page offers "${s.label || s.default_label}".`
+    ? `On. The sign-in page offers "${s.label || s.default_label}"${s.sso_only ? ', and nothing else' : ''}.`
     : 'Off. Turning it on checks that the provider answers.';
 }
 
@@ -6526,6 +6538,8 @@ async function loadSsoSettings() {
   document.getElementById('ssoAutoCreateToggle').checked  = !!s.auto_create;
   document.getElementById('ssoLinkByEmailToggle').checked = !!s.link_by_email;
   document.getElementById('ssoEnabledToggle').checked     = !!s.enabled;
+  document.getElementById('ssoAdminGroup').value          = s.admin_group || '';
+  document.getElementById('ssoOnlyToggle').checked        = !!s.sso_only;
   setSsoSecretState(s.client_secret_set);
   describeSso(s);
 }
@@ -6550,6 +6564,8 @@ async function saveSso(extra = {}) {
     auto_create:   document.getElementById('ssoAutoCreateToggle').checked,
     link_by_email: document.getElementById('ssoLinkByEmailToggle').checked,
     enabled:       document.getElementById('ssoEnabledToggle').checked,
+    admin_group:   document.getElementById('ssoAdminGroup').value.trim(),
+    sso_only:      document.getElementById('ssoOnlyToggle').checked,
     ...extra,
   };
   const secret = document.getElementById('ssoClientSecret').value;
@@ -6569,6 +6585,7 @@ async function saveSso(extra = {}) {
       return;
     }
     setSsoSecretState(data.client_secret_set);
+    document.getElementById('ssoOnlyToggle').checked = !!data.sso_only;
     describeSso(data);
     showToast(data.enabled ? 'Single sign-on is on' : 'Single sign-on settings saved');
   } catch {

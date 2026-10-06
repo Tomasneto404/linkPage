@@ -139,6 +139,19 @@ async function callback(req, res) {
         summary: `Connected ${user.email} to single sign-on by their verified address`,
       });
     }
+    if (result.roleChanged) {
+      recordAuditNow(req, {
+        action: 'user.update', entityType: 'user', entityId: user.id,
+        summary: result.roleChanged === 'admin'
+          ? `Made ${user.email} an administrator, as a member of the provider's administrator group`
+          : `Made ${user.email} a member, no longer in the provider's administrator group`,
+      });
+    } else if (result.roleKept) {
+      recordAuditNow(req, {
+        action: 'user.update', entityType: 'user', entityId: user.id,
+        summary: `Kept ${user.email} an administrator although the provider no longer says so: they are the last one`,
+      });
+    }
     recordAuditNow(req, {
       action: 'auth.login', entityType: 'auth',
       summary: `${user.email} signed in with single sign-on`,
@@ -208,6 +221,8 @@ function settingsView() {
     default_label:     oidc.DEFAULT_LABEL,
     auto_create:       cfg.autoCreate,
     link_by_email:     cfg.linkByEmail,
+    admin_group:       cfg.adminGroup,
+    sso_only:          cfg.ssoOnly,
   };
 }
 
@@ -260,6 +275,16 @@ async function saveSettings(req, res) {
 
   const enabled = body.enabled !== undefined ? body.enabled === true : cfg.enabled;
 
+  let adminGroup = cfg.adminGroup;
+  if (body.admin_group !== undefined) {
+    adminGroup = typeof body.admin_group === 'string' ? body.admin_group.trim().slice(0, 200) : '';
+  }
+
+  // Password sign-in can only be switched off while there is something else
+  // to sign in with. Switching single sign-on off switches this off with it.
+  let ssoOnly = body.sso_only !== undefined ? body.sso_only === true : cfg.ssoOnly;
+  if (!enabled) ssoOnly = false;
+
   if (enabled) {
     if (!issuer || !clientId) {
       return res.status(400).json({ error: 'An issuer and a client ID are needed to turn single sign-on on' });
@@ -279,6 +304,8 @@ async function saveSettings(req, res) {
   writeFlag('oidc_enabled', enabled);
   if (body.auto_create !== undefined)   writeFlag('oidc_auto_create', body.auto_create === true);
   if (body.link_by_email !== undefined) writeFlag('oidc_link_by_email', body.link_by_email === true);
+  writeOrDelete('oidc_admin_group', adminGroup);
+  writeFlag('oidc_sso_only', ssoOnly);
   oidc.resetCaches();
 
   res.json(settingsView());

@@ -43,6 +43,8 @@ function readConfig() {
     label:        db.readSetting('oidc_label') || DEFAULT_LABEL,
     autoCreate:   db.readSetting('oidc_auto_create') === '1',
     linkByEmail:  db.readSetting('oidc_link_by_email') === '1',
+    adminGroup:   db.readSetting('oidc_admin_group') || '',
+    ssoOnly:      db.readSetting('oidc_sso_only') === '1',
   };
 }
 
@@ -355,7 +357,8 @@ async function completeLogin({ state, cookieState, code, sessionUserId = null })
 
     const account = resolveAccount({ claims, cfg, provider: meta.issuer,
                                      linkUserId: login.link_user_id, sessionUserId });
-    return { ...account, login, claims };
+    const role = syncRole(account.user, claims, cfg);
+    return { ...account, user: role.user, roleChanged: role.changed, roleKept: role.kept, login, claims };
   } catch (err) {
     err.connecting = !!login.link_user_id;
     err.nextPath   = login.next_path;
@@ -424,6 +427,28 @@ function resolveAccount({ claims, cfg, provider, linkUserId, sessionUserId }) {
   throw new OidcError('no_account', 'No account here for this sign-in');
 }
 
+/**
+ * Gives or takes away the administrator role by the provider's groups, when an
+ * administrator group is configured. At every sign-in, in both directions: the
+ * provider is then where administrators are decided, and a promotion made here
+ * by hand lasts until that person's next single sign-on.
+ *
+ * Never removes the last administrator who could still sign in. The provider
+ * dropping them from a group should not leave the instance with nobody able
+ * to manage it.
+ */
+function syncRole(user, claims, cfg) {
+  if (!cfg.adminGroup || !user) return { user };
+  const groups = Array.isArray(claims.groups) ? claims.groups
+               : typeof claims.groups === 'string' ? [claims.groups] : [];
+  const want = groups.includes(cfg.adminGroup) ? 'admin' : 'user';
+  if (user.role === want) return { user };
+
+  if (want === 'user' && user.is_active && db.countActiveAdmins() <= 1) return { user, kept: true };
+  db.updateUser(user.id, { role: want });
+  return { user: db.getUserById(user.id), changed: want };
+}
+
 /** Forgets cached provider documents. For tests, and after the settings change. */
 function resetCaches() {
   discoveryCache.clear();
@@ -433,5 +458,5 @@ function resetCaches() {
 module.exports = {
   DEFAULT_LABEL, LOGIN_MAX_AGE_MS,
   OidcError, readConfig, isReady, normalizeIssuer,
-  discover, verifyIdToken, beginLogin, completeLogin, resetCaches,
+  discover, verifyIdToken, beginLogin, completeLogin, resetCaches, syncRole,
 };

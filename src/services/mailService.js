@@ -39,7 +39,10 @@ function readMailConfig() {
 const canSend = cfg => !!cfg.host && !!cfg.from && !!cfg.siteUrl;
 
 /** Whether the sign-in page should offer to email a reset link. */
-const offersPasswordReset = (cfg = readMailConfig()) => canSend(cfg) && cfg.passwordReset;
+const offersPasswordReset = (cfg = readMailConfig()) =>
+  canSend(cfg) && cfg.passwordReset
+  // A password nobody can sign in with is not worth emailing a link for.
+  && require('./authService').passwordSignInAllowed();
 
 /** The page address as configured, without a trailing slash, or null. */
 function normalizeSiteUrl(value) {

@@ -46,6 +46,7 @@ async function startFakeOidc({ clientId = 'linkpage', clientSecret = 'provider-s
       ...(user.email !== undefined ? { email: user.email } : {}),
       email_verified: user.email_verified ?? true,
       name: user.name, preferred_username: user.preferred_username,
+      ...(user.groups !== undefined ? { groups: user.groups } : {}),
       ...(tamper.claims || {}),
     };
     const header = { alg: tamper.alg || 'RS256', kid: tamper.kid ?? 'key-1', typ: 'JWT' };

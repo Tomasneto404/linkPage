@@ -454,6 +454,102 @@ describe('connecting your own account', () => {
   });
 });
 
+describe('administrators from the provider\'s groups', () => {
+  const sub = 'sub-group-member';
+  before(async () => {
+    await enable({ auto_create: true, admin_group: 'linkpage-admins' });
+    // Somebody else who can manage the instance, so demoting is allowed at all.
+    await c.makeUser({ email: 'other-admin@example.test', password: PASSWORD, role: 'admin' });
+  });
+  after(() => enable({ admin_group: '' }));
+
+  const roleOf = () => db.getUserByEmail('grouped@example.test')?.role;
+
+  test('a member of the group is made an administrator', async () => {
+    const r = await trip({ sub, email: 'grouped@example.test', groups: ['staff', 'linkpage-admins'] });
+    assert.equal(await signedIn(r.s), true);
+    assert.equal(roleOf(), 'admin');
+    const log = (await c.api('/api/audit?limit=200')).body;
+    assert.ok((log.entries || log).some(e => /administrator group/.test(e.summary || '')));
+  });
+
+  test('and made a member again when the provider drops them from it', async () => {
+    await trip({ sub, groups: ['staff'] });
+    assert.equal(roleOf(), 'user');
+  });
+
+  test('but never the last administrator who could sign in', async () => {
+    await trip({ sub, groups: ['linkpage-admins'] });
+    const others = db.getAllUsers().filter(u => u.role === 'admin' && u.email !== 'grouped@example.test' && u.is_active);
+    for (const u of others) db.updateUser(u.id, { isActive: false });
+    try {
+      await trip({ sub, groups: [] });
+      assert.equal(roleOf(), 'admin', 'kept, so somebody can still manage the instance');
+    } finally {
+      for (const u of others) db.updateUser(u.id, { isActive: true });
+    }
+    await trip({ sub, groups: [] });
+    assert.equal(roleOf(), 'user', 'and demoted once somebody else could step in');
+  });
+
+  test('a group claim is ignored while no group is configured', async () => {
+    await enable({ admin_group: '' });
+    await trip({ sub, groups: ['linkpage-admins'] });
+    assert.equal(roleOf(), 'user');
+    await enable({ admin_group: 'linkpage-admins' });
+  });
+
+  test('is shown in the settings', async () => {
+    assert.equal((await c.api('/api/settings/oidc')).body.admin_group, 'linkpage-admins');
+  });
+});
+
+describe('single sign-on only', () => {
+  before(async () => {
+    await enable({ sso_only: true });
+    await c.makeUser({ email: 'password-person@example.test', password: PASSWORD });
+  });
+  after(() => enable({ sso_only: false }));
+
+  test('the sign-in page is offered no password form', async () => {
+    const providers = (await c.pub('/api/auth/providers')).body.providers;
+    assert.deepEqual(providers.map(p => p.id), ['oidc']);
+  });
+
+  test('a password is refused even when it is right', async () => {
+    const res = await c.session().login('password-person@example.test', PASSWORD);
+    assert.equal(res.status, 403);
+    assert.equal(res.body.code, 'password_login_disabled');
+  });
+
+  test('single sign-on and the admin token still work', async () => {
+    const r = await trip({ sub: 'sub-linked' });
+    assert.equal(await signedIn(r.s), true);
+    assert.equal((await c.api('/api/users')).status, 200);
+  });
+
+  test('email resets are not offered: there is no password to reset', async () => {
+    await c.api('/api/settings/mail', { method: 'PUT', json: {
+      site_url: 'https://links.example.com', host: 'smtp.example.com', from: 'links@example.com', password_reset: true,
+    } });
+    try {
+      assert.equal((await c.pub('/api/settings')).body.password_reset_email, false);
+      await enable({ sso_only: false });
+      assert.equal((await c.pub('/api/settings')).body.password_reset_email, true);
+      await enable({ sso_only: true });
+    } finally {
+      await c.api('/api/settings/mail', { method: 'PUT', json: { password_reset: false, host: '', from: '', site_url: '' } });
+    }
+  });
+
+  test('switching single sign-on off switches this off too', async () => {
+    await configure({ enabled: false });
+    assert.equal((await c.api('/api/settings/oidc')).body.sso_only, false);
+    assert.equal((await c.session().login('password-person@example.test', PASSWORD)).status, 200);
+    await enable({ sso_only: true });
+  });
+});
+
 describe('members-only', () => {
   test('the trip is open to strangers, or nobody could sign in with it', async () => {
     await enable();

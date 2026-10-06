@@ -10,7 +10,7 @@ const { adminAuthLimiter, publicAuthLimiter,
         loginLimiter, loginAccountLimiter, passwordChangeLimiter } = require('../middleware/rateLimit');
 const { startSession, endSession, hashToken, sessionTokenFrom } =
   require('../services/sessionService');
-const { authenticateLocal, passwordProblem, publicUser, listProviders } =
+const { authenticateLocal, passwordProblem, publicUser, listProviders, passwordSignInAllowed } =
   require('../services/authService');
 const { hashPassword, verifyPassword } = require('../utils/password');
 const { recordAuditNow } = require('../services/auditService');
@@ -68,6 +68,9 @@ function rotateToken(req, res) {
  * account is disabled" tells a stranger they found a real one.
  */
 async function login(req, res) {
+  if (!passwordSignInAllowed()) {
+    return res.status(403).json({ error: 'This page signs in with single sign-on only', code: 'password_login_disabled' });
+  }
   // The same answer for both limits, and for an address with no account
   // behind it: which one tripped is not the caller's business.
   if (loginLimiter.isLimited(req) || loginAccountLimiter.isLimited(req)) {
