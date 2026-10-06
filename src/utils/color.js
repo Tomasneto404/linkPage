@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Tomás Neto
 /**
- * The two bits of colour maths the accent needs, mirroring what public/app.js
+ * The two bits of colour maths the accent needs, mirroring what public/js/core.js
  * does in the browser.
  *
  * Duplicated rather than shared because the pages that need it here have no
  * script of their own — a rendered markdown document is served under a CSP
  * that permits none — so the server has to work the shade out itself. Keep
- * these in step with shadeColor/hexToRgb in public/app.js; tests/color.test.js
+ * these in step with shadeColor/hexToRgb in public/js/core.js; tests/color.test.js
  * checks the two agree on the values that matter.
  */
 

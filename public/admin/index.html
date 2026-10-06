@@ -9,7 +9,7 @@
   <link rel="icon" id="favicon" href="/brand/icon-light.png" />
   <link rel="stylesheet" href="admin.css" />
   <!-- The shared theme core, for the sign-in gate: the panel itself keeps its
-       own fuller theme code in admin.js. -->
+       own fuller theme code in js/core.js. -->
   <script src="/theme-boot.js"></script>
 </head>
 <body>
@@ -400,11 +400,11 @@
           </span>
         </summary>
 
-        <!-- "Update available" banner is populated and revealed by admin.js
+        <!-- "Update available" banner is populated and revealed by js/toolbar.js
              when the server detects a newer release on GitHub. -->
         <div class="changelog-update hidden" id="changelogUpdate"></div>
 
-        <!-- Release notes are rendered by admin.js from /api/changelog, which
+        <!-- Release notes are rendered by js/toolbar.js from /api/changelog, which
              parses CHANGELOG.md — the single source of truth shared with the
              GitHub release notes. Nothing version-specific is hard-coded here. -->
         <div class="changelog-body" id="changelogBody"></div>
@@ -1511,7 +1511,7 @@
       </div>
 
       <div class="version-body" id="versionBody">
-        <!-- Populated by admin.js. Starts in the loading state. -->
+        <!-- Populated by the panel script. Starts in the loading state. -->
         <div class="version-loading">
           <div class="version-spinner" aria-hidden="true"></div>
           <span>Checking for updates…</span>
@@ -2105,6 +2105,25 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="icon-presets.js"></script>
-<script src="admin.js"></script>
+<!-- The panel's script, in pieces, in order: classic scripts sharing one scope,
+     so the order below is the order the original single file ran in. -->
+<script src="js/core.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/helpers.js"></script>
+<script src="js/sidebar.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/link-modal.js"></script>
+<script src="js/groups.js"></script>
+<script src="js/bulk.js"></script>
+<script src="js/toolbar.js"></script>
+<script src="js/file-editor.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/audit.js"></script>
+<script src="js/requests.js"></script>
+<script src="js/accounts.js"></script>
+<script src="js/analytics.js"></script>
+<script src="js/sso.js"></script>
+<script src="js/mail.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>

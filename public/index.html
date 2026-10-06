@@ -1462,6 +1462,17 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="/admin/icon-presets.js"></script>
-<script src="app.js"></script>
+<!-- The page's script, in pieces, in order: classic scripts sharing one scope,
+     so the order below is the order the original single file ran in. -->
+<script src="/js/core.js"></script>
+<script src="/js/tabs.js"></script>
+<script src="/js/requests.js"></script>
+<script src="/js/cards.js"></script>
+<script src="/js/reorder.js"></script>
+<script src="/js/render.js"></script>
+<script src="/js/account.js"></script>
+<script src="/js/account-dialog.js"></script>
+<script src="/js/my-groups.js"></script>
+<script src="/js/main.js"></script>
 </body>
 </html>

@@ -132,7 +132,7 @@ th { background: var(--surface-3); font-weight: 600; }
  */
 /**
  * The accent overrides the site applies on top of the palette. Mirrors
- * applyAccent() in public/app.js, which this page cannot run: it has no
+ * applyAccent() in public/js/core.js, which this page cannot run: it has no
  * script. Only --primary and --primary-rgb matter here (links, and the focus
  * ring the tokens derive), so the hover shade is left out.
  */

@@ -69,6 +69,33 @@ async function expectCards(page, names) {
   }
 }
 
+describe('the pages', () => {
+  // The scripts are several files sharing one scope, run in order. Something
+  // called while a page is still loading that lives in a later file throws
+  // here — and takes the rest of its own file down with it.
+  btest('load without a script error, signed out and signed in', async () => {
+    const page = await freshPage();
+    const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    for (const url of ['/', '/login/', '/admin/']) {
+      await page.goto(url);
+      await page.waitForLoadState('load');
+    }
+    await page.fill('#adminEmail', 'boss@example.test');
+    await page.fill('#adminPassword', PASSWORD);
+    await page.click('#adminLoginBtn');
+    await page.locator('#openSettingsBtn').waitFor({ state: 'visible' });
+    await page.click('#openSettingsBtn');
+    for (const tab of await page.locator('#settingsNav .settings-tab').evaluateAll(els => els.map(e => e.dataset.tab))) {
+      await page.click(`#settingsNav [data-tab="${tab}"]`);
+    }
+    await page.goto('/?account=1');
+    await page.locator('#accountOverlay').waitFor({ state: 'visible' });
+    assert.deepEqual(errors, []);
+    await page.context().close();
+  });
+});
+
 describe('signing in', () => {
   btest('a wrong password says so; the right one lands where you were going', async () => {
     const page = await freshPage();

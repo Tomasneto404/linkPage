@@ -3,7 +3,7 @@
 /**
  * The accent maths on the server, checked against the browser's.
  *
- * src/utils/color.js mirrors shadeColor/hexToRgb in public/app.js, because a
+ * src/utils/color.js mirrors shadeColor/hexToRgb in public/js/core.js, because a
  * rendered markdown page has no script of its own and the server has to work
  * the shade out for it. This reads the browser copy off disk and runs both
  * over the same inputs, so the two cannot quietly drift apart.
@@ -17,19 +17,19 @@ const assert = require('node:assert/strict');
 
 const { hexToRgb, shadeColor } = require('../src/utils/color');
 
-/** Lifts the two helpers out of public/app.js and evaluates them alone. */
+/** Lifts the two helpers out of public/js/core.js and evaluates them alone. */
 function browserCopy() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'core.js'), 'utf8');
   const grab = name => {
     const at = src.indexOf(`function ${name}(`);
-    assert.notEqual(at, -1, `${name} should still exist in public/app.js`);
+    assert.notEqual(at, -1, `${name} should still exist in public/js/core.js`);
     // Walk the braces so the whole body comes across, comments and all.
     let depth = 0, i = src.indexOf('{', at);
     for (let j = i; j < src.length; j++) {
       if (src[j] === '{') depth++;
       else if (src[j] === '}' && --depth === 0) return src.slice(at, j + 1);
     }
-    assert.fail(`could not read ${name} out of public/app.js`);
+    assert.fail(`could not read ${name} out of public/js/core.js`);
   };
 
   const context = {};

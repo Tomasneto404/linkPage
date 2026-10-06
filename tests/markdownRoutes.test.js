@@ -271,7 +271,7 @@ describe('the rendered page wears the site palette', () => {
     await setTheme({ accent_color: '#0071e3', accent_dark_adjust: true });
     await makeMarkdownLink({ name: 'Adjusted', slug: 'adjusted' });
 
-    // shadeColor('#0071e3', 18), the same lift public/app.js makes in dark.
+    // shadeColor('#0071e3', 18), the same lift public/js/core.js makes in dark.
     const { shadeColor } = require('../src/utils/color');
     const lifted = shadeColor('#0071e3', 18);
 

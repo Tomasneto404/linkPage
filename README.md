@@ -119,11 +119,13 @@ linkPage/
 │   └── utils/          # HTTP/URL helpers, CSV, group crypto, body parsers
 ├── public/
 │   ├── index.html      # Public page (end users)
-│   ├── app.js          # Public page logic
+│   ├── js/             # Public page logic, one file per feature, loaded in order
+│   ├── login/          # Sign-in, invites and password resets
+│   ├── theme-boot.js   # Theme and appearance shared by the sign-in screens
 │   ├── style.css       # Shared Apple-style theme (CSS variables)
 │   └── admin/
 │       ├── index.html  # Admin panel
-│       ├── admin.js    # Admin panel logic
+│       ├── js/         # Admin panel logic, one file per feature, loaded in order
 │       ├── admin.css   # Admin-specific styles
 │       └── icon-presets.js  # Curated stock icon set
 ├── ee/                 # Reserved for enterprise-licensed modules (see ee/LICENSE)

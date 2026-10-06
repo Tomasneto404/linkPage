@@ -46,7 +46,7 @@
   //
   // The accent, the wallpaper and its fog, and how solid the bars are — what
   // the public page applies, for the pages that sign somebody in. The numbers
-  // are the public page's exactly (public/app.js applyAccent, applyWallpaper,
+  // are the public page's exactly (public/js/core.js applyAccent, applyWallpaper,
   // applyBarOpacity), so a sign-in screen and the page it leads to cannot look
   // like two different products. tests/color.test.js holds the colour maths to
   // the same answers as the other copies.

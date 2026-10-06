@@ -85,10 +85,18 @@ interface reaches them.
       touch reorder, members-only, single sign-on and an emailed reset. They
       found a real bug on their first run — a live update re-rendering the grid
       mid-drag took the card out of the person's hand — now fixed. In CI too.
+- [x] **Splitting the two big scripts.** `public/app.js` (3,700 lines) is now
+      ten files in `public/js/`, and `public/admin/admin.js` (6,700) eighteen in
+      `public/admin/js/`, cut along their existing sections and loaded in their
+      original order. Three functions moved to `core.js` because they are
+      called while the page is still loading. A test checks every file is
+      wired in, and a browser test that every page loads without a script error.
 
 ## Later
 
 Not started; written down so they are not lost.
 
-- **Splitting the two big scripts.** `public/app.js` is ~3,300 lines and
-  `public/admin/admin.js` ~6,400; both want to be modules.
+- **ES modules.** The two scripts are now split by feature (see below) but still
+  share one global scope. Real `import`/`export` would make each file's
+  dependencies explicit, at the cost of rewiring the shared state; worth doing
+  once the browser tests cover more of the admin panel.
