@@ -1812,19 +1812,35 @@ header {
   display: flex;
   min-height: 0;
   min-width: 0;
+
+  /* The editor is three layers drawn on top of each other — highlighted text,
+     search marks, and a transparent textarea that owns the caret — plus the
+     line numbers beside them. Every metric that decides where a character
+     lands is set here, once, and read by all four; the phone breakpoint changes
+     these, never a single layer. A layer that differs by a fraction of a pixel
+     per character puts the caret visibly off the text by the end of a line. */
+  --fe-font:        ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
+  --fe-font-size:   0.86rem;
+  --fe-line-height: 1.55;
+  --fe-pad-y:       16px;
+  --fe-pad-x:       22px;
+  --fe-tab-size:    2;
 }
 .file-editor-pane.hidden { display: none; }
 
 .file-editor-gutter {
   flex-shrink: 0;
   width: 52px;
-  padding: 16px 10px 16px 0;
+  padding: var(--fe-pad-y) 10px var(--fe-pad-y) 0;
   background: var(--surface-2);
   color: var(--text-muted);
   text-align: right;
-  font-family: ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
-  font-size: 0.82rem;
-  line-height: 1.55;
+  /* Same size and line height as the text, or each number drifts a little
+     further from its line the further down the file it is. */
+  font-family: var(--fe-font);
+  font-size: var(--fe-font-size);
+  line-height: var(--fe-line-height);
+  letter-spacing: 0;
   white-space: pre;
   overflow: hidden;
   user-select: none;
@@ -1839,25 +1855,41 @@ header {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Both layers share font, line-height, padding — every glyph in the
-   textarea sits over the same glyph in the highlight <pre>. Diverging on any
-   of these knocks the caret off the colour layer; keep them locked. */
+/* All three layers, from the variables above. Everything that could move a
+   glyph is stated rather than inherited: the global form rule in style.css
+   gives every textarea a negative letter-spacing, which the highlight layer
+   never had — 0.14px a character, enough to put the caret a word off by the
+   end of a long line. Ligatures are off because a caret inside one sits in
+   the middle of a glyph the textarea and the highlight may draw differently. */
 .file-editor-highlight,
+.file-editor-search-overlay,
 .file-editor-textarea {
   position: absolute;
   inset: 0;
   margin: 0;
-  padding: 16px 22px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
-  font-size: 0.86rem;
-  line-height: 1.55;
-  tab-size: 2;
+  padding: var(--fe-pad-y) var(--fe-pad-x);
+  font-family: var(--fe-font);
+  font-size: var(--fe-font-size);
+  font-weight: 400;
+  font-style: normal;
+  line-height: var(--fe-line-height);
+  letter-spacing: 0;
+  word-spacing: 0;
+  text-indent: 0;
+  text-transform: none;
+  font-variant-ligatures: none;
+  font-feature-settings: normal;
+  tab-size: var(--fe-tab-size);
+  -moz-tab-size: var(--fe-tab-size);
   white-space: pre;
   word-break: normal;
+  overflow-wrap: normal;
   overflow: auto;
   border: none;
+  border-radius: 0;
   outline: none;
   resize: none;
+  transition: none;
 }
 .file-editor-highlight {
   pointer-events: none;
@@ -1904,16 +1936,6 @@ header {
    sits perfectly on top of the same character span in both layers. The text
    itself is invisible — only the <mark> backgrounds paint. */
 .file-editor-search-overlay {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  padding: 16px 22px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
-  font-size: 0.86rem;
-  line-height: 1.55;
-  tab-size: 2;
-  white-space: pre;
-  word-break: normal;
   overflow: hidden;
   pointer-events: none;
   color: transparent;
@@ -2049,7 +2071,9 @@ header {
 .tok-punct    { color: var(--text-muted); }
 .tok-heading  { color: #005cc5; font-weight: 600; }
 .tok-link     { color: #032f62; text-decoration: underline; }
-.tok-code     { color: #e36209; background: rgba(0,0,0,0.04); padding: 0 2px; border-radius: 3px; }
+/* No padding: in the highlight layer it pushes every later character on the
+   line away from the caret. The background alone marks the span. */
+.tok-code     { color: #e36209; background: rgba(0,0,0,0.04); border-radius: 3px; }
 .tok-bold     { font-weight: 700; }
 .tok-em       { font-style: italic; }
 .tok-bullet   { color: var(--text-muted); }
@@ -2092,7 +2116,9 @@ header {
 @media (max-width: 720px) {
   .file-editor-modal { max-height: calc(100vh - 18px); }
   .file-editor-toolbar { padding: 8px 14px; flex-wrap: wrap; }
-  .file-editor-textarea { padding: 12px 14px; font-size: 0.82rem; }
+  /* Every layer at once, through the variables: changing only the textarea
+     here is what used to put the caret lines away from the text on phones. */
+  .file-editor-pane { --fe-pad-y: 12px; --fe-pad-x: 14px; --fe-font-size: 0.82rem; }
 }
 
 /* ─── Stock icon picker (with color) ─────────────────────────────────────────── */

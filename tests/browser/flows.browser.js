@@ -96,6 +96,94 @@ describe('the pages', () => {
   });
 });
 
+describe('the file editor', () => {
+  // Three layers drawn on top of each other: highlighted text, search marks,
+  // and a transparent textarea that owns the caret. If any of them lays text
+  // out even slightly differently, the caret drifts off the characters it is
+  // between — a fraction of a pixel a character, a word by the end of a line.
+  const SAMPLE = [
+    '# Heading with **bold**',
+    'Some `inline code` then text after it, and a long tail to let drift add up',
+    'A line with `two` `spans` and more text',
+    '- item with *emphasis* and a [link](https://example.com)',
+    '\tTabbed line',
+    'Ação, coração, ünïcode ✓ end',
+  ].join('\n');
+
+  for (const width of [1280, 390]) {
+    btest(`the caret sits on the text it edits, ${width}px wide`, async () => {
+      if (!(await c.api('/api/links')).body.some(l => l.name === 'Editor sample')) {
+        await c.makeFileLink({ name: 'Editor sample', fileName: 'sample.md', type: 'text/markdown',
+                               bytes: Buffer.from(SAMPLE) });
+      }
+      const page = await freshPage({ viewport: { width, height: 800 } });
+      await page.goto('/admin/');
+      await page.fill('#adminEmail', 'boss@example.test');
+      await page.fill('#adminPassword', PASSWORD);
+      await page.click('#adminLoginBtn');
+      await page.locator('.link-card', { hasText: 'Editor sample' }).first().waitFor({ state: 'attached' });
+      await page.evaluate(() => [...document.querySelectorAll('.link-card')]
+        .find(c => c.textContent.includes('Editor sample')).querySelector('.edit-file-btn').click());
+      await page.locator('#fileEditorPane').waitFor({ state: 'visible' });
+      await page.waitForFunction(() => document.getElementById('fileEditorTextarea').value.length > 0);
+      // The modal scales in; measuring mid-animation would compare a scaled
+      // editor with an unscaled ruler.
+      await page.waitForFunction(() => document.getAnimations().every(a => a.playState !== 'running'));
+
+      const drift = await page.evaluate(() => {
+        const ta   = document.getElementById('fileEditorTextarea');
+        const code = document.getElementById('fileEditorHighlightCode');
+        const cs   = getComputedStyle(ta);
+
+        // Where the textarea puts a character, read from a mirror with its own
+        // computed style; where the highlight puts it, from a range in its text.
+        const mirror = document.createElement('div');
+        for (const p of ['boxSizing', 'width', 'paddingTop', 'paddingLeft', 'fontFamily', 'fontSize', 'fontWeight',
+                         'lineHeight', 'letterSpacing', 'wordSpacing', 'tabSize', 'whiteSpace', 'fontVariantLigatures'])
+          mirror.style[p] = cs[p];
+        const box = ta.getBoundingClientRect();
+        Object.assign(mirror.style, { position: 'fixed', left: `${box.left}px`, top: `${box.top}px`, visibility: 'hidden' });
+        document.body.appendChild(mirror);
+
+        const inMirror = i => {
+          mirror.textContent = ta.value.slice(0, i);
+          const mark = document.createElement('span'); mark.textContent = '\u200b';
+          mirror.appendChild(mark);
+          return mark.getBoundingClientRect();
+        };
+        const inHighlight = i => {
+          const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+          for (let n, seen = 0; (n = walker.nextNode()); seen += n.length) {
+            if (seen + n.length >= i) {
+              const r = document.createRange(); r.setStart(n, i - seen); r.setEnd(n, i - seen);
+              return r.getClientRects()[0] || r.getBoundingClientRect();
+            }
+          }
+          return null;
+        };
+
+        let worst = 0, offset = 0;
+        for (const line of ta.value.split('\n')) {
+          const end = offset + line.length;
+          const a = inMirror(end), b = inHighlight(end);
+          worst = Math.max(worst, Math.abs(a.left - b.left), Math.abs(a.top - b.top));
+          offset = end + 1;
+        }
+        mirror.remove();
+
+        // And the line numbers keep pace with the lines.
+        const g = getComputedStyle(document.getElementById('fileEditorGutter'));
+        const h = getComputedStyle(document.getElementById('fileEditorHighlight'));
+        return { worst, gutter: [g.lineHeight, g.paddingTop], text: [h.lineHeight, h.paddingTop] };
+      });
+
+      assert.ok(drift.worst < 0.5, `the caret is ${drift.worst.toFixed(1)}px off the text`);
+      assert.deepEqual(drift.gutter, drift.text, 'line numbers drift away from their lines');
+      await page.context().close();
+    });
+  }
+});
+
 describe('signing in', () => {
   btest('a wrong password says so; the right one lands where you were going', async () => {
     const page = await freshPage();
