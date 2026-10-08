@@ -291,6 +291,44 @@ describe('your own links', () => {
   });
 });
 
+describe('the "+ Add a link" card inside a group', () => {
+  let addGroup;
+  before(async () => {
+    addGroup = await c.makeGroup({ name: 'Addable' });
+    await c.makeLink({ name: 'Addable warm-up', url: 'https://addable.example.com/', groups: [addGroup.id] });
+    const mia = await (await c.api('/api/users')).body.users.find(u => u.email === 'member@example.test');
+    await c.api(`/api/groups/${addGroup.id}/managers`, { method: 'PUT', json: { user_ids: [mia.id] } });
+  });
+
+  btest('appears for a group admin, and opens the composer with that group ticked', async () => {
+    const page = await freshPage();
+    await signIn(page);
+    // Mia is still a group admin of Crew from the earlier describe.
+    await page.locator('.tab', { hasText: 'Addable' }).first().click();
+    const addCard = page.locator('.link-card-add');
+    await addCard.waitFor({ state: 'visible' });
+    await addCard.click();
+    await page.locator('#myLinkOverlay').waitFor({ state: 'visible' });
+    const chosen = await page.inputValue('#myLinkGroup');
+    assert.match(chosen, /^s/, `expected a shared-group key, got ${chosen}`);
+    await page.context().close();
+  });
+
+  btest('is not offered on All or on a group the viewer cannot add to', async () => {
+    const page = await freshPage();
+    await signIn(page);
+    await page.locator('#tabAll').click();
+    assert.equal(await page.locator('.link-card-add').count(), 0, 'not on All');
+    await page.context().close();
+
+    const stranger = await freshPage();
+    await stranger.goto('/');
+    await stranger.locator('.link-card').first().waitFor();
+    assert.equal(await stranger.locator('.link-card-add').count(), 0, 'not for strangers either');
+    await stranger.context().close();
+  });
+});
+
 describe('the + in the tab bar', () => {
   btest('is for members only, and makes a group whose tab then opens', async () => {
     const stranger = await freshPage();

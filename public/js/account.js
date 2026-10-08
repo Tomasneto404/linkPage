@@ -368,7 +368,12 @@ function scheduleComposerPreview() {
 }
 
 /** Opens the composer, empty for a new link or filled in from an existing one. */
-function openComposer(link) {
+/**
+ * Opens the link composer, optionally preselecting a group. `preset.group` is
+ * a group object (own or shared) the "+ Add link" card hands in — avoids the
+ * open-then-figure-it-out path that reads activeGroup.
+ */
+function openComposer(link, { group: preset } = {}) {
   composerLink = link;
   composerFile = null;
   composerIcon = null;
@@ -397,11 +402,13 @@ function openComposer(link) {
     fillComposerSections(membership?.section_id || null);
   } else {
     setComposerMode('url');
-    // Adding while looking at one of your groups — or a shared one you look
-    // after — puts it there.
-    const here = typeof activeGroup === 'string' && activeGroup.startsWith('u') ? activeGroup
-               : managedGroupIds.includes(activeGroup) ? `s${activeGroup}` : null;
-    fillComposerGroups(here);
+    // Preset wins (the "+ Add link" card hands one in); otherwise take the
+    // current group when it is one this person may add to.
+    const presetKey = preset
+      ? (isPersonal(preset) ? preset.id : `s${preset.id}`)
+      : (typeof activeGroup === 'string' && activeGroup.startsWith('u') ? activeGroup
+         : managedGroupIds.includes(activeGroup) ? `s${activeGroup}` : null);
+    fillComposerGroups(presetKey);
   }
 
   refreshComposerFileLabel();

@@ -1405,3 +1405,40 @@ body { padding-bottom: 52px; }
 }
 .dev-footer a:hover { text-decoration: underline; }
 .dev-footer.hidden { display: none; }
+
+
+/* ── "+ Add a link" card, at the end of a group the viewer may add to ─────── */
+.link-card-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 92px;
+  padding: 18px 20px;
+  background: transparent;
+  border: 1.5px dashed var(--border-strong, var(--border));
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.link-card-add:hover {
+  border-style: solid;
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.06);
+}
+.link-card-add-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: rgba(var(--primary-rgb), 0.1);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.link-card-add-label { text-align: left; }
+.link-card-add strong { color: var(--text); font-weight: 600; }
+.link-card-add:hover strong { color: var(--primary); }

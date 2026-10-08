@@ -101,6 +101,37 @@ function appendSectionHeading(grid, label, count, level = 0) {
   grid.appendChild(heading);
 }
 
+/**
+ * Which shared or own group the view is pointing at, as the group object this
+ * person could add a link to; null when none. Admins add through the panel, so
+ * their contribution card lives there, not here.
+ */
+function activeContributableGroup() {
+  const g = typeof activeGroup === 'string' && activeGroup.startsWith('u')
+    ? personalGroups().find(x => x.id === activeGroup)
+    : (typeof activeGroup === 'number' && managedGroupIds.includes(activeGroup)
+        ? managedGroups().find(x => x.id === activeGroup)
+        : null);
+  return g || null;
+}
+
+/** The dashed "+ Add a link" card at the end of a group a member may add to. */
+function appendAddLinkCard(grid, group, i) {
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'link-card link-card-add card-animate';
+  card.style.animationDelay = `${Math.min(i * 22, 280)}ms`;
+  card.setAttribute('aria-label', `Add a link to ${group.name}`);
+  card.innerHTML = `
+    <span class="link-card-add-plus" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </span>
+    <span class="link-card-add-label">Add a link to <strong>${escapeHtml(group.name)}</strong></span>`;
+  card.addEventListener('click', () => openComposer(null, { group }));
+  grid.appendChild(card);
+}
+
 function renderLinks(transition = false) {
   const grid       = document.getElementById('linksGrid');
   const emptyState = document.getElementById('emptyState');
@@ -115,8 +146,12 @@ function renderLinks(transition = false) {
   function doRender() {
     const filtered = getFilteredLinks();
     grid.innerHTML = '';
+    const addable = activeContributableGroup();
 
     if (filtered.length === 0) {
+      // Empty, and this group is yours to add to: offer the card right away
+      // rather than the empty state behind a menu.
+      if (addable) { appendAddLinkCard(grid, addable, 0); emptyState.classList.add('hidden'); return; }
       emptyState.classList.remove('hidden');
       updateEmptyState();
       return;
@@ -140,6 +175,7 @@ function renderLinks(transition = false) {
     } else {
       filtered.forEach(appendCard);
     }
+    if (addable) appendAddLinkCard(grid, addable, filtered.length);
   }
 
   if (transition) {
