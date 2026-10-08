@@ -94,6 +94,10 @@ interface reaches them.
 
 ## 6 — Asked for while testing
 
+- [x] **"+ Add a link" card inside a group**, for anyone who may add there.
+- [x] **Guest contributions.** A cookie-identified browser gets its own groups
+      and links, with an admin setting (off / members / anyone), a retention
+      policy, and a Contributions tab in the panel for moderation.
 - [x] **The file editor's caret.** Off the text by up to a word on desktop and
       lines on a phone; every layer now shares one set of metrics.
 - [x] **A + after the group tabs**, for members to make a group in one step.
