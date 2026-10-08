@@ -18,7 +18,7 @@ const path   = require('node:path');
 const harness = require('./helpers/harness');
 
 const SRC = path.join(__dirname, '..', 'src');
-const CURRENT_SCHEMA_VERSION = 19;
+const CURRENT_SCHEMA_VERSION = 20;
 
 let c;
 before(async () => { c = await harness.start(); });
@@ -61,6 +61,7 @@ describe('a fresh database', () => {
       'users', 'sessions', 'user_tokens', 'user_identities',
       'user_groups', 'user_sections', 'user_links', 'user_link_groups', 'user_favorites',
       'auth_throttle', 'oidc_logins', 'group_managers',
+      'guests', 'guest_groups', 'guest_sections', 'guest_links', 'guest_link_groups',
     ]) {
       assert.ok(tables.includes(table), `missing table ${table}`);
     }
@@ -77,6 +78,8 @@ describe('a fresh database', () => {
       'idx_user_groups_owner', 'idx_user_sections_owner', 'idx_user_sections_group',
       'idx_user_links_owner', 'idx_user_link_groups_group', 'idx_user_link_groups_owner',
       'idx_user_favorites_link', 'idx_auth_throttle_window', 'idx_oidc_logins_created', 'idx_group_managers_user',
+      'idx_guests_last_seen', 'idx_guest_groups_owner', 'idx_guest_sections_owner', 'idx_guest_sections_group',
+      'idx_guest_links_owner', 'idx_guest_link_groups_owner', 'idx_guest_link_groups_group',
     ]) {
       assert.ok(indexes.includes(index), `missing index ${index}`);
     }

@@ -104,6 +104,7 @@ const TAGS = {
   insight:  'Analytics & audit',
   system:   'System',
   visitor:  'Visitor-facing',
+  guest:    "A guest's own page",
 };
 
 const paths = {
@@ -354,6 +355,42 @@ const paths = {
       responses: { 200: json({ type: 'object' }), 400: json(ref('Error')), 404: json(ref('Error')) },
     }),
   },
+  '/api/guest/data': {
+    get: op({
+      tag: TAGS.guest, auth: 'open',
+      summary: "A guest's own groups, links and storage",
+      description: 'For a browser identified by the lp_guest cookie. No cookie → empty. Available only when contributions are open to anyone.',
+      responses: { 200: json({ type: 'object' }) },
+    }),
+  },
+  '/api/guest/storage':         { get:  op({ tag: TAGS.guest, auth: 'open', summary: 'Guest storage used and allowance', responses: { 200: json({ type: 'object' }) } }) },
+  '/api/guest/icons':           { get:  op({ tag: TAGS.guest, auth: 'open', summary: 'The shared icon library, read-only', responses: { 200: json({ type: 'object' }) } }) },
+  '/api/guest/favicon-preview': { get:  op({ tag: TAGS.guest, auth: 'open', summary: 'Preview a site icon before saving', responses: { 200: { description: 'Image' }, 404: { description: 'None' } } }) },
+  '/api/guest/groups':          { post: op({ tag: TAGS.guest, auth: 'open', summary: 'Create a group on this guest\'s page', responses: { 201: json({ type: 'object' }), 403: json(ref('Error')) } }) },
+  '/api/guest/groups/{id}': {
+    put:    op({ tag: TAGS.guest, auth: 'open', summary: 'Rename a guest group', params: [pathParam('id', 'Row id')], responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) } }),
+    delete: op({ tag: TAGS.guest, auth: 'open', summary: 'Delete a guest group', params: [pathParam('id', 'Row id')], responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) } }),
+  },
+  '/api/guest/groups/reorder':  { post: op({ tag: TAGS.guest, auth: 'open', summary: 'Reorder a guest\'s groups', responses: { 200: json({ type: 'object' }) } }) },
+  '/api/guest/groups/{id}/sections': { post: op({ tag: TAGS.guest, auth: 'open', summary: 'Add a section to a guest group', params: [pathParam('id', 'Row id')], responses: { 201: json({ type: 'object' }), 400: json(ref('Error')) } }) },
+  '/api/guest/sections/reorder': { post: op({ tag: TAGS.guest, auth: 'open', summary: 'Reorder a guest\'s sections', responses: { 200: json({ type: 'object' }) } }) },
+  '/api/guest/sections/{id}': {
+    put:    op({ tag: TAGS.guest, auth: 'open', summary: 'Rename a guest section', params: [pathParam('id', 'Row id')], responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) } }),
+    delete: op({ tag: TAGS.guest, auth: 'open', summary: 'Delete a guest section', params: [pathParam('id', 'Row id')], responses: { 200: json({ type: 'object' }) } }),
+  },
+  '/api/guest/links/reorder':   { post: op({ tag: TAGS.guest, auth: 'open', summary: 'Reorder a guest\'s links', responses: { 200: json({ type: 'object' }) } }) },
+  '/api/guest/links': {
+    post: op({ tag: TAGS.guest, auth: 'open', summary: 'Add a link to the guest\'s page',
+               description: 'Multipart. Mints lp_guest on first contribution. Files follow the public upload rules.',
+               responses: { 201: json({ type: 'object' }), 403: json(ref('Error'), 'Contributions are not open') } }),
+  },
+  '/api/guest/links/{id}': {
+    put:    op({ tag: TAGS.guest, auth: 'open', summary: 'Change a guest link', params: [pathParam('id', 'Row id')], responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) } }),
+    delete: op({ tag: TAGS.guest, auth: 'open', summary: 'Remove a guest link', params: [pathParam('id', 'Row id')], responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) } }),
+  },
+  '/api/guest/links/{id}/icon':    { get: op({ tag: TAGS.guest, auth: 'open', summary: 'A guest link\'s uploaded icon', params: [pathParam('id', 'Row id')], responses: { 200: { description: 'Image' }, 404: { description: 'None' } } }) },
+  '/api/guest/links/{id}/favicon': { get: op({ tag: TAGS.guest, auth: 'open', summary: 'A guest link\'s fetched favicon', params: [pathParam('id', 'Row id')], responses: { 200: { description: 'Image' }, 404: { description: 'None' } } }) },
+  '/api/guest/links/{id}/file':    { get: op({ tag: TAGS.guest, auth: 'open', summary: 'A guest link\'s attached file', params: [pathParam('id', 'Row id')], responses: { 200: { description: 'File or rendered markdown' }, 404: { description: 'None' } } }) },
   '/api/managed/links': {
     post: op({
       tag: TAGS.groups, auth: 'user',
@@ -1718,6 +1755,7 @@ function buildOpenApiSpec() {
       { name: TAGS.insight,  description: 'Clicks, analytics, the audit log and IP tags.' },
       { name: TAGS.system,   description: 'Version, changelog, markdown rendering and the event stream.' },
       { name: TAGS.visitor,  description: 'The addresses a visitor actually opens.' },
+      { name: TAGS.guest,    description: 'A browser\'s own groups and links, when contributions are open to anyone.' },
     ],
     paths,
     components: {

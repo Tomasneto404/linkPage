@@ -34,7 +34,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 19;
+const CURRENT_SCHEMA_VERSION = 20;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -592,6 +592,92 @@ const MIGRATIONS = [
         )
       `);
       db.exec('CREATE INDEX IF NOT EXISTS idx_group_managers_user ON group_managers(user_id)');
+    },
+  },
+  {
+    version: 20,
+    name:    'Guest contributions',
+    apply: () => {
+      // A guest is a browser, not an account: identified by a cookie hashed
+      // here, with nothing else known about them unless they type a name. One
+      // row per browser that has ever contributed; a stray guest with no
+      // content is tidied away by the cleanup job. The whole feature is off
+      // until an administrator turns it on in Settings → Contributions.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS guests (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          cookie_hash     TEXT UNIQUE NOT NULL,
+          display_name    TEXT,
+          user_agent      TEXT,
+          ip_address      TEXT,
+          storage_used    INTEGER NOT NULL DEFAULT 0,
+          created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_seen_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_guests_last_seen ON guests(last_seen_at)');
+
+      // Mirror of the user_* tables, owned by a guest id. Separate tables so a
+      // forgotten owner filter cannot leak guest content into a signed-in
+      // member's view, or the other way round.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS guest_groups (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_guest_id  INTEGER NOT NULL,
+          name            TEXT NOT NULL,
+          color           TEXT,
+          position        INTEGER NOT NULL DEFAULT 0,
+          created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_guest_groups_owner ON guest_groups(owner_guest_id)');
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS guest_sections (
+          id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_guest_id     INTEGER NOT NULL,
+          group_id           INTEGER NOT NULL,
+          name               TEXT NOT NULL,
+          position           INTEGER NOT NULL DEFAULT 0,
+          parent_section_id  INTEGER,
+          created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_guest_sections_owner ON guest_sections(owner_guest_id)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_guest_sections_group ON guest_sections(group_id)');
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS guest_links (
+          id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_guest_id     INTEGER NOT NULL,
+          name               TEXT NOT NULL,
+          url                TEXT NOT NULL DEFAULT '',
+          description        TEXT,
+          image_path         TEXT,
+          icon_file          TEXT,
+          favicon_file       TEXT,
+          attachment_file    TEXT,
+          file_name          TEXT,
+          icon_bytes         INTEGER NOT NULL DEFAULT 0,
+          favicon_bytes      INTEGER NOT NULL DEFAULT 0,
+          attachment_bytes   INTEGER NOT NULL DEFAULT 0,
+          position           INTEGER NOT NULL DEFAULT 0,
+          created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_guest_links_owner ON guest_links(owner_guest_id)');
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS guest_link_groups (
+          guest_link_id   INTEGER NOT NULL,
+          group_id        INTEGER NOT NULL,
+          section_id      INTEGER,
+          owner_guest_id  INTEGER NOT NULL,
+          PRIMARY KEY (guest_link_id, group_id)
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_guest_link_groups_owner ON guest_link_groups(owner_guest_id)');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_guest_link_groups_group ON guest_link_groups(group_id)');
     },
   },
 ];

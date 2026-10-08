@@ -28,6 +28,8 @@ const { isValidAdminToken } = require('./auth');
 const { parseCookies } = require('../utils/http');
 const { SESSION_COOKIE } = require('../config/constants');
 
+const GUEST_COOKIE = 'lp_guest';
+
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /** The host this request was addressed to, honouring a proxy when trusted. */
@@ -71,7 +73,7 @@ function verifySameOrigin(req, res, next) {
   // worth refusing is a request that arrives *with* a session cookie and no
   // evidence of where it came from.
   const cookies = req._cookies || parseCookies(req.headers.cookie);
-  if (cookies[SESSION_COOKIE]) return refuse(res);
+  if (cookies[SESSION_COOKIE] || cookies[GUEST_COOKIE]) return refuse(res);
 
   next();
 }
