@@ -16,6 +16,7 @@ router.use(require('./auth'));
 router.use(require('./users'));
 router.use(require('./personal'));
 router.use(require('./guest'));
+router.use(require('./guestAdmin'));
 router.use(require('./settings'));
 router.use(require('./version'));
 router.use(require('./icons'));

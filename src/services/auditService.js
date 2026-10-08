@@ -150,6 +150,9 @@ function deriveAuditEntry(req) {
   if (p === '/api/settings/user-quota')                  return { action: 'settings.user_quota', entityType: 'settings', entityId: null, summary: 'Changed the storage allowance' };
   if (p === '/api/settings/mail')                        return { action: 'settings.mail', entityType: 'settings', entityId: null, summary: 'Changed the email settings' };
   if (p === '/api/settings/mail/test')                   return { action: 'settings.mail_test', entityType: 'settings', entityId: null, summary: 'Sent a test email' };
+  if (p === '/api/settings/contributions')               return { action: 'settings.contributions', entityType: 'settings', entityId: null, summary: 'Changed guest contribution settings' };
+  if (p === '/api/guests' && M === 'DELETE')             return { action: 'guest.purge',   entityType: 'guest', entityId: null, summary: 'Removed every guest' };
+  if (/^\/api\/guests\/\d+$/.test(p) && M === 'DELETE') return { action: 'guest.delete', entityType: 'guest', entityId: id, summary: `Removed guest #${id}` };
   if (p === '/api/settings/oidc')                        return { action: 'settings.oidc', entityType: 'settings', entityId: null, summary: 'Changed the single sign-on settings' };
   // Any other setting: named after its route rather than left to the fallback.
   if (/^\/api\/settings\/[a-z-]+$/.test(p)) {

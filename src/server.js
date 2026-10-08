@@ -10,6 +10,7 @@
  */
 
 const app = require('./app');
+const { startRetentionSweep } = require('./controllers/guestAdminController');
 const { PORT, divider } = require('./config/env');
 const { isFreshInstall } = require('./config/db');
 const { getAdminToken } = require('./config/secrets');
@@ -45,4 +46,5 @@ seedAdminUser()
   .then(announceAdminUser)
   .catch(err => console.error('[auth] Could not create the first admin account:', err.message));
 
+startRetentionSweep();
 app.listen(PORT, () => {});

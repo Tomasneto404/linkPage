@@ -571,6 +571,7 @@ document.getElementById('settingsNav').addEventListener('click', e => {
   if (id === 'users')         loadAccounts();
   if (id === 'sso')           loadSsoSettings();
   if (id === 'mail')          loadMailSettings();
+  if (id === 'contributions') loadContributions();
 });
 
 // Always open the settings modal on the first tab.

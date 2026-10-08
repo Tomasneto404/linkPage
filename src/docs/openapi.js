@@ -355,6 +355,24 @@ const paths = {
       responses: { 200: json({ type: 'object' }), 400: json(ref('Error')), 404: json(ref('Error')) },
     }),
   },
+  '/api/settings/contributions': {
+    get: op({ tag: TAGS.settings, summary: 'Guest contribution settings', responses: { 200: json({ type: 'object' }) } }),
+    put: op({
+      tag: TAGS.settings, summary: 'Change guest contribution settings',
+      body: jsonBody({
+        mode:           { type: 'string', enum: ['off', 'members', 'anyone'] },
+        retention_days: { type: 'integer', minimum: 0 },
+      }),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')) },
+    }),
+  },
+  '/api/guests': {
+    get:    op({ tag: TAGS.users, summary: 'Every guest that has contributed', responses: { 200: json({ type: 'object' }) } }),
+    delete: op({ tag: TAGS.users, summary: 'Remove every guest and their content', responses: { 200: json({ type: 'object' }) } }),
+  },
+  '/api/guests/{id}': {
+    delete: op({ tag: TAGS.users, summary: 'Remove a guest and their content', params: [pathParam('id', 'Guest id')], responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) } }),
+  },
   '/api/guest/data': {
     get: op({
       tag: TAGS.guest, auth: 'open',

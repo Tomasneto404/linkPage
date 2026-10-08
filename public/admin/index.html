@@ -513,6 +513,7 @@
           <button type="button" class="settings-tab" data-tab="users">Accounts</button>
           <button type="button" class="settings-tab" data-tab="sso">Single Sign-On</button>
           <button type="button" class="settings-tab" data-tab="mail">Email</button>
+          <button type="button" class="settings-tab" data-tab="contributions">Contributions</button>
           <button type="button" class="settings-tab" data-tab="requests">Link Requests</button>
           <button type="button" class="settings-tab" data-tab="ipattribution">IP Attribution</button>
           <button type="button" class="settings-tab" data-tab="security">Security</button>
@@ -1154,6 +1155,58 @@
           <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:12px">
             <button class="btn btn-ghost btn-sm" id="mailTestBtn">Send me a test</button>
             <button class="btn btn-primary btn-sm" id="saveMailBtn">Save</button>
+          </div>
+        </div>
+
+        <!-- ── Contributions ─────────────────────── -->
+        <div class="settings-panel" data-panel="contributions">
+          <div class="settings-section-title">Contributions</div>
+          <div class="settings-row-desc" style="margin-bottom:14px">
+            Let people add groups and links on the public page. Signed-in members have
+            a page of their own; guests get one keyed to their browser.
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Who may add</div>
+              <div class="settings-row-desc" id="contribModeDesc">Nobody. The public page is read-only.</div>
+            </div>
+            <div class="sso-field">
+              <select id="contribModeSelect" class="bulk-group-select" style="flex:1">
+                <option value="off">Nobody</option>
+                <option value="members">Signed-in members only</option>
+                <option value="anyone">Anyone (members + guests)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Guest Retention</div>
+              <div class="settings-row-desc">
+                Guests not seen for this many days have their content removed. Zero keeps it forever.
+                Only guest content is affected; members' own content is kept until the account is deleted.
+              </div>
+            </div>
+            <div class="sso-field">
+              <input type="number" id="contribRetentionInput" min="0" step="1"
+                     style="flex:0 0 90px; padding:6px 10px; font-size:0.875rem" aria-label="Days to keep guest content" />
+              <span class="settings-row-desc">days</span>
+            </div>
+          </div>
+
+          <div class="form-error hidden" id="contribError"></div>
+          <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:12px">
+            <button class="btn btn-primary btn-sm" id="saveContribBtn">Save</button>
+          </div>
+
+          <div class="settings-section-title" style="margin-top:22px">Guests</div>
+          <div class="settings-row-desc" style="margin-bottom:10px">
+            Every browser that has contributed. Deleting a guest removes their groups, links and files.
+          </div>
+          <div class="users-list" id="guestsList"></div>
+          <div style="display:flex; justify-content:flex-end; margin-top:12px">
+            <button class="btn btn-ghost-danger btn-sm hidden" id="deleteAllGuestsBtn">Remove every guest</button>
           </div>
         </div>
 
@@ -2095,6 +2148,7 @@
 <script src="js/analytics.js"></script>
 <script src="js/sso.js"></script>
 <script src="js/mail.js"></script>
+    <script src="js/contributions.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
