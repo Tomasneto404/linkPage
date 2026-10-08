@@ -31,11 +31,19 @@ function renderAccountControl() {
   if (!currentUser) {
     // One way in for everybody. The sign-in page works out who is an
     // administrator and sends them to the panel; everyone else comes back
-    // here. From the front page no `next` is sent, so that choice is made by
-    // role; from anywhere else, it is where they were.
+    // here. When the administrator has opened the page to guest contributions,
+    // "Add a link" sits beside it — a guest does not need an account.
     const here = location.pathname + location.search;
     const href = here === '/' ? '/login/' : `/login/?next=${next}`;
+    const addBtn = guestsAllowed() ? `
+      <button type="button" class="admin-btn account-guest-add" id="guestAddBtn"
+              title="Add a link to your own page here">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span class="admin-btn-label">Add a link</span>
+      </button>` : '';
     slot.innerHTML = `
+      ${addBtn}
       <a href="${href}" class="admin-btn account-signin">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -44,6 +52,7 @@ function renderAccountControl() {
         </svg>
         <span class="admin-btn-label">Sign in</span>
       </a>`;
+    document.getElementById('guestAddBtn')?.addEventListener('click', () => openComposer(null));
     return;
   }
 
@@ -352,7 +361,7 @@ function scheduleComposerPreview() {
 
     let state = 'none', objectUrl = null;
     try {
-      const r = await fetch(`/api/my/favicon-preview?url=${encodeURIComponent(url)}`,
+      const r = await fetch(`${myBase()}/favicon-preview?url=${encodeURIComponent(url)}`,
                             { credentials: 'same-origin' });
       if (r.ok) { objectUrl = URL.createObjectURL(await r.blob()); state = 'found'; }
     } catch { /* treated as none */ }
@@ -473,7 +482,7 @@ async function createGroupFromComposer() {
   const name = el('myLinkNewGroup').value.trim();
   if (!name) { showComposerError('Give the new group a name.'); return undefined; }
   const color = el('myLinkNewGroupColor').querySelector('.color-palette')?.dataset.value;
-  const res = await myRequest('/api/my/groups', { json: { name, color } });
+  const res = await myRequest(`${myBase()}/groups`, { json: { name, color } });
   if (!res.ok) { showComposerError(res.body.error || 'Could not create that group.'); return undefined; }
   return res.body.id;
 }
@@ -523,8 +532,8 @@ el('myLinkForm')?.addEventListener('submit', async e => {
     else if (el('myLinkIconRemoved').checked) form.append('remove_image', '1');
 
     const res = composerLink
-      ? await myRequest(`/api/my/links/${composerLink.personal_id}`, { method: 'PUT', form })
-      : await myRequest('/api/my/links', { form });
+      ? await myRequest(`${myBase()}/links/${composerLink.personal_id}`, { method: 'PUT', form })
+      : await myRequest(`${myBase()}/links`, { form });
 
     if (res.status === 413) {
       const left = res.body.storage ? formatBytesShort(res.body.storage.remaining) : 'not enough';
@@ -592,7 +601,7 @@ el('myLinkDeleteBtn')?.addEventListener('click', async () => {
     return;
   }
   const res = isPersonal(composerLink)
-    ? await myRequest(`/api/my/links/${composerLink.personal_id}`, { method: 'DELETE' })
+    ? await myRequest(`${myBase()}/links/${composerLink.personal_id}`, { method: 'DELETE' })
     : await myRequest(`/api/managed/links/${composerLink.id}`, { method: 'DELETE' });
   if (!res.ok) { showComposerError(res.body.error || 'Could not delete that link.'); return; }
   closeComposer();

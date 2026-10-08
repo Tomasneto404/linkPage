@@ -461,6 +461,56 @@ describe('favourites', () => {
   });
 });
 
+describe('guest contributions', () => {
+  before(() => require('../../src/models').writeSetting('contribution_mode', 'anyone'));
+  after(()  => require('../../src/models').deleteSetting('contribution_mode'));
+
+  btest('a guest sees "Add a link" and creates one into a new group of their own', async () => {
+    const page = await freshPage();
+    await page.goto('/');
+    await page.locator('.link-card').first().waitFor();
+    await page.click('#guestAddBtn');
+    await page.locator('#myLinkOverlay').waitFor({ state: 'visible' });
+    await page.fill('#myLinkName', 'Guest bookmark');
+    await page.fill('#myLinkUrl',  'https://guest.example.com/');
+    await page.selectOption('#myLinkGroup', '__new');
+    await page.fill('#myLinkNewGroup', 'My links');
+    // Capture what the server was told, to help if something later goes wrong.
+    const [response] = await Promise.all([
+      page.waitForResponse(r => r.url().includes('/api/guest/links') && r.request().method() === 'POST'),
+      page.click('#myLinkSubmitBtn'),
+    ]);
+    assert.equal(response.status(), 201, await response.text());
+    await page.locator('#myLinkOverlay').waitFor({ state: 'hidden' });
+    await expectCards(page, ['Guest bookmark']);
+
+    // Another browser sees nothing of this guest's content.
+    const stranger = await freshPage();
+    await stranger.goto('/');
+    await stranger.locator('.link-card').first().waitFor();
+    assert.equal(await stranger.locator('.tab', { hasText: 'My links' }).count(), 0);
+    assert.equal(await stranger.locator('.link-card', { hasText: 'Guest bookmark' }).count(), 0);
+    await stranger.context().close();
+
+    // Same browser (cookie survives) still sees it after reload.
+    await page.reload();
+    await page.locator('.tab', { hasText: 'My links' }).first().click();
+    assert.deepEqual(await cardNames(page), ['Guest bookmark']);
+    await page.context().close();
+  });
+
+  btest('with contributions off nothing is offered', async () => {
+    require('../../src/models').deleteSetting('contribution_mode');
+    const page = await freshPage();
+    await page.goto('/');
+    await page.locator('.link-card').first().waitFor();
+    assert.equal(await page.locator('#guestAddBtn').count(), 0);
+    assert.equal(await page.locator('#tabAddGroup:visible').count(), 0);
+    await page.context().close();
+    require('../../src/models').writeSetting('contribution_mode', 'anyone');
+  });
+});
+
 describe('members-only', () => {
   before(() => c.api('/api/settings/require-login', { method: 'POST', json: { enabled: true } }));
   after(() => c.api('/api/settings/require-login', { method: 'POST', json: { enabled: false } }));

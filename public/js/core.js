@@ -336,7 +336,24 @@ let favoriteIds = [];
 /** Shared groups this member is a group admin of: theirs to add links to. */
 let managedGroupIds = [];
 
-const isPersonal = item => item?.owner === 'me';
+/**
+ * Who may add groups and links through the public page: 'off' | 'members' |
+ * 'anyone'. Set from /api/settings; the server is the source of truth, this is
+ * only what the page uses to decide what to offer.
+ */
+let contributionMode = 'off';
+const guestsAllowed = () => contributionMode === 'anyone';
+const canContribute = () => currentUser || guestsAllowed();
+
+/**
+ * The endpoint prefix for "the viewer's own content": /api/my/* for a signed-in
+ * member, /api/guest/* for an anonymous guest when contributions are open to
+ * anyone. One helper means a route added for one is added for both.
+ */
+const myBase = () => (currentUser ? '/api/my' : '/api/guest');
+
+/** The viewer's own item — a member's or a guest's; everybody else is false. */
+const isPersonal = item => item?.owner === 'me' || item?.owner === 'guest';
 
 /** Shared groups this member looks after, in the page's order. */
 const managedGroups = () => groups.filter(g => !isPersonal(g) && managedGroupIds.includes(g.id));
@@ -378,10 +395,14 @@ function adoptPersonal(data) {
  * breaking the page — the shared links are still perfectly good.
  */
 async function fetchPersonal() {
-  if (!currentUser) { favoriteIds = []; managedGroupIds = []; return { groups: [], links: [] }; }
+  favoriteIds = [];
+  managedGroupIds = [];
+  if (!currentUser && !guestsAllowed()) { personalStorage = null; return { groups: [], links: [] }; }
+
+  const url = currentUser ? '/api/my/data' : '/api/guest/data';
   try {
-    const r = await fetch('/api/my/data', { credentials: 'same-origin' });
-    if (r.status === 401) { sessionEnded(); return { groups: [], links: [] }; }
+    const r = await fetch(url, { credentials: 'same-origin' });
+    if (currentUser && r.status === 401) { sessionEnded(); return { groups: [], links: [] }; }
     if (!r.ok) return { groups: [], links: [] };
     const data = await r.json();
     personalStorage = data.storage || null;

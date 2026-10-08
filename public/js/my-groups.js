@@ -352,7 +352,7 @@ el('tabAddForm')?.addEventListener('submit', async e => {
   const btn   = el('tabAddSubmit');
   btn.disabled = true;
   try {
-    const res = await myRequest('/api/my/groups', { json: { name, color } });
+    const res = await myRequest(`${myBase()}/groups`, { json: { name, color } });
     if (!res.ok) {
       el('tabAddError').textContent = res.body.error || 'Could not create that group.';
       el('tabAddError').classList.remove('hidden');

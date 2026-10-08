@@ -245,7 +245,7 @@ function wirePersonalDrag(card, link) {
 
       links = [...links.filter(l => !isPersonal(l)), ...reordered];
       renderLinks();
-      const res = await myRequest('/api/my/links/reorder', {
+      const res = await myRequest(`${myBase()}/links/reorder`, {
         json: { order: reordered.map(l => l.personal_id) },
       });
       if (res.ok) return true;

@@ -100,6 +100,7 @@ async function init() {
   ]);
   // The admin token is not a member: it has no page of its own.
   currentUser = me.via === 'session' ? me.user : null;
+  contributionMode = settings.contribution_mode || 'off';
 
   // A members-only page shows a stranger nothing at all, not even its frame.
   if (settings.require_login && !currentUser) { goToSignIn(); return; }

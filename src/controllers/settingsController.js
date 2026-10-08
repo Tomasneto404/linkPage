@@ -59,6 +59,9 @@ function getSettings(req, res) {
     require_login:             db.readSetting('require_login') === '1',
     // Whether the sign-in page may offer to email a reset link.
     password_reset_email:      require('../services/mailService').offersPasswordReset(),
+    // Who may add groups and links through the public page: 'off' (nobody),
+    // 'members' (signed-in only) or 'anyone' (guests too).
+    contribution_mode:         require('../middleware/guest').contributionMode(),
   });
 }
 
