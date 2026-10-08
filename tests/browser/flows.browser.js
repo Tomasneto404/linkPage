@@ -240,6 +240,44 @@ describe('your own links', () => {
   });
 });
 
+describe('the + in the tab bar', () => {
+  btest('is for members only, and makes a group whose tab then opens', async () => {
+    const stranger = await freshPage();
+    await stranger.goto('/');
+    await stranger.locator('.link-card').first().waitFor();
+    assert.equal(await stranger.locator('#tabAddGroup').isVisible(), false, 'not offered to a stranger');
+    await stranger.context().close();
+
+    const page = await freshPage();
+    await signIn(page);
+    await page.click('#tabAddGroup');
+    await page.locator('#tabAddPop').waitFor({ state: 'visible' });
+    await page.keyboard.type('Projects');
+    await page.locator('#tabAddColor .color-swatch[data-color]').nth(2).click();
+    await page.keyboard.press('Enter');
+    await page.locator('#tabAddPop').waitFor({ state: 'hidden' });
+
+    const tab = page.locator('.tab', { hasText: 'Projects' }).first();
+    await tab.waitFor();
+    assert.match(await tab.getAttribute('class'), /\bactive\b/, 'and the new group is the one showing');
+
+    // Escape closes it without making anything.
+    await page.click('#tabAddGroup');
+    await page.keyboard.type('Never mind');
+    await page.keyboard.press('Escape');
+    await page.locator('#tabAddPop').waitFor({ state: 'hidden' });
+    const mine = await page.evaluate(() => fetch('/api/my/data').then(r => r.json()));
+    assert.deepEqual(mine.groups.map(g => g.name).filter(n => n !== 'Reading'), ['Projects']);
+
+    if (process.env.LINKPAGE_SCREENSHOTS) {
+      await page.click('#tabAddGroup');
+      await page.keyboard.type('Design');
+      await page.screenshot({ path: `${process.env.LINKPAGE_SCREENSHOTS}/tab-add.png`, clip: { x: 0, y: 0, width: 1280, height: 320 } });
+    }
+    await page.context().close();
+  });
+});
+
 describe('favourites', () => {
   btest('a star puts a shared link in Favourites, and a hold-and-slide reorders them on touch', async () => {
     const page = await freshPage({ hasTouch: true });

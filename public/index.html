@@ -32,10 +32,12 @@
     /* "All" never scrolls away — it stays pinned left of the group scroller. */
     .tab-all { flex-shrink: 0; }
 
-    /* Holds the scroller plus its two edge arrows. */
+    /* Holds the scroller plus its two edge arrows. As wide as its tabs and no
+       wider, so whatever follows it — the + for a new group — sits right after
+       the last one; shrinks to the room left, and scrolls, when they do not fit. */
     .tabs-strip {
       position: relative;
-      flex: 1;
+      flex: 0 1 auto;
       min-width: 0;
     }
 
@@ -567,6 +569,46 @@
 
     /* The pill beside All. */
     .tab-fav { flex-shrink: 0; }
+
+    /* With the + right after it, a scrolling strip ends at its own edge on that
+       side: the viewport's usual overhang (room for the end pill's glow, see
+       .tabs-viewport) would otherwise slide groups in under the arrow and the
+       +. The scroller measures its padding, so nothing else needs to know. */
+    .tabs-strip.is-scrollable:has(+ .tab-add:not(.hidden)) .tabs-viewport {
+      margin-right: 0;
+      padding-right: 0;
+    }
+    .tabs-strip.is-scrollable + .tab-add { margin-left: 4px; }
+
+    /* The + after the groups: a round pill with the tabs' own hover. */
+    .tab-add {
+      flex-shrink: 0;
+      width: 32px; height: 32px;
+      padding: 0;
+      justify-content: center;
+      border: 1px dashed var(--border-strong, var(--border));
+    }
+    .tab-add:hover, .tab-add[aria-expanded="true"] {
+      border-style: solid;
+      border-color: var(--primary);
+      color: var(--primary);
+      background: rgba(var(--primary-rgb), 0.08);
+    }
+
+    .tab-add-pop {
+      position: fixed;
+      z-index: 60;
+      width: min(300px, calc(100vw - 32px));
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+    }
+    .tab-add-pop form { display: flex; flex-direction: column; gap: 10px; }
+    .tab-add-title { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+    .tab-add-pop .color-palette { gap: 6px; }
+    .tab-add-actions { display: flex; justify-content: flex-end; gap: 6px; }
     .tab-fav .star-glyph { width: 11px; height: 11px; color: #ffb340; }
     .tab-fav.active .star-glyph { color: currentColor; }
 
@@ -1032,7 +1074,30 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
       </button>
     </div>
+    <!-- A new group of your own, for a signed-in member. After the scroller,
+         like Favourites before it, so it appears once however the strip loops. -->
+    <button type="button" class="tab tab-add hidden" id="tabAddGroup"
+            aria-label="New group" title="New group" aria-haspopup="dialog" aria-expanded="false">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
   </div>
+</div>
+
+<!-- The new-group popover. Outside the tab bar on purpose: the bar's backdrop
+     blur makes it the containing block for anything fixed inside it. -->
+<div class="tab-add-pop hidden" id="tabAddPop" role="dialog" aria-labelledby="tabAddTitle">
+  <form id="tabAddForm">
+    <div class="tab-add-title" id="tabAddTitle">New group</div>
+    <input type="text" id="tabAddName" placeholder="Group name" maxlength="100"
+           aria-label="Group name" autocomplete="off" required />
+    <div id="tabAddColor"></div>
+    <div class="form-error hidden" id="tabAddError" role="alert"></div>
+    <div class="tab-add-actions">
+      <button type="button" class="btn btn-ghost btn-sm" id="tabAddCancel">Cancel</button>
+      <button type="submit" class="btn btn-primary btn-sm" id="tabAddSubmit">Create group</button>
+    </div>
+  </form>
 </div>
 
 <!-- Shown to a member whose password was chosen for them. -->

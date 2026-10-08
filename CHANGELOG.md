@@ -11,7 +11,7 @@ pushed tag out of this file. Newest release first; the top section must match
 People can now sign in with an email and a password. The first start creates an administrator account and prints its password beside the admin token; everyone else arrives through an invite link from Settings → Accounts, which works once and expires. There is no open sign-up and the app sends no email: a forgotten password is a reset link the administrator hands over. Sessions live in the database behind an HttpOnly cookie, so they can be listed and ended from any device. The admin token keeps working everywhere it did, as the way back in when nobody can sign in.
 
 ### A page of your own
-A signed-in member keeps private links, groups and sections that appear as extra tabs on the public page, marked as theirs and seen by nobody else. Links take an icon fetched from the site, one from the shared library or an upload, and can carry a file of their own, under a storage allowance the administrator sets per account. Groups take a colour; groups, sections and links can be reordered.
+A signed-in member keeps private links, groups and sections that appear as extra tabs on the public page, marked as theirs and seen by nobody else. Links take an icon fetched from the site, one from the shared library or an upload, and can carry a file of their own, under a storage allowance the administrator sets per account. Groups take a colour; groups, sections and links can be reordered. A + after the last group tab creates a new group in one step.
 
 ### Favourites
 Members star shared links into a Favourites tab and arrange them in their own order. A link the administrator later hides, deletes or locks away leaves everyone's favourites with it.

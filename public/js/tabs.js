@@ -77,6 +77,9 @@ function renderTabs() {
   allBtn.className = `tab tab-all${activeGroup === 'all' ? ' active' : ''}`;
   allBtn.innerHTML = `All <span class="tab-count">${links.length}</span>`;
   renderFavoritesTab();
+  // A member can add a group of their own; nobody else has groups to add to.
+  document.getElementById('tabAddGroup')?.classList.toggle('hidden', !currentUser);
+  if (!currentUser) document.getElementById('tabAddPop')?.classList.add('hidden');
 
   const t = tabScroller();
   // Keep the reader where they were across re-renders (a tab click rebuilds the

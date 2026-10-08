@@ -286,3 +286,85 @@ el('closeMyGroupsBtn')?.addEventListener('click', closeGroupsManager);
 el('myGroupsOverlay')?.addEventListener('click', e => {
   if (e.target.id === 'myGroupsOverlay') closeGroupsManager();
 });
+
+// ─── A new group, from the + in the tab bar ──────────────────────────────────
+//
+// The quick way in: a name and a colour, and the new group's tab opens. The
+// full manager (Your groups, in the account menu) is still where groups are
+// renamed, reordered, coloured and given sections.
+
+function openTabAddPop() {
+  const btn = el('tabAddGroup');
+  const pop = el('tabAddPop');
+  el('tabAddName').value = '';
+  el('tabAddColor').innerHTML = colorPaletteHtml(DEFAULT_GROUP_COLOR);
+  el('tabAddError').classList.add('hidden');
+  pop.classList.remove('hidden');
+  btn.setAttribute('aria-expanded', 'true');
+  placeTabAddPop();
+  el('tabAddName').focus();
+}
+
+function closeTabAddPop({ restoreFocus = false } = {}) {
+  if (el('tabAddPop').classList.contains('hidden')) return;
+  el('tabAddPop').classList.add('hidden');
+  el('tabAddGroup').setAttribute('aria-expanded', 'false');
+  if (restoreFocus) el('tabAddGroup').focus();
+}
+
+/** Under the +, kept inside the window with a 16px margin on narrow screens. */
+function placeTabAddPop() {
+  const pop = el('tabAddPop');
+  if (pop.classList.contains('hidden')) return;
+  const b = el('tabAddGroup').getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const left = Math.min(Math.max(16, b.left - 8), window.innerWidth - w - 16);
+  pop.style.left = `${left}px`;
+  pop.style.top  = `${b.bottom + 8}px`;
+}
+
+el('tabAddGroup')?.addEventListener('click', () => {
+  if (el('tabAddPop').classList.contains('hidden')) openTabAddPop();
+  else closeTabAddPop();
+});
+el('tabAddCancel')?.addEventListener('click', () => closeTabAddPop({ restoreFocus: true }));
+
+// Picking a colour hands focus back to the name, so Enter still creates the
+// group rather than pressing the swatch that was just clicked again.
+el('tabAddColor')?.addEventListener('palettechange', () => el('tabAddName').focus());
+
+// Not a modal, so neither the global Escape handler nor a backdrop closes it.
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeTabAddPop({ restoreFocus: true });
+});
+document.addEventListener('mousedown', e => {
+  if (e.target.closest('#tabAddPop, #tabAddGroup')) return;
+  closeTabAddPop();
+});
+window.addEventListener('resize', placeTabAddPop);
+window.addEventListener('scroll', placeTabAddPop, { passive: true });
+
+el('tabAddForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const name  = el('tabAddName').value.trim();
+  if (!name) return;
+  const color = el('tabAddColor').querySelector('.color-palette')?.dataset.value;
+  const btn   = el('tabAddSubmit');
+  btn.disabled = true;
+  try {
+    const res = await myRequest('/api/my/groups', { json: { name, color } });
+    if (!res.ok) {
+      el('tabAddError').textContent = res.body.error || 'Could not create that group.';
+      el('tabAddError').classList.remove('hidden');
+      return;
+    }
+    closeTabAddPop();
+    // Open the new group's tab, where its first links will go.
+    activeGroup = `u${res.body.id}`;
+    saveStoredGroup(activeGroup);
+    await loadData({ transition: true });
+    showToast(`Group "${name}" created`);
+  } finally {
+    btn.disabled = false;
+  }
+});
