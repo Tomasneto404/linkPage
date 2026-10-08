@@ -171,6 +171,12 @@ function deriveAuditEntry(req) {
   if (/^\/api\/invites\/\d+$/.test(p) && M === 'DELETE')    return { action: 'invite.revoke',   entityType: 'invite', entityId: id, summary: 'Revoked an invite' };
   if (/^\/api\/tokens\/[^/]+\/redeem$/.test(p))              return { action: 'invite.redeem',   entityType: 'invite', entityId: null, summary: 'Used an invite or reset link' };
 
+  // Group admins: the summaries come from the controller, which knows the names.
+  if (p === '/api/managed/links' && M === 'POST')             return { action: 'link.create', entityType: 'link', entityId: null, summary: 'Added a link as a group admin' };
+  if (/^\/api\/managed\/links\/\d+$/.test(p) && M === 'PUT')    return { action: 'link.update', entityType: 'link', entityId: id, summary: 'Changed a link as a group admin' };
+  if (/^\/api\/managed\/links\/\d+$/.test(p) && M === 'DELETE') return { action: 'link.delete', entityType: 'link', entityId: id, summary: 'Deleted a link as a group admin' };
+  if (/^\/api\/groups\/\d+\/managers$/.test(p))                  return { action: 'group.managers', entityType: 'group', entityId: id, summary: 'Changed a group\'s admins' };
+
   // Link requests (public submit + admin review)
   if (p === '/api/link-requests' && M === 'POST')             return { action: 'request.create',  entityType: 'request', entityId: null, summary: name ? `New link request "${truncate(name)}"` : 'New link request' };
   if (/^\/api\/link-requests\/\d+\/approve$/.test(p))         return { action: 'request.approve', entityType: 'request', entityId: id, summary: `Approved link request #${id}` };

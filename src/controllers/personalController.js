@@ -94,6 +94,9 @@ function data(req, res) {
     // than the links keeps the shared listing the only place shared links come
     // from, and saves the page a third request.
     favorites: visibleFavoriteIds(req),
+    // Shared groups this person is a group admin of, so the page can offer
+    // to add links to them and to edit the links that are theirs to edit.
+    managed_group_ids: db.getManagedGroupIds(owner(req)),
   });
 }
 

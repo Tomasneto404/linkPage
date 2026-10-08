@@ -88,6 +88,51 @@ function refreshUnlockModeRowVisibility() {
   row.classList.toggle('hidden', !willBeProtected);
 }
 
+// ─── Group admins ─────────────────────────────────────────────────────────────
+
+/**
+ * The members who may be a group's admins, ticked when they are. Administrators
+ * are left out: they already look after every group. Null until loaded, so a
+ * save that happens before the list arrives leaves the group's admins alone.
+ */
+let groupAdminsLoaded = null;
+
+async function loadGroupAdmins(gid) {
+  const box = document.getElementById('groupAdminsList');
+  groupAdminsLoaded = null;
+  box.innerHTML = '<div class="group-admins-empty">Loading…</div>';
+  try {
+    const [usersRes, managersRes] = await Promise.all([
+      fetchUsers(),
+      gid ? apiJson(`/api/groups/${gid}/managers`) : Promise.resolve({ managers: [] }),
+    ]);
+    const chosen  = new Set((managersRes.managers || []).map(m => m.id));
+    const members = (usersRes.users || []).filter(u => u.role !== 'admin' && (u.is_active || chosen.has(u.id)));
+
+    box.innerHTML = members.length
+      ? members.map(u => `
+          <label class="group-admin-row">
+            <input type="checkbox" value="${u.id}" ${chosen.has(u.id) ? 'checked' : ''} />
+            <span>${escapeHtml(u.display_name || u.email)}</span>
+            ${u.display_name ? `<span class="group-admin-email">${escapeHtml(u.email)}</span>` : ''}
+          </label>`).join('')
+      : '<div class="group-admins-empty">No members yet. Invite somebody from Settings → Accounts.</div>';
+    groupAdminsLoaded = [...chosen].sort();
+  } catch {
+    box.innerHTML = '<div class="group-admins-empty">Could not load the accounts.</div>';
+  }
+}
+
+/** Saves the ticked admins, when the list loaded and something changed. */
+async function saveGroupAdmins(gid) {
+  if (!groupAdminsLoaded) return;
+  const ticked = [...document.querySelectorAll('#groupAdminsList input:checked')]
+    .map(i => Number(i.value)).sort();
+  if (JSON.stringify(ticked) === JSON.stringify(groupAdminsLoaded)) return;
+  const res = await jsonPut(`/api/groups/${gid}/managers`, { user_ids: ticked });
+  if (res?.error) throw new Error(res.error);
+}
+
 function openAddGroupModal() {
   clearPasswordOnSave = false;
   document.getElementById('groupModalTitle').textContent = 'New Group';
@@ -99,6 +144,7 @@ function openAddGroupModal() {
   updateGroupPasswordStatus(false);
   setUnlockModeRadio('timeout');
   refreshUnlockModeRowVisibility();
+  loadGroupAdmins(null);
   document.getElementById('groupModalOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('groupNameInput').focus(), 50);
 }
@@ -115,6 +161,7 @@ function openEditGroupModal(gid) {
   updateGroupPasswordStatus(!!g.is_protected);
   setUnlockModeRadio(g.unlock_mode || 'timeout');
   refreshUnlockModeRowVisibility();
+  loadGroupAdmins(g.id);
   document.getElementById('groupModalOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('groupNameInput').focus(), 50);
 }
@@ -161,6 +208,13 @@ document.getElementById('groupForm').addEventListener('submit', async e => {
       ? await updateGroup(gid, payload)
       : await createGroup(payload);
     if (result?.error) { showFormError('groupFormError', result.error); return; }
+    try {
+      await saveGroupAdmins(gid || result.id);
+    } catch (err) {
+      showFormError('groupFormError', `The group was saved, but not its admins: ${err.message}`);
+      await loadAllData();
+      return;
+    }
     closeGroupModal();
     showToast(gid ? 'Group saved' : 'Group created');
     await loadAllData();

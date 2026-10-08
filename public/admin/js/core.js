@@ -218,130 +218,58 @@ async function dressGate() {
   } catch { /* the gate works perfectly well undressed */ }
 }
 
-/**
- * A button for each single sign-on provider, coming back to this panel. The
- * trip and its failures belong to the sign-in page; this only starts it.
- */
-let gatePasswordSignIn = true;   // false when single sign-on is the only way in
-
-function showGateProviders(providers = []) {
-  const box = document.getElementById('adminProviderButtons');
-  if (!box) return;
-  // Single sign-on only: no password form, and no "or" before the button.
-  const passwords = providers.some(p => p.id === 'local');
-  gatePasswordSignIn = passwords;
-  document.getElementById('adminLoginForm').classList.toggle('hidden', !passwords);
-  document.getElementById('usePasswordBtn').textContent =
-    passwords ? 'Sign in with a password' : 'Back to single sign-on';
-  document.querySelector('#adminProviderSection .gate-divider')?.classList.toggle('hidden', !passwords);
-  box.replaceChildren(...providers.filter(p => p.url).map(p => {
-    const a = document.createElement('a');
-    a.className = 'btn btn-ghost gate-submit gate-provider';
-    a.textContent = p.label;
-    a.href = `${p.url}?next=${encodeURIComponent('/admin/')}`;
-    return a;
-  }));
-  document.getElementById('adminProviderSection')
-    .classList.toggle('hidden', box.childElementCount === 0);
+/** Shows the token gate, dressed in the instance's look. */
+function showGate() {
+  document.getElementById('gate').classList.remove('hidden');
+  dressGate();
+  document.getElementById('tokenInput').focus();
 }
 
+/**
+ * There is one sign-in page, /login/, for everybody; it sends an administrator
+ * here afterwards. This page only decides who is already in:
+ *
+ *   - an administrator's session            → the panel;
+ *   - a saved admin token that still works  → the panel;
+ *   - ?token in the address                 → the token gate, the way in
+ *                                             when no account can sign in;
+ *   - a member who is not an administrator  → the gate, saying so;
+ *   - nobody                                → the sign-in page, and back.
+ */
 async function resolveAdminIdentity() {
+  const wantsToken = new URLSearchParams(location.search).has('token');
+  let member = null;
+
   try {
     const me = await fetch('/api/auth/me', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : { user: null }));
-    showGateProviders(me.providers);
-
-    if (me.user) {
-      if (me.user.role === 'admin') {
-        adminAuthMode = 'session';
-        adminIdentity = me.user;
-        return showAdminUI();
-      }
-      // Signed in, but not as an administrator. Say so rather than showing a
-      // blank sign-in form to someone who is demonstrably already signed in.
-      const intro = document.getElementById('gateIntro');
-      if (intro) {
-        intro.textContent =
-          `You are signed in as ${me.user.email}, which is not an administrator account.`;
-      }
+    if (me.user?.role === 'admin') {
+      adminAuthMode = 'session';
+      adminIdentity = me.user;
+      return showAdminUI();
     }
-  } catch { /* offline, or the server is restarting — fall through to the gate */ }
+    member = me.user || null;
+  } catch { /* offline, or the server is restarting — fall through */ }
 
   const t = getAdminToken();
   if (t && await verifyToken(t)) {
     adminAuthMode = 'token';
-    await showAdminUI();
+    return showAdminUI();
   }
+
+  if (member) {
+    // Signed in, but not as an administrator. Say so rather than sending
+    // someone who is demonstrably signed in back to a sign-in form.
+    document.getElementById('gateIntro').textContent =
+      `You are signed in as ${member.email}, which is not an administrator account. `
+      + 'An administrator can change that, or unlock this panel with the admin token.';
+    document.getElementById('gateSignInLink').classList.add('hidden');
+    return showGate();
+  }
+  if (wantsToken) return showGate();
+
+  location.replace(`/login/?next=${encodeURIComponent('/admin/')}`);
 }
-
-document.getElementById('adminLoginForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const btn    = document.getElementById('adminLoginBtn');
-  const errBox = document.getElementById('adminLoginError');
-  const email    = document.getElementById('adminEmail').value.trim();
-  const password = document.getElementById('adminPassword').value;
-
-  errBox.classList.add('hidden');
-  btn.disabled = true; btn.textContent = 'Signing in…';
-
-  try {
-    const r = await fetch('/api/auth/login', {
-      method:      'POST',
-      headers:     { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body:        JSON.stringify({ email, password }),
-    });
-    const data = await r.json().catch(() => ({}));
-
-    if (r.ok && data.user?.role === 'admin') {
-      adminAuthMode = 'session';
-      adminIdentity = data.user;
-      await showAdminUI();
-      return;
-    }
-
-    errBox.textContent = r.status === 429
-      ? 'Too many attempts. Try again in a few minutes.'
-      : r.ok
-        ? 'That account is not an administrator.'
-        : 'Wrong email or password.';
-    errBox.classList.remove('hidden');
-    document.getElementById('adminPassword').select();
-  } catch {
-    errBox.textContent = 'Could not reach the server. Is it running?';
-    errBox.classList.remove('hidden');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Sign in';
-  }
-});
-
-document.getElementById('togglePasswordBtn').addEventListener('click', e => {
-  const input   = document.getElementById('adminPassword');
-  const showing = input.type === 'text';
-  input.type = showing ? 'password' : 'text';
-  e.currentTarget.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
-  input.focus();
-});
-
-/** Swaps between the password form and the token form. */
-function showGateForm(which) {
-  const password = which === 'password';
-  document.getElementById('adminLoginForm').classList.toggle('hidden', !password || !gatePasswordSignIn);
-  document.getElementById('useTokenBtn').classList.toggle('hidden', !password);
-  // Single sign-on belongs with the account sign-in, not the break-glass token.
-  const providers = document.getElementById('adminProviderSection');
-  if (document.getElementById('adminProviderButtons').childElementCount > 0) {
-    providers.classList.toggle('hidden', !password);
-  }
-  document.getElementById('gateForm').classList.toggle('hidden', password);
-  document.getElementById('usePasswordBtn').classList.toggle('hidden', password);
-  (password
-    ? (gatePasswordSignIn ? document.getElementById('adminEmail')
-                          : document.querySelector('#adminProviderButtons a'))
-    : document.getElementById('tokenInput'))?.focus();
-}
-document.getElementById('useTokenBtn').addEventListener('click', () => showGateForm('token'));
-document.getElementById('usePasswordBtn').addEventListener('click', () => showGateForm('password'));
 
 document.getElementById('gateForm').addEventListener('submit', async e => {
   e.preventDefault();

@@ -58,8 +58,14 @@ function safeDestination(next, origin) {
 }
 
 /** Where to land after signing in. A path on this site, or the front page. */
-function destination() {
-  return safeDestination(params.get('next'), location.origin);
+function destination(user = null) {
+  // No particular place to go back to: an administrator's place is the panel,
+  // everyone else's the links. One sign-in, and it knows which is which.
+  const next = params.get('next');
+  if ((!next || next === '/') && user?.role === 'admin') {
+    return safeDestination('/admin/', location.origin);
+  }
+  return safeDestination(next, location.origin);
 }
 
 function showError(box, message) {
@@ -98,7 +104,7 @@ async function start() {
   if (!token) {
     try {
       const me = await fetch('/api/auth/me', { credentials: 'same-origin' }).then(r => r.json());
-      if (me.authenticated) { location.replace(destination()); return; }
+      if (me.authenticated) { location.replace(destination(me.user)); return; }
     } catch { /* carry on and show the form */ }
 
     // An instance that sends mail offers to send the link; one that does not
@@ -121,6 +127,7 @@ async function start() {
  */
 async function prepareRedemption() {
   el('signInForm').classList.add('hidden');
+  el('tokenLink').classList.add('hidden');
 
   let info;
   try {
@@ -255,7 +262,11 @@ el('signInForm').addEventListener('submit', async e => {
         }),
       });
 
-      if (res.ok) { location.assign(destination()); return; }
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        location.assign(destination(data.user));
+        return;
+      }
 
       showError(error, res.status === 429
         ? 'Too many attempts. Try again in a few minutes.'

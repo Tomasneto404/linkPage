@@ -173,6 +173,14 @@ describe('signing in', () => {
     assert.equal(exchange.form.get('client_secret'), null, 'with the secret in the header, not the body');
   });
 
+  test('an administrator with nowhere particular to go lands in the panel', async () => {
+    const boss = await c.makeUser({ email: 'sso-boss@example.test', password: PASSWORD, role: 'admin' });
+    db.linkIdentity({ userId: boss.id, provider: fake.issuer, subject: 'sub-boss' });
+    assert.equal((await trip({ sub: 'sub-boss' })).location, '/admin/');
+    assert.equal((await trip({ sub: 'sub-boss' }, { next: '/?group=2' })).location, '/?group=2',
+      'but goes where it was asked to');
+  });
+
   test('the next address can only be a path on this site', async () => {
     for (const next of ['https://evil.example/', '//evil.example/', '/\\evil.example', 'javascript:alert(1)']) {
       const r = await trip({ sub: 'sub-linked' }, { next });

@@ -164,6 +164,34 @@ const uploadRequestPayload = multer({
   { name: 'file',  maxCount: 1 },
 ]);
 
+/**
+ * A group admin's link: the public request filters — no SVG, no HTML, nothing
+ * that could run as script when served back from this origin — because a group
+ * admin is a trusted member, not an administrator. Half the administrator's cap.
+ */
+const MANAGED_FILE_LIMIT = 50 * 1024 * 1024;
+
+const uploadManagedPayload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: MANAGED_FILE_LIMIT },
+  fileFilter: (req, file, done) => {
+    if (file.fieldname === 'image') {
+      return isAllowedPublicImage(file)
+        ? done(null, true)
+        : done(uploadRejection('Icon must be a jpg, png, gif or webp image'));
+    }
+    if (file.fieldname === 'file') {
+      return isAllowedPublicAttachment(file)
+        ? done(null, true)
+        : done(uploadRejection('File type not allowed'));
+    }
+    done(uploadRejection(`Unexpected field "${file.fieldname}"`));
+  },
+}).fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'file',  maxCount: 1 },
+]);
+
 // ─── Stored-path resolution ───────────────────────────────────────────────────
 
 /**
@@ -251,6 +279,8 @@ module.exports = {
   uploadLinkPayload,
   uploadWallpaper,
   uploadRequestPayload,
+  uploadManagedPayload,
+  MANAGED_FILE_LIMIT,
   PUBLIC_REQUEST_FILE_LIMIT,
   isAllowedImage,
   isAllowedAttachment,

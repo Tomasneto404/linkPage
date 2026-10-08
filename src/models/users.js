@@ -174,6 +174,7 @@ function deleteUser(id) {
   db.prepare('DELETE FROM user_tokens WHERE user_id = ?').run(id);
   db.prepare('UPDATE user_tokens SET created_by_user_id = NULL WHERE created_by_user_id = ?').run(id);
   db.prepare('DELETE FROM user_identities WHERE user_id = ?').run(id);
+  db.prepare('DELETE FROM group_managers WHERE user_id = ?').run(id);
   return db.prepare('DELETE FROM users WHERE id = ?').run(id);
 }
 

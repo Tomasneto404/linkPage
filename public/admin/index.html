@@ -25,7 +25,7 @@
      with a password, or the admin token that predates accounts.
      Once verified, this is hidden and #adminWrap is shown.
      ════════════════════════════════════════════════ -->
-<div class="gate" id="gate">
+<div class="gate hidden" id="gate">
   <div class="gate-card">
     <div class="gate-icon">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -36,50 +36,12 @@
     </div>
 
     <h1>Admin Access</h1>
-    <p id="gateIntro">Sign in to manage links.</p>
+    <p id="gateIntro">Unlock the admin panel with the admin token.</p>
 
-    <!-- The ordinary way in. The token form below is still here, and still
-         untouched, because it is what works when this one cannot. -->
-    <form id="adminLoginForm">
-      <div class="field-stack">
-        <div class="field-row">
-          <input type="email" id="adminEmail" placeholder="you@example.com"
-                 aria-label="Email" autocomplete="username" required />
-        </div>
-        <div class="field-row">
-          <input type="password" id="adminPassword" placeholder="Password"
-                 aria-label="Password" autocomplete="current-password" required />
-          <button type="button" class="field-reveal"
-                  id="togglePasswordBtn" aria-label="Show password">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                 stroke-linejoin="round" aria-hidden="true">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div class="form-error hidden" id="adminLoginError">
-        Wrong email or password.
-      </div>
-
-      <button type="submit" class="btn btn-primary gate-submit" id="adminLoginBtn">
-        Sign in
-      </button>
-    </form>
-
-    <!-- Single sign-on, when the instance has it. Filled from /api/auth/me. -->
-    <div class="hidden gate-providers" id="adminProviderSection">
-      <div class="gate-divider"><span>or</span></div>
-      <div id="adminProviderButtons" class="gate-providers"></div>
-    </div>
-
-    <button type="button" class="gate-alt" id="useTokenBtn">Use an admin token instead</button>
-    <button type="button" class="gate-alt hidden" id="usePasswordBtn">Sign in with a password</button>
-
-    <form id="gateForm" class="hidden">
+    <!-- Signing in happens on /login/, for everyone; an administrator lands
+         here afterwards. What is left on this page is the admin token: the way
+         in when no account can sign in. -->
+    <form id="gateForm">
       <div class="gate-input-wrap">
         <input type="password" id="tokenInput"
                placeholder="Paste admin token…"
@@ -107,6 +69,7 @@
       </button>
     </form>
 
+    <a href="/login/?next=%2Fadmin%2F" class="gate-alt" id="gateSignInLink">Sign in with your account instead</a>
     <a href="/" class="gate-back">← Back to public page</a>
   </div>
 </div>
@@ -2034,6 +1997,14 @@
               <span class="radio-pill-sub">Remains unlocked until the visitor closes the browser tab/window.</span>
             </label>
           </div>
+        </div>
+        <!-- Members trusted with this group: they add links to it, and edit the
+             links that live only in groups they look after. -->
+        <div class="form-group">
+          <label>
+            Group admins <span class="label-opt">(optional — members who may add and edit links here)</span>
+          </label>
+          <div class="group-admins" id="groupAdminsList"></div>
         </div>
         <div class="form-error hidden" id="groupFormError"></div>
         <div class="form-actions">

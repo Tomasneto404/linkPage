@@ -92,6 +92,14 @@ interface reaches them.
       called while the page is still loading. A test checks every file is
       wired in, and a browser test that every page loads without a script error.
 
+## 6 — Asked for while testing
+
+- [x] **The file editor's caret.** Off the text by up to a word on desktop and
+      lines on a phone; every layer now shares one set of metrics.
+- [x] **A + after the group tabs**, for members to make a group in one step.
+- [x] **One sign-in.** A single button; administrators land in the panel.
+- [x] **Group admins**, so more people can add links to a shared group.
+
 ## Later
 
 Not started; written down so they are not lost.

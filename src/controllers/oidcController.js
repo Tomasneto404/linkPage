@@ -157,7 +157,10 @@ async function callback(req, res) {
       summary: `${user.email} signed in with single sign-on`,
     });
 
-    res.redirect(302, result.login.next_path || '/');
+    // Nowhere in particular to go back to: an administrator's place is the
+    // panel, the same choice the password sign-in makes.
+    const home = user.role === 'admin' ? '/admin/' : '/';
+    res.redirect(302, result.login.next_path && result.login.next_path !== '/' ? result.login.next_path : home);
   } catch (err) {
     const code = err instanceof oidc.OidcError ? err.code : 'failed';
     if (!(err instanceof oidc.OidcError)) console.error('[sso] sign-in failed:', err);

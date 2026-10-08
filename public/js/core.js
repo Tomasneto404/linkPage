@@ -333,7 +333,21 @@ let personalStorage = null;
  */
 let favoriteIds = [];
 
+/** Shared groups this member is a group admin of: theirs to add links to. */
+let managedGroupIds = [];
+
 const isPersonal = item => item?.owner === 'me';
+
+/** Shared groups this member looks after, in the page's order. */
+const managedGroups = () => groups.filter(g => !isPersonal(g) && managedGroupIds.includes(g.id));
+
+/**
+ * A shared link this member may change: one that lives only in groups they
+ * look after. The server applies the same rule; this only decides whether to
+ * offer the pencil.
+ */
+const canManageLink = link => !isPersonal(link) && (link.groups || []).length > 0
+  && link.groups.every(g => managedGroupIds.includes(g.id));
 
 /**
  * Personal ids are the member's own and can coincide with shared ones — their
@@ -364,7 +378,7 @@ function adoptPersonal(data) {
  * breaking the page — the shared links are still perfectly good.
  */
 async function fetchPersonal() {
-  if (!currentUser) { favoriteIds = []; return { groups: [], links: [] }; }
+  if (!currentUser) { favoriteIds = []; managedGroupIds = []; return { groups: [], links: [] }; }
   try {
     const r = await fetch('/api/my/data', { credentials: 'same-origin' });
     if (r.status === 401) { sessionEnded(); return { groups: [], links: [] }; }
@@ -372,6 +386,7 @@ async function fetchPersonal() {
     const data = await r.json();
     personalStorage = data.storage || null;
     favoriteIds = Array.isArray(data.favorites) ? data.favorites : [];
+    managedGroupIds = Array.isArray(data.managed_group_ids) ? data.managed_group_ids : [];
     return adoptPersonal(data);
   } catch {
     return { groups: [], links: [] };
@@ -384,6 +399,7 @@ function sessionEnded() {
   currentUser = null;
   personalStorage = null;
   favoriteIds = [];
+  managedGroupIds = [];
   renderAccountControl();
   showToast('You have been signed out', { type: 'info', detail: 'Sign in again to see your own links.' });
 }

@@ -182,6 +182,8 @@ function updateGroup(id, { name, color, password, unlockMode }) {
  */
 function deleteGroup(id) {
   db.prepare('DELETE FROM link_groups WHERE group_id = ?').run(id);
+  // Its admins go with it: a later group given the same id must not inherit them.
+  db.prepare('DELETE FROM group_managers WHERE group_id = ?').run(id);
   db.prepare('DELETE FROM sections   WHERE group_id = ?').run(id);
   // Also clear the legacy single-group column on any link that pointed here.
   db.prepare('UPDATE links SET group_id = NULL WHERE group_id = ?').run(id);

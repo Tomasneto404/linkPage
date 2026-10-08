@@ -3834,3 +3834,26 @@ a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline
   .settings-panel:is([data-panel="sso"], [data-panel="mail"]) .settings-row { flex-wrap: wrap; }
   .sso-field { flex-basis: 100%; }
 }
+
+/* ── Group admins, in the group dialog ─────── */
+.group-admins {
+  display: flex;
+  flex-direction: column;
+  max-height: 168px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface-2);
+}
+.group-admin-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.group-admin-row + .group-admin-row { border-top: 1px solid var(--border); }
+.group-admin-row input { width: auto; margin: 0; }
+.group-admin-email { color: var(--text-muted); font-size: 0.8125rem; margin-left: auto; }
+.group-admins-empty { padding: 10px 12px; font-size: 0.8125rem; color: var(--text-muted); }

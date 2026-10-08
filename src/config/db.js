@@ -34,7 +34,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 18;
+const CURRENT_SCHEMA_VERSION = 19;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -573,6 +573,25 @@ const MIGRATIONS = [
         )
       `);
       db.exec('CREATE INDEX IF NOT EXISTS idx_oidc_logins_created ON oidc_logins(created_at)');
+    },
+  },
+  {
+    version: 19,
+    name:    'Group admins',
+    apply: () => {
+      // Members an administrator has trusted with one shared group: they may
+      // add links to it, and change or remove links that live only in groups
+      // they manage. The group itself — its name, colour, password — stays
+      // the administrators'.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS group_managers (
+          group_id   INTEGER NOT NULL,
+          user_id    INTEGER NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (group_id, user_id)
+        )
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_group_managers_user ON group_managers(user_id)');
     },
   },
 ];

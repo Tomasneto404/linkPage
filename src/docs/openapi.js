@@ -339,6 +339,56 @@ const paths = {
       responses: { 201: json(ref('Section'), 'Created'), 400: json(ref('Error')), 404: json(ref('Error')) },
     }),
   },
+  '/api/groups/{id}/managers': {
+    get: op({
+      tag: TAGS.groups, summary: "A group's admins",
+      description: 'Members trusted with this group: they may add links to it, and change or remove links that live only in groups they manage.',
+      params: [pathParam('id', 'Group id.')],
+      responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) },
+    }),
+    put: op({
+      tag: TAGS.groups, summary: "Set a group's admins",
+      description: 'Replaces the list. Every id must be an existing account.',
+      params: [pathParam('id', 'Group id.')],
+      body: jsonBody({ user_ids: { type: 'array', items: { type: 'integer' } } }, ['user_ids']),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')), 404: json(ref('Error')) },
+    }),
+  },
+  '/api/managed/links': {
+    post: op({
+      tag: TAGS.groups, auth: 'user',
+      summary: 'Add a link to a group you manage',
+      description: 'For a group admin. Multipart, like POST /api/links, with `group_id` and an optional '
+                 + '`section_id` instead of `groups`. No custom address, and files are held to the '
+                 + 'public upload rules: no SVG or HTML, 50 MB at most. A group you do not manage is 404.',
+      responses: {
+        201: json(ref('Link')),
+        400: json(ref('Error')),
+        404: json(ref('Error'), 'Not a group you manage'),
+      },
+    }),
+  },
+  '/api/managed/links/{id}': {
+    put: op({
+      tag: TAGS.groups, auth: 'user',
+      summary: 'Change a link in a group you manage',
+      description: 'Only a link that lives in groups you manage and nowhere else. Send `group_id` '
+                 + '(and `section_id`) to move it between them.',
+      params: [pathParam('id', 'Link id.')],
+      responses: {
+        200: json(ref('Link')),
+        403: json(ref('Error'), 'The link is also in a group you do not manage'),
+        404: json(ref('Error')),
+      },
+    }),
+    delete: op({
+      tag: TAGS.groups, auth: 'user',
+      summary: 'Remove a link from a group you manage',
+      description: 'The same rule as changing one.',
+      params: [pathParam('id', 'Link id.')],
+      responses: { 204: { description: 'Deleted' }, 403: json(ref('Error')), 404: json(ref('Error')) },
+    }),
+  },
   '/api/groups/{id}/unlock': {
     post: op({
       tag: TAGS.groups, auth: 'open',

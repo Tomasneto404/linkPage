@@ -29,21 +29,20 @@ function renderAccountControl() {
   const next = encodeURIComponent(location.pathname + location.search);
 
   if (!currentUser) {
-    // The Admin button exactly as it always was — an operator who never makes
-    // an account must not find it moved or restyled — and Sign in beside it,
-    // in the same shape.
+    // One way in for everybody. The sign-in page works out who is an
+    // administrator and sends them to the panel; everyone else comes back
+    // here. From the front page no `next` is sent, so that choice is made by
+    // role; from anywhere else, it is where they were.
+    const here = location.pathname + location.search;
+    const href = here === '/' ? '/login/' : `/login/?next=${next}`;
     slot.innerHTML = `
-      <a href="/login/?next=${next}" class="admin-btn account-signin">
+      <a href="${href}" class="admin-btn account-signin">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
           <polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
         </svg>
         <span class="admin-btn-label">Sign in</span>
-      </a>
-      <a href="/admin" class="admin-btn">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <span class="admin-btn-label">Admin</span>
       </a>`;
     return;
   }
@@ -201,18 +200,40 @@ const el = id => document.getElementById(id);
 
 function personalGroups() { return groups.filter(isPersonal); }
 
-function fillComposerGroups(selectedKey = null) {
+/**
+ * Where a link can go: your own groups, and the shared groups you are a group
+ * admin of (value "s<id>"). A shared link being edited stays shared — it can
+ * move between the groups you look after, not into your own page.
+ */
+function fillComposerGroups(selectedKey = null, { sharedOnly = false } = {}) {
   const sel = el('myLinkGroup');
-  const options = personalGroups()
+  const own = personalGroups()
     .map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
-  sel.innerHTML = `<option value="">Not in a group</option>${options}
-                   <option value="__new">New group…</option>`;
-  sel.value = selectedKey && personalGroups().some(g => g.id === selectedKey) ? selectedKey : '';
+  const shared = managedGroups()
+    .map(g => `<option value="s${g.id}">${escapeHtml(g.name)}</option>`).join('');
+  const sharedBlock = shared ? `<optgroup label="Groups you look after">${shared}</optgroup>` : '';
+
+  sel.innerHTML = sharedOnly
+    ? sharedBlock
+    : `<option value="">Not in a group</option>${own}${sharedBlock}<option value="__new">New group…</option>`;
+  const exists = [...sel.options].some(o => o.value === selectedKey);
+  sel.value = exists ? selectedKey : (sharedOnly ? sel.options[0]?.value || '' : '');
   fillComposerSections();
 }
 
+/** The group the composer's select points at, own or shared. */
+function composerGroup() {
+  const v = el('myLinkGroup').value;
+  if (v.startsWith('s')) return managedGroups().find(g => g.id === Number(v.slice(1))) || null;
+  return personalGroups().find(g => g.id === v) || null;
+}
+
+const composerTargetsShared = () => el('myLinkGroup').value.startsWith('s');
+
 function fillComposerSections(selectedId = null) {
-  const group = personalGroups().find(g => g.id === el('myLinkGroup').value);
+  // A shared group's links count against nobody's allowance.
+  el('myLinkStorage').classList.toggle('hidden', composerTargetsShared());
+  const group = composerGroup();
   const row = el('myLinkSectionRow');
   const sections = group ? group.sections.flatMap(s => [
     { id: s.id, name: s.name },
@@ -360,7 +381,8 @@ function openComposer(link) {
   el('myLinkIconRemoved').checked = false;
   resetComposerPreview();
 
-  el('myLinkTitle').textContent = link ? 'Edit your link' : 'Add a link';
+  const shared = !!link && !isPersonal(link);
+  el('myLinkTitle').textContent = !link ? 'Add a link' : shared ? 'Edit link' : 'Edit your link';
   el('myLinkSubmitBtn').textContent = link ? 'Save changes' : 'Add link';
   el('myLinkDeleteBtn').classList.toggle('hidden', !link);
   el('myLinkDeleteBtn').textContent = 'Delete';
@@ -371,12 +393,15 @@ function openComposer(link) {
     el('myLinkDesc').value = link.description || '';
     setComposerMode(link.file_path ? 'file' : 'url');
     const membership = (link.groups || [])[0];
-    fillComposerGroups(membership?.id || null);
+    fillComposerGroups(shared ? `s${membership?.id}` : (membership?.id || null), { sharedOnly: shared });
     fillComposerSections(membership?.section_id || null);
   } else {
     setComposerMode('url');
-    // Adding while looking at one of your groups puts it there.
-    fillComposerGroups(typeof activeGroup === 'string' && activeGroup.startsWith('u') ? activeGroup : null);
+    // Adding while looking at one of your groups — or a shared one you look
+    // after — puts it there.
+    const here = typeof activeGroup === 'string' && activeGroup.startsWith('u') ? activeGroup
+               : managedGroupIds.includes(activeGroup) ? `s${activeGroup}` : null;
+    fillComposerGroups(here);
   }
 
   refreshComposerFileLabel();
@@ -463,6 +488,8 @@ el('myLinkForm')?.addEventListener('submit', async e => {
   btn.disabled = true; btn.textContent = 'Saving…';
 
   try {
+    if (composerTargetsShared()) return await saveSharedLink(name, url);
+
     // Which of your groups, as the real number the server knows it by.
     let groupId = null;
     const chosen = el('myLinkGroup').value;
@@ -511,6 +538,43 @@ el('myLinkForm')?.addEventListener('submit', async e => {
   }
 });
 
+/**
+ * Saves a link into a shared group this member looks after, through the group
+ * admin routes. The administrator's own field names, since it is the
+ * administrator's own link code that does the saving.
+ */
+async function saveSharedLink(name, url) {
+  const group = composerGroup();
+  const form = new FormData();
+  form.append('name', name);
+  form.append('description', el('myLinkDesc').value.trim());
+  form.append('group_id', String(group.id));
+  if (el('myLinkSection').value) form.append('section_id', el('myLinkSection').value);
+
+  if (composerMode === 'url') {
+    form.append('url', url);
+    if (composerLink?.file_path) form.append('remove_file', 'true');
+  } else if (composerFile) {
+    form.append('file', composerFile);
+  } else if (composerLink) {
+    form.append('url', composerLink.url);   // keeps the file it already has
+  }
+  if (composerIcon) form.append('image', composerIcon);
+  else if (el('myLinkIconRemoved').checked) form.append('remove_image', 'true');
+
+  const res = composerLink
+    ? await myRequest(`/api/managed/links/${composerLink.id}`, { method: 'PUT', form })
+    : await myRequest('/api/managed/links', { form });
+  if (!res.ok) return showComposerError(res.body.error || 'Could not save that link.');
+
+  const wasEditing = !!composerLink;
+  closeComposer();
+  activeGroup = group.id;
+  saveStoredGroup(activeGroup);
+  await loadData({ transition: true });
+  showToast(wasEditing ? 'Link saved' : `Link added to ${group.name}`);
+}
+
 // Deleting asks twice, on the button itself: a modal for one confirmation is
 // heavier than the decision, and the codebase never uses confirm().
 el('myLinkDeleteBtn')?.addEventListener('click', async () => {
@@ -520,7 +584,9 @@ el('myLinkDeleteBtn')?.addEventListener('click', async () => {
     btn.textContent = 'Delete for good?';
     return;
   }
-  const res = await myRequest(`/api/my/links/${composerLink.personal_id}`, { method: 'DELETE' });
+  const res = isPersonal(composerLink)
+    ? await myRequest(`/api/my/links/${composerLink.personal_id}`, { method: 'DELETE' })
+    : await myRequest(`/api/managed/links/${composerLink.id}`, { method: 'DELETE' });
   if (!res.ok) { showComposerError(res.body.error || 'Could not delete that link.'); return; }
   closeComposer();
   await loadData({ transition: true });

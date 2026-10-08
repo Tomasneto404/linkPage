@@ -376,8 +376,9 @@ function buildLinkCard(link) {
     wirePersonalDrag(card, link);
   }
 
-  if (isPersonal(link)) {
-    card.classList.add('link-card-mine');
+  // Your own links, and shared links in groups you are a group admin of.
+  if (isPersonal(link) || canManageLink(link)) {
+    if (isPersonal(link)) card.classList.add('link-card-mine');
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'link-edit-btn';

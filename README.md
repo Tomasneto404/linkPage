@@ -160,7 +160,11 @@ Further accounts come from **invite links** — Settings → Accounts. There is 
 
 **Email, optionally.** Give LinkPage an SMTP server in Settings → Email and turn on *Password reset by email*, and the sign-in page offers to email a reset link. The link works once, for an hour. The endpoint answers the same whether or not an address has an account, is limited per address and to three emails an hour per account, and builds every link from the *Page address* you set rather than from the request, so a forged `Host` header cannot redirect a reset. *Send me a test* checks the settings against the real server.
 
-**The admin token.** A 64-character hex token in `data/admin-token.txt`, generated on first startup and printed at every start. It predates accounts and remains the way back in when nobody can sign in — choose *Use an admin token instead* on the sign-in screen. It can be rotated from Settings → Security at any time, which invalidates the old one immediately.
+**One sign-in.** Everybody signs in at `/login/`, from the single *Sign in* button. Administrators land in the admin panel and everyone else back on the links; opening `/admin` while signed out goes to the same page and back.
+
+**Group admins.** In a group's dialog in the admin panel, tick the members who look after it. They can add links to that group from the public page — *Add a link* lists the groups they look after — and edit or remove links that live only in groups they manage. Links shared with another group, hidden links, custom addresses and the group's own settings stay with administrators. Their uploads follow the public rules: no SVG or HTML, 50 MB at most.
+
+**The admin token.** A 64-character hex token in `data/admin-token.txt`, generated on first startup and printed at every start. It predates accounts and remains the way back in when nobody can sign in — choose *Use the admin token* on the sign-in page, or open `/admin/?token`. It can be rotated from Settings → Security at any time, which invalidates the old one immediately.
 
 State-changing API requests that carry a session cookie must come from this origin; requests authenticated by the token header are exempt, so scripts and `curl` are unaffected.
 
@@ -508,6 +512,9 @@ If a public password is configured, read endpoints also require an `X-Public-Pas
 | GET/PUT | `/api/settings/mail` | Admin | Email (SMTP) settings |
 | POST | `/api/settings/mail/test` | Admin | Send a test email |
 | DELETE | `/api/users/:id/identities` | Admin | Disconnect an account from single sign-on |
+| GET/PUT | `/api/groups/:id/managers` | Admin | A group's admins |
+| POST | `/api/managed/links` | User | Add a link to a group you manage |
+| PUT/DELETE | `/api/managed/links/:id` | User | Change or remove a link in groups you manage |
 | GET | `/api/users` | Admin | List accounts |
 | PATCH | `/api/users/:id` | Admin | Change a name, role, or whether the account is active |
 | DELETE | `/api/users/:id` | Admin | Delete an account |

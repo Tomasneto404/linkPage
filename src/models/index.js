@@ -26,11 +26,12 @@ const personalLinks  = require('./personalLinks');
 const favorites      = require('./favorites');
 const throttle       = require('./throttle');
 const identities     = require('./identities');
+const groupManagers  = require('./groupManagers');
 
 const MODULES = {
   settings, links, groups, sections, clicks,
   icons, audit, linkRequests, ipTags, analytics,
-  users, sessions, userTokens, personalGroups, personalLinks, favorites, throttle, identities,
+  users, sessions, userTokens, personalGroups, personalLinks, favorites, throttle, identities, groupManagers,
 };
 
 /**

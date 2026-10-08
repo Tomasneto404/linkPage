@@ -50,6 +50,16 @@ async function signIn(page, email = 'member@example.test', password = PASSWORD, 
   await Promise.all([page.waitForURL(url => !url.pathname.startsWith('/login')), page.click('#signInBtn')]);
 }
 
+/** An administrator signs in the one way everybody does, and lands in the panel. */
+async function signInAdmin(page) {
+  await page.goto('/login/');
+  await page.fill('#signInEmail', 'boss@example.test');
+  await page.fill('#signInPassword', PASSWORD);
+  await Promise.all([page.waitForURL('**/admin/**'), page.click('#signInBtn')]);
+  // The panel, not the Settings button: on a phone that lives in a menu.
+  await page.locator('#adminWrap').waitFor({ state: 'visible' });
+}
+
 const cardNames = page => page.locator('.link-card:visible .link-name').allTextContents();
 
 /**
@@ -77,14 +87,11 @@ describe('the pages', () => {
     const page = await freshPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
-    for (const url of ['/', '/login/', '/admin/']) {
+    for (const url of ['/', '/login/', '/admin/?token']) {
       await page.goto(url);
       await page.waitForLoadState('load');
     }
-    await page.fill('#adminEmail', 'boss@example.test');
-    await page.fill('#adminPassword', PASSWORD);
-    await page.click('#adminLoginBtn');
-    await page.locator('#openSettingsBtn').waitFor({ state: 'visible' });
+    await signInAdmin(page);
     await page.click('#openSettingsBtn');
     for (const tab of await page.locator('#settingsNav .settings-tab').evaluateAll(els => els.map(e => e.dataset.tab))) {
       await page.click(`#settingsNav [data-tab="${tab}"]`);
@@ -117,10 +124,7 @@ describe('the file editor', () => {
                                bytes: Buffer.from(SAMPLE) });
       }
       const page = await freshPage({ viewport: { width, height: 800 } });
-      await page.goto('/admin/');
-      await page.fill('#adminEmail', 'boss@example.test');
-      await page.fill('#adminPassword', PASSWORD);
-      await page.click('#adminLoginBtn');
+      await signInAdmin(page);
       await page.locator('.link-card', { hasText: 'Editor sample' }).first().waitFor({ state: 'attached' });
       await page.evaluate(() => [...document.querySelectorAll('.link-card')]
         .find(c => c.textContent.includes('Editor sample')).querySelector('.edit-file-btn').click());
@@ -200,13 +204,60 @@ describe('signing in', () => {
     await page.context().close();
   });
 
-  btest('an administrator signs in to the panel with a password', async () => {
+  btest('there is one Sign in, and it knows an administrator from a member', async () => {
+    const page = await freshPage();
+    await page.goto('/');
+    await page.locator('.link-card').first().waitFor();
+    assert.equal(await page.locator('#accountSlot a').count(), 1, 'one button, no separate Admin');
+
+    // From the front page an administrator lands in the panel...
+    await page.click('#accountSlot a');
+    await page.waitForURL('**/login/**');
+    await page.fill('#signInEmail', 'boss@example.test');
+    await page.fill('#signInPassword', PASSWORD);
+    await Promise.all([page.waitForURL('**/admin/**'), page.click('#signInBtn')]);
+    await page.locator('#openSettingsBtn').waitFor({ state: 'visible' });
+    await page.context().close();
+
+    // ...and a member back on the links.
+    const member = await freshPage();
+    await member.goto('/');
+    await member.click('#accountSlot a');
+    await member.fill('#signInEmail', 'member@example.test');
+    await member.fill('#signInPassword', PASSWORD);
+    await Promise.all([member.waitForURL(url => url.pathname === '/'), member.click('#signInBtn')]);
+    await member.locator('#accountBtn').waitFor({ state: 'visible' });
+    await member.context().close();
+  });
+
+  btest('the admin panel sends a stranger to the same sign-in, and back', async () => {
     const page = await freshPage();
     await page.goto('/admin/');
-    await page.fill('#adminEmail', 'boss@example.test');
-    await page.fill('#adminPassword', PASSWORD);
-    await page.click('#adminLoginBtn');
+    await page.waitForURL('**/login/?next=%2Fadmin%2F');
+    await page.fill('#signInEmail', 'boss@example.test');
+    await page.fill('#signInPassword', PASSWORD);
+    await Promise.all([page.waitForURL('**/admin/**'), page.click('#signInBtn')]);
     await page.locator('#openSettingsBtn').waitFor({ state: 'visible' });
+    await page.context().close();
+  });
+
+  btest('the admin token still opens the panel, from /admin/?token', async () => {
+    const page = await freshPage();
+    await page.goto('/login/');
+    await Promise.all([page.waitForURL('**/admin/?token'), page.click('#tokenLink')]);
+    await page.fill('#tokenInput', c.token);
+    await page.click('#gateSubmitBtn');
+    await page.locator('#openSettingsBtn').waitFor({ state: 'visible' });
+    await page.context().close();
+  });
+
+  btest('a member who opens the panel is told it is not theirs, not sent round in circles', async () => {
+    const page = await freshPage();
+    await signIn(page);
+    await page.goto('/admin/');
+    await page.locator('#gate').waitFor({ state: 'visible' });
+    assert.match(await page.textContent('#gateIntro'), /not an administrator/);
+    assert.match(page.url(), /\/admin\//);
     await page.context().close();
   });
 });
@@ -274,6 +325,65 @@ describe('the + in the tab bar', () => {
       await page.keyboard.type('Design');
       await page.screenshot({ path: `${process.env.LINKPAGE_SCREENSHOTS}/tab-add.png`, clip: { x: 0, y: 0, width: 1280, height: 320 } });
     }
+    await page.context().close();
+  });
+});
+
+describe('group admins', () => {
+  let crew;
+  before(async () => {
+    crew = await c.makeGroup({ name: 'Crew' });
+    await c.makeLink({ name: 'Crew rota', url: 'https://rota.example.com/', groups: [crew.id] });
+  });
+
+  btest('an administrator makes a member a group admin, from the group dialog', async () => {
+    const page = await freshPage();
+    await signInAdmin(page);
+    // The row's buttons appear on hover, as they do for a mouse.
+    const btn = page.locator(`.edit-group-btn[data-group-id="${crew.id}"]`);
+    await btn.locator('xpath=ancestor::*[contains(@class,"nav-group") or contains(@class,"group-item")][1]').hover().catch(() => {});
+    await btn.click({ force: true });
+    const row = page.locator('#groupAdminsList .group-admin-row', { hasText: 'Mia Member' });
+    await row.waitFor();
+    await row.locator('input').check();
+    await page.locator('#groupForm button[type="submit"]').click();
+    await page.locator('#groupModalOverlay').waitFor({ state: 'hidden' });
+
+    const managers = (await c.api(`/api/groups/${crew.id}/managers`)).body.managers.map(m => m.email);
+    assert.deepEqual(managers, ['member@example.test']);
+    await page.context().close();
+  });
+
+  btest('who then adds a link to it, and edits it, from the public page', async () => {
+    const page = await freshPage();
+    await signIn(page);
+    await page.locator('.tab', { hasText: 'Crew' }).first().click();
+    await expectCards(page, ['Crew rota']);
+
+    // A link that is only in Crew is hers to edit; the pencil says so.
+    assert.equal(await page.locator('.link-card', { hasText: 'Crew rota' }).locator('.link-edit-btn').count(), 1);
+
+    await page.click('#accountBtn');
+    await page.click('[data-act="add-link"]');
+    assert.equal(await page.inputValue('#myLinkGroup'), `s${crew.id}`, 'adding from Crew puts it in Crew');
+    await page.fill('#myLinkName', 'Crew handbook');
+    await page.fill('#myLinkUrl', 'https://handbook.crew.example.com/');
+    await page.click('#myLinkSubmitBtn');
+    await page.locator('#myLinkOverlay').waitFor({ state: 'hidden' });
+    await expectCards(page, ['Crew rota', 'Crew handbook']);
+
+    // Everybody sees it: it is a shared link, not hers.
+    const stranger = await freshPage();
+    await stranger.goto('/');
+    await stranger.locator('.link-card', { hasText: 'Crew handbook' }).waitFor();
+    await stranger.context().close();
+
+    await page.locator('.link-card', { hasText: 'Crew handbook' }).locator('.link-edit-btn').click();
+    await page.locator('#myLinkOverlay').waitFor({ state: 'visible' });
+    await page.fill('#myLinkName', 'Crew handbook v2');
+    await page.click('#myLinkSubmitBtn');
+    await page.locator('#myLinkOverlay').waitFor({ state: 'hidden' });
+    await expectCards(page, ['Crew rota', 'Crew handbook v2']);
     await page.context().close();
   });
 });
