@@ -499,6 +499,44 @@ describe('guest contributions', () => {
     await page.context().close();
   });
 
+  btest('a guest can rename, recolour and delete their groups from Your groups', async () => {
+    const page = await freshPage();
+    await page.goto('/');
+    await page.locator('.link-card').first().waitFor();
+
+    // Add a group and a link so Your groups has something to show.
+    await page.click('#guestAddBtn');
+    await page.locator('#myLinkOverlay').waitFor({ state: 'visible' });
+    await page.fill('#myLinkName', 'A bookmark');
+    await page.fill('#myLinkUrl',  'https://g.example.com/');
+    await page.selectOption('#myLinkGroup', '__new');
+    await page.fill('#myLinkNewGroup', 'Original');
+    const [create] = await Promise.all([
+      page.waitForResponse(r => r.url().includes('/api/guest/links') && r.request().method() === 'POST'),
+      page.click('#myLinkSubmitBtn'),
+    ]);
+    assert.equal(create.status(), 201);
+
+    await page.click('#guestGroupsBtn');
+    await page.locator('#myGroupsOverlay').waitFor({ state: 'visible' });
+
+    // Rename by typing into the input and blurring (the manager saves on change).
+    const name = page.locator('.my-group-item .my-group-name').first();
+    await name.fill('Renamed');
+    const [rename] = await Promise.all([
+      page.waitForResponse(r => /\/api\/guest\/groups\/\d+$/.test(r.url()) && r.request().method() === 'PUT'),
+      name.blur(),
+    ]);
+    assert.equal(rename.status(), 200);
+
+    // Delete arms on first click, deletes on second (no browser confirm dialog).
+    const del = page.locator('.my-group-item [data-act="delete-group"]').first();
+    await del.click();
+    await del.click();
+    await page.waitForFunction(() => ![...document.querySelectorAll('.tab')].some(t => /Renamed/.test(t.textContent)));
+    await page.context().close();
+  });
+
   btest('with contributions off nothing is offered', async () => {
     require('../../src/models').deleteSetting('contribution_mode');
     const page = await freshPage();

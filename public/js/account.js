@@ -35,15 +35,23 @@ function renderAccountControl() {
     // "Add a link" sits beside it — a guest does not need an account.
     const here = location.pathname + location.search;
     const href = here === '/' ? '/login/' : `/login/?next=${next}`;
-    const addBtn = guestsAllowed() ? `
+// Two buttons when guests are allowed, so a guest with content has a way to
+    // rename, recolour or remove a group they already have.
+    const guestButtons = guestsAllowed() ? `
       <button type="button" class="admin-btn account-guest-add" id="guestAddBtn"
               title="Add a link to your own page here">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span class="admin-btn-label">Add a link</span>
+      </button>
+      <button type="button" class="admin-btn account-guest-groups" id="guestGroupsBtn"
+              title="Rename, recolour or remove your groups">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="11" width="18" height="4" rx="1"/><rect x="3" y="18" width="18" height="3" rx="1"/></svg>
+        <span class="admin-btn-label">Your groups</span>
       </button>` : '';
     slot.innerHTML = `
-      ${addBtn}
+      ${guestButtons}
       <a href="${href}" class="admin-btn account-signin">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -53,6 +61,7 @@ function renderAccountControl() {
         <span class="admin-btn-label">Sign in</span>
       </a>`;
     document.getElementById('guestAddBtn')?.addEventListener('click', () => openComposer(null));
+    document.getElementById('guestGroupsBtn')?.addEventListener('click', () => openGroupsManager());
     return;
   }
 

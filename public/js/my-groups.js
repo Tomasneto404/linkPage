@@ -127,7 +127,7 @@ el('myGroupsList')?.addEventListener('click', async e => {
   if (act === 'group-up' || act === 'group-down') {
     const order = shifted(personalGroups().map(g => g.personal_id), group.personal_id, act === 'group-up' ? -1 : 1);
     if (!order) return;
-    const res = await myRequest('/api/my/groups/reorder', { json: { order } });
+    const res = await myRequest(`${myBase()}/groups/reorder`, { json: { order } });
     if (!res.ok) { showToast('Could not move that group', { type: 'error' }); return; }
     await refreshGroupsManager();
     return;
@@ -145,7 +145,7 @@ el('myGroupsList')?.addEventListener('click', async e => {
     const name   = panel.querySelector('.my-section-new').value.trim();
     const parent = panel.querySelector('.my-section-parent').value;
     if (!name) { panel.querySelector('.my-section-new').focus(); return; }
-    const res = await myRequest(`/api/my/groups/${group.personal_id}/sections`, {
+    const res = await myRequest(`${myBase()}/groups/${group.personal_id}/sections`, {
       json: { name, parent_section_id: parent ? Number(parent) : null },
     });
     if (!res.ok) { showToast(res.body.error || 'Could not add that section', { type: 'error' }); return; }
@@ -161,7 +161,7 @@ el('myGroupsList')?.addEventListener('click', async e => {
     const siblings = sectionSiblings(group, sectionId);
     const order = siblings && shifted(siblings, sectionId, act === 'section-up' ? -1 : 1);
     if (!order) return;
-    const res = await myRequest('/api/my/sections/reorder', { json: { order } });
+    const res = await myRequest(`${myBase()}/sections/reorder`, { json: { order } });
     if (!res.ok) { showToast('Could not move that section', { type: 'error' }); return; }
     await refreshGroupsManager();
     return;
@@ -175,7 +175,7 @@ el('myGroupsList')?.addEventListener('click', async e => {
       btn.classList.add('btn-ghost-danger');
       return;
     }
-    const res = await myRequest(`/api/my/sections/${sectionId}`, { method: 'DELETE' });
+    const res = await myRequest(`${myBase()}/sections/${sectionId}`, { method: 'DELETE' });
     if (!res.ok) { showToast('Could not delete that section', { type: 'error' }); return; }
     await refreshGroupsManager();
     showToast('Section deleted', { detail: 'Its links are still in the group.' });
@@ -189,7 +189,7 @@ el('myGroupsList')?.addEventListener('change', async e => {
   const name = input.value.trim();
   const id   = Number(input.closest('.my-section-row').dataset.sectionId);
   if (!name) { await refreshGroupsManager(); return; }
-  const res = await myRequest(`/api/my/sections/${id}`, { method: 'PUT', json: { name } });
+  const res = await myRequest(`${myBase()}/sections/${id}`, { method: 'PUT', json: { name } });
   if (!res.ok) { showToast('Could not rename that section', { type: 'error' }); return; }
   await loadData();
   showToast('Section renamed');
@@ -207,7 +207,7 @@ el('myGroupsAddForm')?.addEventListener('submit', async e => {
   const name = el('myGroupsNewName').value.trim();
   if (!name) return;
   const color = el('myGroupsNewColor').querySelector('.color-palette')?.dataset.value;
-  const res = await myRequest('/api/my/groups', { json: { name, color } });
+  const res = await myRequest(`${myBase()}/groups`, { json: { name, color } });
   if (!res.ok) {
     el('myGroupsError').textContent = res.body.error || 'Could not create that group.';
     el('myGroupsError').classList.remove('hidden');
@@ -228,7 +228,7 @@ el('myGroupsList')?.addEventListener('change', async e => {
   const name = input.value.trim();
   if (!group || !name || name === group.name) { input.value = group?.name || ''; return; }
 
-  const res = await myRequest(`/api/my/groups/${group.personal_id}`, {
+  const res = await myRequest(`${myBase()}/groups/${group.personal_id}`, {
     method: 'PUT', json: { name, color: group.color },
   });
   if (!res.ok) { input.value = group.name; showToast('Could not rename that group', { type: 'error' }); return; }
@@ -259,7 +259,7 @@ el('myGroupsList')?.addEventListener('click', async e => {
     return;
   }
   const id = Number(btn.closest('.my-group-item').dataset.personalId);
-  const res = await myRequest(`/api/my/groups/${id}`, { method: 'DELETE' });
+  const res = await myRequest(`${myBase()}/groups/${id}`, { method: 'DELETE' });
   if (!res.ok) { showToast('Could not delete that group', { type: 'error' }); return; }
   await loadData();
   renderGroupsManager();
@@ -273,7 +273,7 @@ el('myGroupsList')?.addEventListener('palettechange', async e => {
   if (!group || e.detail.color === group.color) return;
 
   const name = item.querySelector('.my-group-name').value.trim() || group.name;
-  const res = await myRequest(`/api/my/groups/${group.personal_id}`, {
+  const res = await myRequest(`${myBase()}/groups/${group.personal_id}`, {
     method: 'PUT', json: { name, color: e.detail.color },
   });
   if (!res.ok) { showToast('Could not change that colour', { type: 'error' }); return; }
