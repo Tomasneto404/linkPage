@@ -146,6 +146,7 @@ function deriveAuditEntry(req) {
   if (p === '/api/settings/requests-enabled')            return { action: 'settings.requests_enabled', entityType: 'settings', entityId: null, summary: 'Toggled the link-request feature' };
   if (p === '/api/settings/request-password')            return { action: 'settings.request_password', entityType: 'settings', entityId: null, summary: M === 'DELETE' ? 'Removed the request password' : 'Set the request password' };
   if (p === '/api/settings/theme')                       return { action: 'settings.theme', entityType: 'settings', entityId: null, summary: 'Updated theme & appearance' };
+  if (p === '/api/settings/season')                      return { action: 'settings.season_theme', entityType: 'settings', entityId: null, summary: `Set the season theme to ${body.name || 'none'}` };
   if (p === '/api/settings/require-login')               return { action: 'settings.require_login', entityType: 'settings', entityId: null, summary: body.enabled ? 'Made the page members-only' : 'Opened the page to everyone' };
   if (p === '/api/settings/user-quota')                  return { action: 'settings.user_quota', entityType: 'settings', entityId: null, summary: 'Changed the storage allowance' };
   if (p === '/api/settings/mail')                        return { action: 'settings.mail', entityType: 'settings', entityId: null, summary: 'Changed the email settings' };

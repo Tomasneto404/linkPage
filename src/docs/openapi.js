@@ -832,6 +832,16 @@ const paths = {
       responses: { 200: json({ type: 'object' }) },
     }),
   },
+  '/api/settings/season': {
+    post: op({
+      tag: TAGS.settings,
+      summary: 'Dress the page in a season',
+      description: 'A seasonal palette, background and button shape, in Light and Dark. Set to '
+                 + '`none` for the ordinary look. Visitors see the change on their next page load.',
+      body: jsonBody({ name: { type: 'string', enum: ['none', 'easter', 'halloween', 'christmas', 'spring', 'autumn', 'winter', 'summer'] } }, ['name']),
+      responses: { 200: json({ type: 'object' }), 400: json(ref('Error')) },
+    }),
+  },
   '/api/settings/require-login': {
     post: op({
       tag: TAGS.settings,

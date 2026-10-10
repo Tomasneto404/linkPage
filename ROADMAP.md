@@ -95,6 +95,9 @@ interface reaches them.
 ## 6 — Asked for while testing
 
 - [x] **"+ Add a link" card inside a group**, for anyone who may add there.
+- [x] **Season themes.** Easter, Halloween, Christmas, Spring, Autumn, Winter,
+      Summer. Each in Light and Dark, with its own palette, SVG background and
+      button shape; one setting toggles them.
 - [x] **Guest contributions.** A cookie-identified browser gets its own groups
       and links, with an admin setting (off / members / anyone), a retention
       policy, and a Contributions tab in the panel for moderation.

@@ -87,6 +87,7 @@ function applyThemeSettings(settings) {
     default:          settings.default_theme || 'system',
   };
   applyThemeVariants();
+  window.LinkPageTheme?.applySeason(settings.season_theme);
   if (!localStorage.getItem('linkpage_theme')) {
     applyTheme(getInitialTheme(), false);
   } else {

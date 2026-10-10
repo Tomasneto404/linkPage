@@ -73,6 +73,16 @@ function applyThemeVariants() {
   el.setAttribute('data-mobile-nav',    themeSettings.mobileNav || 'top');
 }
 
+const SEASON_THEMES_ALL = ['easter', 'halloween', 'christmas', 'spring', 'autumn', 'winter', 'summer'];
+
+/** Dresses the page in a season — Easter, Halloween, Christmas, Spring, Autumn,
+ *  Winter or Summer — through an attribute the stylesheet (seasons.css) keys on.
+ *  'none' takes it off. */
+function applySeason(name) {
+  if (SEASON_THEMES_ALL.includes(name)) document.documentElement.setAttribute('data-season', name);
+  else                                  document.documentElement.removeAttribute('data-season');
+}
+
 // Applies the fetched theme settings. If the visitor hasn't picked a theme yet,
 // honours the admin's default now that we know it.
 function applyThemeSettings(settings) {
@@ -86,6 +96,7 @@ function applyThemeSettings(settings) {
     default:          settings.default_theme || 'system',
   };
   applyThemeVariants();
+  applySeason(settings.season_theme);
   if (!localStorage.getItem('linkpage_theme')) {
     applyTheme(getInitialTheme(), false);   // switches theme + applies accent
   } else {

@@ -125,10 +125,24 @@
    * it has /api/settings, and again whenever the theme changes, since both the
    * accent and the wallpaper have a light and a dark version.
    */
+  /**
+   * Dresses the page in a season — Easter, Halloween, Christmas, Spring,
+   * Autumn, Winter or Summer — as a data attribute the stylesheet keys on.
+   * 'none' takes it off. Applied before the accent so an admin's chosen
+   * accent still wins; a season decides surfaces, backgrounds and shapes.
+   */
+  const SEASONS = ['easter', 'halloween', 'christmas', 'spring', 'autumn', 'winter', 'summer'];
+  function applySeason(name) {
+    const root = document.documentElement;
+    if (SEASONS.includes(name)) root.setAttribute('data-season', name);
+    else                        root.removeAttribute('data-season');
+  }
+
   function applyAppearance(settings, theme) {
     const t = theme || initialTheme(settings.default_theme);
     applyTheme(t, false);
     applyVariants({ light: settings.theme_light_variant, dark: settings.theme_dark_variant });
+    applySeason(settings.season_theme);
     applyAccent(settings, t);
     applyBarOpacity(settings.bar_opacity);
     applyWallpaper(settings, t);
@@ -137,7 +151,7 @@
 
   window.LinkPageTheme = {
     initialTheme, applyTheme, applyVariants,
-    applyAppearance, clearWallpaper,
+    applyAppearance, clearWallpaper, applySeason,
     hexToRgb, shadeColor,
     STORAGE_KEY: KEY,
   };

@@ -8,6 +8,7 @@
   <title>LinkPage — Admin</title>
   <link rel="icon" id="favicon" href="/brand/icon-light.png" />
   <link rel="stylesheet" href="admin.css" />
+  <link rel="stylesheet" href="/seasons.css" />
   <!-- The shared theme core, for the sign-in gate: the panel itself keeps its
        own fuller theme code in js/core.js. -->
   <script src="/theme-boot.js"></script>
@@ -687,6 +688,28 @@
               <option value="system">Follow system</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
+            </select>
+          </div>
+
+          <div class="settings-section-title" style="margin-top:22px">Season Themes</div>
+          <div class="settings-row-desc" style="margin-bottom:10px">
+            Dress the page in a season — palette, background and shape, in Light and Dark.
+            An accent you have configured still wins; the season decides everything else.
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Season</div>
+              <div class="settings-row-desc" id="seasonThemeDesc">Off. The ordinary look.</div>
+            </div>
+            <select id="seasonThemeSelect" class="bulk-group-select" style="width:170px">
+              <option value="none">Off (ordinary)</option>
+              <option value="easter">Easter</option>
+              <option value="halloween">Halloween</option>
+              <option value="christmas">Christmas</option>
+              <option value="spring">Spring</option>
+              <option value="autumn">Autumn</option>
+              <option value="winter">Winter</option>
+              <option value="summer">Summer</option>
             </select>
           </div>
         </div>

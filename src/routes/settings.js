@@ -24,6 +24,7 @@ router.post  ('/api/settings/favicon',         requireAdmin, upload.single('favi
 router.delete('/api/settings/favicon',         requireAdmin,                           c.deleteFavicon);
 router.post  ('/api/settings/save-favicons',   requireAdmin,                           c.saveFavicons);
 router.post  ('/api/settings/require-login',   requireAdmin,                           c.setRequireLogin);
+router.post  ('/api/settings/season',          requireAdmin,                           c.setSeasonTheme);
 router.get   ('/api/settings/oidc',            requireAdmin,                           oidc.getSettings);
 router.put   ('/api/settings/oidc',            requireAdmin,                           wrapAsync(oidc.saveSettings));
 router.get   ('/api/settings/mail',            requireAdmin,                           mail.getSettings);

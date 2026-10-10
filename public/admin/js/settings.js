@@ -533,6 +533,26 @@ function hydrateThemeControls(s) {
   document.getElementById('darkVariantSelect').value  = s.theme_dark_variant  || 'default';
   document.getElementById('defaultThemeSelect').value = s.default_theme || 'system';
   document.getElementById('mobileNavSelect').value    = s.mobile_nav_position || 'top';
+  const sel = document.getElementById('seasonThemeSelect');
+  if (sel) {
+    sel.value = s.season_theme || 'none';
+    describeSeason(sel.value);
+  }
+}
+
+const SEASON_DESC = {
+  none:      'Off. The ordinary look.',
+  easter:    'Pastel lavender and mint, with egg confetti.',
+  halloween: 'Deep purple and pumpkin orange, bats in the background.',
+  christmas: 'Cranberry and pine with gold hairlines, falling snowflakes.',
+  spring:    'Cherry blossom pink and sage green, drifting petals.',
+  autumn:    'Amber, rust and burgundy, falling leaves.',
+  winter:    'Icy blue and silver, snowflakes and frosted bars.',
+  summer:    'Coral, turquoise and sunshine yellow, rolling waves.',
+};
+function describeSeason(name) {
+  const el = document.getElementById('seasonThemeDesc');
+  if (el) el.textContent = SEASON_DESC[name] || SEASON_DESC.none;
 }
 
 document.getElementById('resetAccentBtn').addEventListener('click', () => {
@@ -597,6 +617,19 @@ document.getElementById('darkVariantSelect').addEventListener('change', e => {
 document.getElementById('defaultThemeSelect').addEventListener('change', e => {
   themeSettings.default = e.target.value;
   saveTheme({ default_theme: e.target.value }).then(() => showToast('Default theme updated'));
+});
+
+document.getElementById('seasonThemeSelect')?.addEventListener('change', async e => {
+  const name = e.target.value;
+  describeSeason(name);
+  // Apply straight away so the admin sees it on the panel's own gate and
+  // settings surface — a visitor sees it on next load.
+  window.LinkPageTheme?.applySeason(name);
+  const res = await sendAuthRequest('/api/settings/season', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+  });
+  if (!res.ok) { showToast('Could not save the season theme', 'error'); return; }
+  showToast(name === 'none' ? 'Season off' : `Season set to ${name}`);
 });
 
 document.getElementById('mobileNavSelect').addEventListener('change', e => {

@@ -5,7 +5,7 @@
 const db = require('../models');
 const {
   LOGO_VARIANTS, THEME_LIGHT_VARIANTS, THEME_DARK_VARIANTS,
-  DEFAULT_THEMES, MOBILE_NAV_POSITIONS, HEX_COLOR_RE,
+  DEFAULT_THEMES, SEASON_THEMES, MOBILE_NAV_POSITIONS, HEX_COLOR_RE,
   WALLPAPER_VARIANTS, DEFAULT_WALLPAPER_FOG, DEFAULT_BAR_OPACITY,
   MARKDOWN_OPEN_MODES, DEFAULT_MARKDOWN_OPEN_MODE, DEFAULT_USER_STORAGE_QUOTA,
 } = require('../config/constants');
@@ -62,6 +62,7 @@ function getSettings(req, res) {
     // Who may add groups and links through the public page: 'off' (nobody),
     // 'members' (signed-in only) or 'anyone' (guests too).
     contribution_mode:         require('../middleware/guest').contributionMode(),
+    season_theme:              readSeasonTheme(),
   });
 }
 
@@ -352,6 +353,26 @@ function setRequireLogin(req, res) {
   res.json({ require_login: enabled });
 }
 
+/** The stored season theme, defaulting to 'none'. */
+function readSeasonTheme() {
+  const stored = db.readSetting('season_theme');
+  return SEASON_THEMES.includes(stored) ? stored : 'none';
+}
+
+/**
+ * Which seasonal dress the page wears. 'none' is the ordinary look.
+ * Stored only when it is not the default, like the other such settings here.
+ */
+function setSeasonTheme(req, res) {
+  const name = req.body?.name;
+  if (!SEASON_THEMES.includes(name)) {
+    return res.status(400).json({ error: `Season must be one of: ${SEASON_THEMES.join(', ')}` });
+  }
+  if (name === 'none') db.deleteSetting('season_theme');
+  else                 db.writeSetting('season_theme', name);
+  res.json({ season_theme: name });
+}
+
 function setFooterEnabled(req, res) {
   const enabled = !!req.body.enabled;
   if (enabled) db.deleteSetting('footer_enabled');
@@ -517,6 +538,7 @@ function setTheme(req, res) {
 
 module.exports = {
   setRequireLogin,
+  setSeasonTheme,
   setUserQuota,
   setMarkdownOpenMode,
   uploadWallpaperImage,

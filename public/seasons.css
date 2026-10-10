@@ -1,0 +1,295 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ * Copyright (C) 2026 Tomás Neto
+ *
+ * Seasonal dresses for the page: an attribute on <html> picks one, each with
+ * its own accent, surface tones, body pattern and button shape, in Light and
+ * Dark. The attribute is set by theme-boot.js and public/js/core.js from the
+ * public settings; an administrator chooses it in Settings → Themes.
+ *
+ * Precedence:
+ *   - A season sets --primary with a selector; the admin's own accent sets it
+ *     inline via element.style, which beats any selector — so an admin who
+ *     configured an accent keeps it, and the season's surfaces are the only
+ *     change they see. A season left alone paints its own accent.
+ *
+ * One pattern per season sits in --season-pattern as a data: URL and is drawn
+ * over the body behind everything else. Keep the SVG small — this ships to
+ * every visitor and reads better as a hint than wallpaper.
+ */
+
+/* The pattern paints under everything via a fixed ::before. z-index: -1 keeps
+   it out of the layering decisions the rest of the page makes — notably the
+   sticky header and tab bar, which stop sticking the moment anything in their
+   lineage overrides their position. body is given a transparent background
+   while a season is on, so the pattern shows through; html takes the base
+   colour instead, so there is no gap at the edges. */
+html[data-season] { background-color: var(--bg); }
+[data-season] body     { background-color: transparent; }
+[data-season] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: var(--season-pattern, none);
+  background-repeat: repeat;
+  background-size: var(--season-pattern-size, 120px 120px);
+  opacity: var(--season-pattern-alpha, 0.1);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Tab-shape and card-shape knobs each season can tweak. Fall back to the
+   defaults when the season leaves them alone. */
+[data-season] .tab { border-radius: var(--season-tab-radius, 980px); }
+[data-season] .link-card { border-radius: var(--season-card-radius, 14px); }
+[data-season] .modal, [data-season] .my-groups-modal, [data-season] .gate-card {
+  border-radius: var(--season-modal-radius, 16px);
+}
+[data-season] .btn { border-radius: var(--season-btn-radius, 10px); }
+
+/* ─── Easter ──────────────────────────────────────────────────────────────── */
+/* Pastel lavender and mint, polka-dot egg confetti, oval buttons. */
+[data-season="easter"] {
+  --primary:      #B695F7;
+  --primary-rgb:  182,149,247;
+  --primary-hover:#A47EF3;
+  --surface:      #FFFBF3;
+  --surface-2:    #FFF7E6;
+  --surface-3:    #FDEEF5;
+  --bg:           #FFF8EC;
+  --border:       #F2E7D5;
+  --border-strong:#E9D9C1;
+  --season-tab-radius: 999px;
+  --season-card-radius: 20px;
+  --season-btn-radius: 999px;
+  --season-modal-radius: 22px;
+  --season-pattern-size: 72px 72px;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'><g fill='none' stroke='%23E6CFEA' stroke-width='1.2' stroke-linecap='round'><ellipse cx='18' cy='18' rx='5' ry='7'/><circle cx='46' cy='14' r='3' fill='%23FFC9A8'/><ellipse cx='54' cy='48' rx='6' ry='8' fill='%23CFEAD8'/><circle cx='20' cy='54' r='4' stroke='%23F7C8E0'/><path d='M8 40 q6 -5 12 0' stroke='%23B695F7'/></g></svg>");
+}
+[data-season="easter"][data-theme="dark"] {
+  --primary:      #C4A8F9;
+  --primary-rgb:  196,168,249;
+  --primary-hover:#D4BEFC;
+  --surface:      #3A2D4B;
+  --surface-2:    #2F2440;
+  --surface-3:    #241A32;
+  --bg:           #221633;
+  --border:       #4A3A5F;
+  --border-strong:#5B4876;
+  --season-pattern-alpha: 0.14;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72'><g fill='none' stroke='%23C4A8F9' stroke-width='1.2'><ellipse cx='18' cy='18' rx='5' ry='7'/><circle cx='46' cy='14' r='3'/><ellipse cx='54' cy='48' rx='6' ry='8'/><circle cx='20' cy='54' r='4'/></g></svg>");
+}
+
+/* ─── Halloween ───────────────────────────────────────────────────────────── */
+/* Deep purple + pumpkin orange. Bats scatter in the background. */
+[data-season="halloween"] {
+  --primary:      #F57600;
+  --primary-rgb:  245,118,0;
+  --primary-hover:#E26A00;
+  --surface:      #FFFAEF;
+  --surface-2:    #FBEEDA;
+  --surface-3:    #F3E0CC;
+  --bg:           #FFF4E0;
+  --border:       #E8D0A8;
+  --border-strong:#D4B382;
+  --season-card-radius: 10px;
+  --season-btn-radius: 8px;
+  --season-modal-radius: 10px;
+  --season-pattern-alpha: 0.1;
+  --season-pattern-size: 120px 120px;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><g fill='%234C1D77'><path d='M20 40 q-6 -8 -14 -4 q6 -6 14 -2 q0 -4 2 -6 q2 2 2 6 q8 -4 14 2 q-8 -4 -14 4 z'/><path d='M80 90 q-5 -6 -12 -3 q5 -5 12 -2 q0 -3 2 -5 q2 2 2 5 q7 -3 12 2 q-7 -3 -12 3 z'/></g><g fill='%23F57600'><circle cx='96' cy='22' r='2'/><circle cx='34' cy='78' r='1.5'/><circle cx='70' cy='48' r='1.5'/></g></svg>");
+}
+[data-season="halloween"][data-theme="dark"] {
+  --primary:      #FF8A1A;
+  --primary-rgb:  255,138,26;
+  --primary-hover:#FF9D45;
+  --surface:      #231334;
+  --surface-2:    #1A0E27;
+  --surface-3:    #140A1F;
+  --bg:           #0D0718;
+  --border:       #3B2353;
+  --border-strong:#523170;
+  --season-pattern-alpha: 0.1;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><g fill='%23FF8A1A'><path d='M20 40 q-6 -8 -14 -4 q6 -6 14 -2 q0 -4 2 -6 q2 2 2 6 q8 -4 14 2 q-8 -4 -14 4 z'/><path d='M80 90 q-5 -6 -12 -3 q5 -5 12 -2 q0 -3 2 -5 q2 2 2 5 q7 -3 12 2 q-7 -3 -12 3 z'/></g><g fill='%23FFC58A'><circle cx='96' cy='22' r='2'/><circle cx='34' cy='78' r='1.5'/><circle cx='70' cy='48' r='1.5'/></g></svg>");
+}
+/* A hairline pumpkin glow around active controls to tie it together. */
+[data-season="halloween"] .tab.active,
+[data-season="halloween"] .btn-primary {
+  box-shadow: 0 0 0 2px rgba(245,118,0,0.18), 0 4px 14px rgba(245,118,0,0.25);
+}
+
+/* ─── Christmas ───────────────────────────────────────────────────────────── */
+/* Cranberry + pine + gold hairlines, falling snowflakes. */
+[data-season="christmas"] {
+  --primary:      #C8342B;
+  --primary-rgb:  200,52,43;
+  --primary-hover:#B22820;
+  --surface:      #FBFCFD;
+  --surface-2:    #F2F6F3;
+  --surface-3:    #E6EFE8;
+  --bg:           #F6FAF7;
+  --border:       #D6E6DB;
+  --border-strong:#B6D4BE;
+  --season-card-radius: 14px;
+  --season-btn-radius: 12px;
+  --season-pattern-alpha: 0.12;
+  --season-pattern-size: 100px 100px;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><g stroke='%23D4A017' stroke-width='1' fill='none' stroke-linecap='round'><path d='M20 20 l0 12 M14 26 l12 0 M15 21 l10 10 M15 31 l10 -10'/><path d='M72 68 l0 10 M67 73 l10 0 M68 69 l8 8 M68 77 l8 -8'/></g><g fill='%231C6B3A'><circle cx='50' cy='40' r='1.6'/><circle cx='18' cy='78' r='1.6'/><circle cx='84' cy='18' r='1.6'/></g></svg>");
+}
+[data-season="christmas"] .link-card,
+[data-season="christmas"] .modal,
+[data-season="christmas"] .gate-card {
+  border-color: rgba(212,160,23,0.4);
+}
+[data-season="christmas"][data-theme="dark"] {
+  --primary:      #FF5F55;
+  --primary-rgb:  255,95,85;
+  --primary-hover:#FF7A72;
+  --surface:      #163826;
+  --surface-2:    #0F2A1C;
+  --surface-3:    #0A2015;
+  --bg:           #091A12;
+  --border:       #2A5A3E;
+  --border-strong:#3A7A54;
+  --season-pattern-alpha: 0.22;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><g stroke='%23F0C85A' stroke-width='1' fill='none'><path d='M20 20 l0 12 M14 26 l12 0 M15 21 l10 10 M15 31 l10 -10'/><path d='M72 68 l0 10 M67 73 l10 0 M68 69 l8 8 M68 77 l8 -8'/></g></svg>");
+}
+
+/* ─── Spring ──────────────────────────────────────────────────────────────── */
+/* Cherry blossom pink + sage green, drifting petals. */
+[data-season="spring"] {
+  --primary:      #E86B9E;
+  --primary-rgb:  232,107,158;
+  --primary-hover:#D55389;
+  --surface:      #FFFBFC;
+  --surface-2:    #FFF2F5;
+  --surface-3:    #F0F7EE;
+  --bg:           #FFF4F6;
+  --border:       #F0DDE3;
+  --border-strong:#E2C2CB;
+  --season-card-radius: 18px;
+  --season-btn-radius: 14px;
+  --season-modal-radius: 20px;
+  --season-pattern-alpha: 0.12;
+  --season-pattern-size: 110px 110px;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='110' height='110'><g fill='%23F4A2BE'><path d='M20 30 q-4 -2 -6 1 q-3 4 1 6 q0 4 4 4 q4 0 4 -4 q4 -2 1 -6 q-2 -3 -4 -1 z'/><path d='M80 72 q-4 -2 -6 1 q-3 4 1 6 q0 4 4 4 q4 0 4 -4 q4 -2 1 -6 q-2 -3 -4 -1 z'/><circle cx='56' cy='22' r='2' fill='%2386B079'/><circle cx='28' cy='84' r='2' fill='%2386B079'/></g></svg>");
+}
+[data-season="spring"][data-theme="dark"] {
+  --primary:      #F494BC;
+  --primary-rgb:  244,148,188;
+  --primary-hover:#F6ACC9;
+  --surface:      #3E2A38;
+  --surface-2:    #321F2D;
+  --surface-3:    #291722;
+  --bg:           #241420;
+  --border:       #513545;
+  --border-strong:#6B475C;
+  --season-pattern-alpha: 0.2;
+}
+
+/* ─── Autumn ──────────────────────────────────────────────────────────────── */
+/* Amber, rust and burgundy, falling leaves. */
+[data-season="autumn"] {
+  --primary:      #C04E1F;
+  --primary-rgb:  192,78,31;
+  --primary-hover:#A94319;
+  --surface:      #FFF9EF;
+  --surface-2:    #FBF0DB;
+  --surface-3:    #F3E1C0;
+  --bg:           #FFF4E6;
+  --border:       #E9D4AC;
+  --border-strong:#D4B382;
+  --season-card-radius: 12px;
+  --season-btn-radius: 12px;
+  --season-pattern-alpha: 0.14;
+  --season-pattern-size: 130px 130px;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='130' height='130'><g><path d='M28 24 q-6 -10 -14 -8 q4 -8 12 -6 q-2 -8 6 -10 q4 6 2 12 q8 -2 10 6 q-8 2 -16 6 z' fill='%23C04E1F'/><path d='M94 88 q-6 -8 -14 -6 q4 -8 12 -4 q-2 -8 6 -10 q4 6 2 12 q8 -2 10 6 q-8 2 -16 2 z' fill='%23C78F1C'/><path d='M70 42 q-5 -6 -10 -5 q3 -5 8 -3 q-1 -6 4 -8 q3 4 1 8 q6 -2 7 4 q-5 3 -10 4 z' fill='%237A2A2A'/></g></svg>");
+}
+[data-season="autumn"][data-theme="dark"] {
+  --primary:      #E86E2D;
+  --primary-rgb:  232,110,45;
+  --primary-hover:#F08244;
+  --surface:      #2F2113;
+  --surface-2:    #241810;
+  --surface-3:    #1A110A;
+  --bg:           #150C06;
+  --border:       #4A331C;
+  --border-strong:#664627;
+  --season-pattern-alpha: 0.2;
+}
+
+/* ─── Winter ──────────────────────────────────────────────────────────────── */
+/* Ice blue + silver, snowflakes, frosted glass bars. */
+[data-season="winter"] {
+  --primary:      #3E7FB3;
+  --primary-rgb:  62,127,179;
+  --primary-hover:#346A96;
+  --surface:      #FBFDFF;
+  --surface-2:    #EFF5FB;
+  --surface-3:    #E2ECF5;
+  --bg:           #F3F7FC;
+  --border:       #D7E3EF;
+  --border-strong:#B9CBDE;
+  --season-card-radius: 16px;
+  --season-btn-radius: 14px;
+  --season-pattern-alpha: 0.14;
+  --season-pattern-size: 110px 110px;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='110' height='110'><g stroke='%236AB2E8' stroke-width='1' fill='none' stroke-linecap='round'><path d='M24 24 l0 18 M15 33 l18 0 M18 27 l12 12 M18 39 l12 -12'/><path d='M82 76 l0 14 M75 83 l14 0 M77 78 l10 10 M77 88 l10 -10'/><path d='M60 44 l0 10 M55 49 l10 0'/></g></svg>");
+}
+[data-season="winter"] .site-header,
+[data-season="winter"] .tabs-wrap {
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+[data-season="winter"][data-theme="dark"] {
+  --primary:      #6AB2E8;
+  --primary-rgb:  106,178,232;
+  --primary-hover:#88C2EE;
+  --surface:      #142238;
+  --surface-2:    #0F1A2B;
+  --surface-3:    #0A1322;
+  --bg:           #080F1C;
+  --border:       #233A5B;
+  --border-strong:#2F4C74;
+  --season-pattern-alpha: 0.22;
+}
+
+/* ─── Summer ──────────────────────────────────────────────────────────────── */
+/* Coral + turquoise + sunshine yellow, bubbly rounded, soft waves. */
+[data-season="summer"] {
+  --primary:      #FF6F5E;
+  --primary-rgb:  255,111,94;
+  --primary-hover:#F15648;
+  --surface:      #FFFEFB;
+  --surface-2:    #FFF5EC;
+  --surface-3:    #E6F7F5;
+  --bg:           #FFF9EC;
+  --border:       #FBE3C8;
+  --border-strong:#F3C994;
+  --season-card-radius: 22px;
+  --season-btn-radius: 999px;
+  --season-tab-radius: 999px;
+  --season-modal-radius: 24px;
+  --season-pattern-alpha: 0.14;
+  --season-pattern-size: 140px 60px;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='60'><g fill='none' stroke='%2319BBB4' stroke-width='1.4' stroke-linecap='round'><path d='M0 40 q17 -16 35 0 t35 0 t35 0 t35 0'/><path d='M0 20 q17 -10 35 0 t35 0 t35 0 t35 0' stroke='%23FFD24C'/></g></svg>");
+}
+[data-season="summer"] .link-card { box-shadow: 0 6px 20px rgba(255,111,94,0.08); }
+[data-season="summer"][data-theme="dark"] {
+  --primary:      #FF8B7B;
+  --primary-rgb:  255,139,123;
+  --primary-hover:#FFA398;
+  --surface:      #163249;
+  --surface-2:    #0E2439;
+  --surface-3:    #091B2B;
+  --bg:           #061222;
+  --border:       #214660;
+  --border-strong:#2E5C7D;
+  --season-pattern-alpha: 0.22;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='60'><g fill='none' stroke='%23FFD24C' stroke-width='1.4' stroke-linecap='round'><path d='M0 40 q17 -16 35 0 t35 0 t35 0 t35 0'/><path d='M0 20 q17 -10 35 0 t35 0 t35 0 t35 0' stroke='%2366E0D8'/></g></svg>");
+}
+
+/* --text overrides scoped to Light so Dark keeps its ordinary bright text. */
+[data-season="halloween"]:not([data-theme="dark"]) { --text: #2A1540; --text-2: #4C1D77; }
+[data-season="christmas"]:not([data-theme="dark"]) { --text: #0E2A1D; }
+[data-season="autumn"]:not([data-theme="dark"])    { --text: #4A2A10; --text-2: #6E3F18; }

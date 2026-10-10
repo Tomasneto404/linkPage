@@ -10,6 +10,9 @@ pushed tag out of this file. Newest release first; the top section must match
 ### Accounts
 People can now sign in with an email and a password. The first start creates an administrator account and prints its password beside the admin token; everyone else arrives through an invite link from Settings → Accounts, which works once and expires. There is no open sign-up and the app sends no email: a forgotten password is a reset link the administrator hands over. Sessions live in the database behind an HttpOnly cookie, so they can be listed and ended from any device. The admin token keeps working everywhere it did, as the way back in when nobody can sign in.
 
+### Season themes
+A seasonal dress for the page — Easter, Halloween, Christmas, Spring, Autumn, Winter and Summer — each with Light and Dark, its own palette, background pattern and button shape. Pick one in Settings → Themes → Season Themes. An admin's own accent still wins; the season takes care of everything else.
+
 ### Contributions
 A + card inside each group lets anyone who may add there — admins, group admins, members looking at their own group — add a link in one step. An administrator can also open the page to guest contributions in Settings → Contributions: a browser gets its own groups and links, scoped to its cookie, with its own storage allowance. Guest content is only visible to that browser; the admin panel lists every guest with counts and a Delete button, and a retention setting prunes guests not seen for N days.
 
