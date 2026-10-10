@@ -127,7 +127,7 @@ describe('settings', () => {
     await enable({ label: 'Sign in with Authentik' });
     let providers = (await c.pub('/api/auth/providers')).body.providers;
     assert.deepEqual(providers.find(p => p.id === 'oidc'),
-                     { id: 'oidc', label: 'Sign in with Authentik', url: '/api/auth/oidc/start' });
+                     { id: 'oidc', label: 'Sign in with Authentik', url: '/api/auth/oidc/start', beta: true });
 
     await configure({ enabled: false });
     providers = (await c.pub('/api/auth/providers')).body.providers;

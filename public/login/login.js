@@ -214,7 +214,7 @@ async function showProviders() {
   for (const provider of external) {
     const a = document.createElement('a');
     a.className = 'btn btn-ghost gate-submit gate-provider';
-    a.textContent = provider.label;
+    a.textContent = provider.beta ? `${provider.label} (beta)` : provider.label;
     a.href = next ? `${provider.url}?next=${encodeURIComponent(next)}` : provider.url;
     box.append(a);
   }

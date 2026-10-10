@@ -101,7 +101,7 @@ function listProviders() {
   const oidc = require('./oidcService');
   const cfg  = oidc.readConfig();
   const providers = passwordSignInAllowed(cfg) ? [{ id: 'local', label: 'Password' }] : [];
-  if (oidc.isReady(cfg)) providers.push({ id: 'oidc', label: cfg.label, url: '/api/auth/oidc/start' });
+  if (oidc.isReady(cfg)) providers.push({ id: 'oidc', label: cfg.label, url: '/api/auth/oidc/start', beta: true });
   return providers;
 }
 

@@ -3857,3 +3857,32 @@ a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline
 .group-admin-row input { width: auto; margin: 0; }
 .group-admin-email { color: var(--text-muted); font-size: 0.8125rem; margin-left: auto; }
 .group-admins-empty { padding: 10px 12px; font-size: 0.8125rem; color: var(--text-muted); }
+
+/* ── Beta pill + notice (used by Single Sign-On) ────────────────────────────
+   The pill reads at a glance on the tab and the panel header; the notice is
+   the explanation nobody has to click into. */
+.beta-pill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #FF9500;
+  background: rgba(255, 149, 0, 0.14);
+  border: 1px solid rgba(255, 149, 0, 0.45);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.beta-notice {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text);
+  background: rgba(255, 149, 0, 0.08);
+  border: 1px solid rgba(255, 149, 0, 0.35);
+  border-radius: var(--radius-sm, 8px);
+}
+.beta-notice strong { color: #B35A00; }
+[data-theme="dark"] .beta-notice strong { color: #FFB83D; }

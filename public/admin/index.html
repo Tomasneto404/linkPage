@@ -512,7 +512,7 @@
           <button type="button" class="settings-tab" data-tab="icons">Icons</button>
           <button type="button" class="settings-tab" data-tab="public">Public Access</button>
           <button type="button" class="settings-tab" data-tab="users">Accounts</button>
-          <button type="button" class="settings-tab" data-tab="sso">Single Sign-On</button>
+          <button type="button" class="settings-tab" data-tab="sso">Single Sign-On <span class="beta-pill">BETA</span></button>
           <button type="button" class="settings-tab" data-tab="mail">Email</button>
           <button type="button" class="settings-tab" data-tab="contributions">Contributions</button>
           <button type="button" class="settings-tab" data-tab="requests">Link Requests</button>
@@ -958,7 +958,17 @@
 
         <!-- ── Single Sign-On ────────────────────── -->
         <div class="settings-panel" data-panel="sso">
-          <div class="settings-section-title">Single Sign-On</div>
+          <div class="settings-section-title">
+            Single Sign-On <span class="beta-pill">BETA</span>
+          </div>
+          <div class="beta-notice" role="status">
+            <strong>Beta.</strong> The flow is implemented against the OpenID Connect
+            specification and tested in-process against a fake provider shaped like
+            Authentik, but it has not yet been run against a real Authentik, Keycloak
+            or other production provider. If something looks off, the admin token stays
+            as the way back in — enable <em>Single Sign-On Only</em> after you have
+            verified it works for your deployment.
+          </div>
           <div class="settings-row-desc" style="margin-bottom:14px">
             Let people sign in through an OpenID Connect provider — Authentik, Keycloak,
             or any other. Passwords keep working alongside it, and so does the admin token.
