@@ -6,6 +6,8 @@ A modern, self-hosted WebUI designed for enterprises to centralize and publish i
 
 Instead of scattering important resources across emails, chats, and shared drives, LinkPage provides a single branded landing page (e.g. `linkpage.company.com`) where teams can quickly access everything they need — from internal tools and documentation to public-facing resources.
 
+> **v1.1.0** adds **sign-in accounts**, **single sign-on through Authentik or any OpenID Connect provider**, **password reset by email**, **group admins** who may add links to one shared group, a **private page per member** with their own groups and starred favourites, optional **anonymous guest contributions** scoped to the browser, and seven **seasonal themes** that redress the whole page in Light and Dark.
+
 ---
 
 ## Screenshots
@@ -14,7 +16,7 @@ Instead of scattering important resources across emails, chats, and shared drive
 
 | Light Mode | Dark Mode |
 |:---:|:---:|
-| ![Public page – light mode](linkPagePrints/linkPage-userSide-lightMode.png) | ![Public page – dark mode](linkPagePrints/linkPage-userSide-darkMode.png) |
+| ![Public page – light mode](linkPagePrints/linkPage-v110-public-light.png) | ![Public page – dark mode](linkPagePrints/linkPage-v110-public-dark.png) |
 
 The public page greets end users with a clean card grid, sticky group tabs for filtering, a live search bar, and auto-fetched favicons — no sign-in required. When there are more groups than fit the bar, the tab strip scrolls sideways with faded edges and nudge arrows (mouse wheel, trackpad and touch all work), and can optionally wrap around endlessly.
 
@@ -60,11 +62,84 @@ Settings are split into tabs: **Branding** (site title, header icon, light/dark 
 
 ---
 
+### Signing in
+
+| One sign-in for everybody | Your account |
+|:---:|:---:|
+| ![Sign in](linkPagePrints/linkPage-v110-signin-light.png) | ![Your account dialog](linkPagePrints/linkPage-v110-your-account.png) |
+
+Admins and members use the same **Sign in** button on the public page. Members land back on the links; administrators land in the admin panel. The admin token stays as the way back in when nobody can sign in. Each account has its own dialog for passwords, active sessions on other devices, export / import of their own links, and — when an administrator has set it up — a one-click **Connect** button for single sign-on through Authentik or any other OpenID Connect provider.
+
+---
+
+### Group admins
+
+![Group dialog with Group admins](linkPagePrints/linkPage-v110-group-admins.png)
+
+Tick members in a group's dialog and they become its **group admins**: they can add links to that group and edit links that live only in groups they manage. The group itself — name, colour, password — stays the administrators'. On the public page, group admins see a **+ Add a link to _Team_** card at the end of the group and a pencil on each editable link.
+
+---
+
+### A page of your own
+
+![Member view with a personal group open and the "+ Add a link" card](linkPagePrints/linkPage-v110-member-view.png)
+
+A signed-in member keeps their own private groups and links beside the shared ones, with the **+** at the end of the tab bar to make a new group in one step. Favourites gather starred shared links; everything a member creates is theirs alone, within an administrator-configured storage allowance.
+
+---
+
+### Guest contributions
+
+| On the public page | Admin moderation |
+|:---:|:---:|
+| ![Guest add-link dialog](linkPagePrints/linkPage-v110-guest-add.png) | ![Settings → Contributions](linkPagePrints/linkPage-v110-contributions.png) |
+
+An administrator can open the page to anonymous **guest contributions**: a browser identified by its own cookie keeps its own groups and links, visible only in that browser. The admin panel lists every guest with counts and storage, with per-guest **Delete** and **Remove every guest**, and a retention sweep that prunes browsers not seen for N days.
+
+---
+
+### Single sign-on and email
+
+| Single sign-on | Email |
+|:---:|:---:|
+| ![Settings → Single Sign-On](linkPagePrints/linkPage-v110-sso.png) | ![Settings → Email](linkPagePrints/linkPage-v110-mail.png) |
+
+Point LinkPage at an **OpenID Connect** provider (Authentik, Keycloak, Google Workspace, Okta…) and the sign-in page offers a one-click button. The flow uses the authorization code grant with PKCE, verifies the ID token's signature, issuer, audience, expiry and nonce, and optionally creates accounts on first sign-in or links by verified email. With an **SMTP** server, the sign-in page offers *Email me a reset link*; links work once, for an hour, and are built from the configured page address so a forged `Host` header cannot redirect a reset.
+
+---
+
+### Season themes
+
+| Summer | Halloween · Dark |
+|:---:|:---:|
+| ![Summer season](linkPagePrints/linkPage-v110-season-summer-light.png) | ![Halloween dark season](linkPagePrints/linkPage-v110-season-halloween-dark.png) |
+
+| Christmas | Winter · Dark |
+|:---:|:---:|
+| ![Christmas season](linkPagePrints/linkPage-v110-season-christmas-light.png) | ![Winter dark season](linkPagePrints/linkPage-v110-season-winter-dark.png) |
+
+Pick a **Season Theme** in Settings → Themes/Design: Easter, Halloween, Christmas, Spring, Autumn, Winter or Summer. Each one dresses the whole page — accent, surfaces, body pattern, button shape — in Light and Dark. An admin's own accent colour still wins; the season takes care of everything else.
+
+---
+
 ## Features
+
+### New in v1.1.0
+
+- **Accounts** — invite-only, with an administrator seed on first start and an admin-issued password reset link; one Sign-in button on the public page that lands admins in the panel and members on the links
+- **Single sign-on** — any OpenID Connect provider (Authentik, Keycloak, Google Workspace, Okta…); authorization code with PKCE, ID token signature / issuer / audience / expiry / nonce verified, optional account creation and email-linking, administrator group mapping, and single-sign-on-only mode
+- **Password reset by email** — optional SMTP settings, one-hour one-use link built from a configured page address (never the request), rate-limited per address and per account
+- **Group admins** — administrators pick members to look after a shared group; those members may add and edit links in it, from the public page
+- **Your own page** — a signed-in member keeps private groups, links and starred favourites, with export / import to another instance; a `+` after the group tabs creates a new group in one step, and a `+ Add a link to <group>` card appears inside groups you may add to
+- **Guest contributions** — optional, three-level setting (off / members / anyone). Guests are identified by a browser cookie, see only their own content, and are listed and prunable from a Contributions tab in the panel; retention sweep deletes dormant guests after N days
+- **Season themes** — Easter, Halloween, Christmas, Spring, Autumn, Winter, Summer; each with its own Light and Dark palette, SVG background pattern and button shape
+- **Touch-friendly reordering** — press and hold a favourite or one of your own links on a touch device, then slide to reorder
+
+### Core
 
 - **Public page** — clean, searchable landing page for end users with group tabs and multi-keyword search
 - **Scrollable group tabs** — with more groups than fit the bar, the tab strip becomes a horizontal scroller driven by the mouse wheel, trackpad, touch or its two edge arrows; the edges fade and each arrow retracts at the end it reaches. Turn on *Looping Group Tabs* and the strip wraps around endlessly instead of stopping
-- **Admin panel** — full link and group management behind a secure token gate
+- **Admin panel** — full link and group management for administrators; sign in with an account or the break-glass admin token
 - **Multiple groups per link** — assign a link to as many groups as needed via a checkbox multi-select
 - **Sections & subsections** — organize cards under named section headings, and nest one level of subsections inside them; drag to reorder in the sidebar (reflected on the public page), or drag a link straight onto a group/section/subsection
 - **Live updates on the public page** — opened tabs fade-refresh within a fraction of a second when an admin adds, edits, reorders, or deletes anything (Server-Sent Events)
