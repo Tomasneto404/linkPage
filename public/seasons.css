@@ -121,20 +121,20 @@ html[data-season] { background-color: var(--bg); }
 /* ─── Christmas ───────────────────────────────────────────────────────────── */
 /* Cranberry + pine + gold hairlines, falling snowflakes. */
 [data-season="christmas"] {
-  --primary:      #C8342B;
-  --primary-rgb:  200,52,43;
-  --primary-hover:#B22820;
-  --surface:      #FBFCFD;
-  --surface-2:    #F2F6F3;
-  --surface-3:    #E6EFE8;
-  --bg:           #F6FAF7;
-  --border:       #D6E6DB;
-  --border-strong:#B6D4BE;
+  --primary:      #E8302A;
+  --primary-rgb:  232,48,42;
+  --primary-hover:#CE2520;
+  --surface:      #FFFFFF;
+  --surface-2:    #EAF4ED;
+  --surface-3:    #DBEBDF;
+  --bg:           #ECF7EE;
+  --border:       #C5DECC;
+  --border-strong:#9EC8AC;
   --season-card-radius: 14px;
   --season-btn-radius: 12px;
-  --season-pattern-alpha: 0.12;
-  --season-pattern-size: 100px 100px;
-  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><g stroke='%23D4A017' stroke-width='1' fill='none' stroke-linecap='round'><path d='M20 20 l0 12 M14 26 l12 0 M15 21 l10 10 M15 31 l10 -10'/><path d='M72 68 l0 10 M67 73 l10 0 M68 69 l8 8 M68 77 l8 -8'/></g><g fill='%231C6B3A'><circle cx='50' cy='40' r='1.6'/><circle cx='18' cy='78' r='1.6'/><circle cx='84' cy='18' r='1.6'/></g></svg>");
+  --season-pattern-alpha: 0.22;
+  --season-pattern-size: 110px 110px;
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='110' height='110'><g stroke='%23D4A017' stroke-width='1.4' fill='none' stroke-linecap='round'><path d='M22 22 l0 16 M12 30 l20 0 M14 24 l16 12 M14 36 l16 -12'/><path d='M78 76 l0 14 M70 83 l16 0 M72 78 l12 10 M72 88 l12 -10'/></g><g fill='%2317833F'><circle cx='54' cy='42' r='2'/><circle cx='18' cy='84' r='2'/><circle cx='88' cy='18' r='2'/></g><g fill='%23E8302A'><circle cx='90' cy='62' r='3'/><circle cx='32' cy='56' r='3'/></g></svg>");
 }
 [data-season="christmas"] .link-card,
 [data-season="christmas"] .modal,
@@ -142,16 +142,16 @@ html[data-season] { background-color: var(--bg); }
   border-color: rgba(212,160,23,0.4);
 }
 [data-season="christmas"][data-theme="dark"] {
-  --primary:      #FF5F55;
-  --primary-rgb:  255,95,85;
-  --primary-hover:#FF7A72;
-  --surface:      #163826;
-  --surface-2:    #0F2A1C;
-  --surface-3:    #0A2015;
-  --bg:           #091A12;
-  --border:       #2A5A3E;
-  --border-strong:#3A7A54;
-  --season-pattern-alpha: 0.22;
+  --primary:      #FF4C4C;
+  --primary-rgb:  255,76,76;
+  --primary-hover:#FF6B6B;
+  --surface:      #194A33;
+  --surface-2:    #103724;
+  --surface-3:    #0A2A1B;
+  --bg:           #082018;
+  --border:       #2F7050;
+  --border-strong:#45946C;
+  --season-pattern-alpha: 0.28;
   --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><g stroke='%23F0C85A' stroke-width='1' fill='none'><path d='M20 20 l0 12 M14 26 l12 0 M15 21 l10 10 M15 31 l10 -10'/><path d='M72 68 l0 10 M67 73 l10 0 M68 69 l8 8 M68 77 l8 -8'/></g></svg>");
 }
 
@@ -257,36 +257,40 @@ html[data-season] { background-color: var(--bg); }
 /* ─── Summer ──────────────────────────────────────────────────────────────── */
 /* Coral + turquoise + sunshine yellow, bubbly rounded, soft waves. */
 [data-season="summer"] {
-  --primary:      #FF6F5E;
-  --primary-rgb:  255,111,94;
-  --primary-hover:#F15648;
+  --primary:      #FF4F3D;
+  --primary-rgb:  255,79,61;
+  --primary-hover:#E63A28;
   --surface:      #FFFEFB;
-  --surface-2:    #FFF5EC;
-  --surface-3:    #E6F7F5;
-  --bg:           #FFF9EC;
-  --border:       #FBE3C8;
-  --border-strong:#F3C994;
+  --surface-2:    #FFF2DF;
+  --surface-3:    #D6F6F3;
+  --bg:           #FFF4D1;
+  --border:       #FBD48A;
+  --border-strong:#F4B65A;
   --season-card-radius: 22px;
   --season-btn-radius: 999px;
   --season-tab-radius: 999px;
   --season-modal-radius: 24px;
-  --season-pattern-alpha: 0.14;
-  --season-pattern-size: 140px 60px;
-  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='60'><g fill='none' stroke='%2319BBB4' stroke-width='1.4' stroke-linecap='round'><path d='M0 40 q17 -16 35 0 t35 0 t35 0 t35 0'/><path d='M0 20 q17 -10 35 0 t35 0 t35 0 t35 0' stroke='%23FFD24C'/></g></svg>");
+  --season-pattern-alpha: 0.3;
+  --season-pattern-size: 180px 180px;
+  /* A sun with rays, two palm fronds, and a pair of rolling waves. The SVG
+     uses baked colours so each element can carry its own: coral sun, teal
+     fronds, sunshine yellow waves. */
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><g fill='none' stroke-linecap='round'><g stroke='%23FFC234' stroke-width='2.4'><circle cx='36' cy='36' r='10' fill='%23FFD24C'/><line x1='36' y1='18' x2='36' y2='10'/><line x1='36' y1='54' x2='36' y2='62'/><line x1='18' y1='36' x2='10' y2='36'/><line x1='54' y1='36' x2='62' y2='36'/><line x1='22' y1='22' x2='16' y2='16'/><line x1='50' y1='22' x2='56' y2='16'/><line x1='22' y1='50' x2='16' y2='56'/><line x1='50' y1='50' x2='56' y2='56'/></g><g stroke='%2317B5A6' stroke-width='2'><path d='M135 30 q-10 2 -14 10 M135 30 q6 10 2 20 M135 30 q10 2 14 12 M135 30 q-2 12 -10 18 M135 30 q0 -10 6 -16'/></g><g stroke='%2317B5A6' stroke-width='2'><path d='M30 128 q10 -2 14 -10 M30 128 q-6 -10 -2 -20 M30 128 q-10 -2 -14 -12 M30 128 q2 -12 10 -18 M30 128 q0 10 -6 16'/></g><g stroke='%23FF6B2C' stroke-width='3'><path d='M70 150 q18 -14 36 0 t36 0'/><path d='M70 164 q18 -10 36 0 t36 0' stroke='%2317B5A6'/></g></g></svg>");
 }
 [data-season="summer"] .link-card { box-shadow: 0 6px 20px rgba(255,111,94,0.08); }
 [data-season="summer"][data-theme="dark"] {
-  --primary:      #FF8B7B;
-  --primary-rgb:  255,139,123;
-  --primary-hover:#FFA398;
-  --surface:      #163249;
-  --surface-2:    #0E2439;
-  --surface-3:    #091B2B;
-  --bg:           #061222;
-  --border:       #214660;
-  --border-strong:#2E5C7D;
-  --season-pattern-alpha: 0.22;
-  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='60'><g fill='none' stroke='%23FFD24C' stroke-width='1.4' stroke-linecap='round'><path d='M0 40 q17 -16 35 0 t35 0 t35 0 t35 0'/><path d='M0 20 q17 -10 35 0 t35 0 t35 0 t35 0' stroke='%2366E0D8'/></g></svg>");
+  --primary:      #FF7558;
+  --primary-rgb:  255,117,88;
+  --primary-hover:#FF8E72;
+  --surface:      #184660;
+  --surface-2:    #103046;
+  --surface-3:    #0A2235;
+  --bg:           #06172A;
+  --border:       #2A5F82;
+  --border-strong:#3B7CA3;
+  --season-pattern-alpha: 0.3;
+  /* Dark variant: the sun glows warm, fronds brighter teal, waves vivid. */
+  --season-pattern: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><g fill='none' stroke-linecap='round'><g stroke='%23FFBF40' stroke-width='2.4'><circle cx='36' cy='36' r='10' fill='%23FFD24C'/><line x1='36' y1='18' x2='36' y2='10'/><line x1='36' y1='54' x2='36' y2='62'/><line x1='18' y1='36' x2='10' y2='36'/><line x1='54' y1='36' x2='62' y2='36'/><line x1='22' y1='22' x2='16' y2='16'/><line x1='50' y1='22' x2='56' y2='16'/><line x1='22' y1='50' x2='16' y2='56'/><line x1='50' y1='50' x2='56' y2='56'/></g><g stroke='%2340D4C4' stroke-width='2'><path d='M135 30 q-10 2 -14 10 M135 30 q6 10 2 20 M135 30 q10 2 14 12 M135 30 q-2 12 -10 18 M135 30 q0 -10 6 -16'/></g><g stroke='%2340D4C4' stroke-width='2'><path d='M30 128 q10 -2 14 -10 M30 128 q-6 -10 -2 -20 M30 128 q-10 -2 -14 -12 M30 128 q2 -12 10 -18 M30 128 q0 10 -6 16'/></g><g stroke='%23FF8155' stroke-width='3'><path d='M70 150 q18 -14 36 0 t36 0'/><path d='M70 164 q18 -10 36 0 t36 0' stroke='%2340D4C4'/></g></g></svg>");
 }
 
 /* --text overrides scoped to Light so Dark keeps its ordinary bright text. */
