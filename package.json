@@ -18,7 +18,9 @@
     "dev": "node --watch src/server.js",
     "test": "node --test",
     "test:watch": "node --test --watch",
-    "test:browser": "node --test --test-concurrency=1 \"tests/browser/*.browser.js\""
+    "test:browser": "node --test --test-concurrency=1 \"tests/browser/*.browser.js\"",
+    "security:scan": "trivy fs --severity CRITICAL --exit-code 1 --ignore-unfixed .",
+    "security:image": "trivy image --severity CRITICAL --exit-code 1 --ignore-unfixed linkpage:local"
   },
   "engines": {
     "node": ">=22.13"

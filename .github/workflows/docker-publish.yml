@@ -50,6 +50,41 @@ jobs:
       - name: Run browser tests
         run: npm run test:browser
 
+  # Trivy scans the lockfiles for CVEs and the Dockerfile for a vulnerable
+  # base image. A single CRITICAL finding fails the job, which fails the build
+  # job behind it — no image is pushed with a known critical vulnerability.
+  # `ignore-unfixed` keeps the gate honest: it only trips on CVEs that have a
+  # fix available, so an unfixable advisory does not permanently block releases.
+  security:
+    runs-on: ubuntu-latest
+    needs: [test]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan the repository for CVEs (package-lock.json, pnpm-lock.yaml)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table
+          hide-progress: true
+
+      - name: Scan the Dockerfile base image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: node:24-alpine
+          severity: CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table
+          hide-progress: true
+
   # A release is nothing but a tag: everything else is derived. This job proves
   # the three sources agree before anything is published, so a mistyped tag
   # fails in seconds instead of shipping a mislabelled image.
@@ -82,15 +117,15 @@ jobs:
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: [test, verify-tag]
-    # No green tests → no image, and on a tag the version guard has to pass too
-    # so a mistyped tag can never publish a mislabelled image. verify-tag is
-    # skipped on branch pushes, which must not block them — hence the explicit
-    # result checks. A PR run stops after `test`.
+    needs: [test, security, verify-tag]
+    # No green tests, a CRITICAL CVE in Trivy, or a mistyped tag → no image.
+    # verify-tag is skipped on branch pushes, which must not block them — hence
+    # the explicit result checks. A PR run stops after `test` + `security`.
     if: |
       always() &&
       github.event_name == 'push' &&
       needs.test.result == 'success' &&
+      needs.security.result == 'success' &&
       (needs.verify-tag.result == 'success' || needs.verify-tag.result == 'skipped')
     runs-on: ubuntu-latest
 
@@ -126,7 +161,32 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
-      - name: Build and push
+      # Build once for amd64 and keep it locally so Trivy can scan the real
+      # image we are about to publish. Multi-platform push is a separate step
+      # below that reuses the cache — same binary content, no extra build time
+      # beyond the arm64 pass.
+      - name: Build the amd64 image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: linkpage:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan the built image for CVEs
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: linkpage:scan
+          severity: CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table
+          hide-progress: true
+
+      - name: Build and push the multi-platform image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -134,7 +194,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Cache layers between runs using the GitHub Actions cache
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

@@ -474,6 +474,29 @@ Docker image is only built and pushed when they are green.
 
 ---
 
+## Security scans
+
+Every CI build runs **[Trivy](https://aquasecurity.github.io/trivy/)** three times:
+
+- `trivy fs` on the repo (`package-lock.json`, `pnpm-lock.yaml`)
+- `trivy image node:24-alpine` on the Dockerfile base image
+- `trivy image` on the amd64 image that is about to be published
+
+A single **CRITICAL** finding fails the job and blocks the Docker publish. `--ignore-unfixed` keeps the gate honest: it only trips on CVEs that have a fix available, so an unfixable advisory does not block releases indefinitely.
+
+Run the same scans locally (needs the `trivy` CLI, or point it at the official Docker image):
+
+```bash
+npm run security:scan            # package-lock + pnpm-lock
+docker build -t linkpage:local . && npm run security:image
+
+# Or via Docker, without installing trivy:
+docker run --rm -v "$PWD:/repo" -v "$HOME/.cache/trivy:/root/.cache" \
+  aquasec/trivy:latest fs --severity CRITICAL --ignore-unfixed /repo
+```
+
+---
+
 ## Releasing (maintainers)
 
 The version lives in exactly one place — `version` in [package.json](package.json) — and is
