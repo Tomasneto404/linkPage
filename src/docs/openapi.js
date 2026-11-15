@@ -835,10 +835,30 @@ const paths = {
   '/api/settings/season': {
     post: op({
       tag: TAGS.settings,
-      summary: 'Dress the page in a season',
-      description: 'A seasonal palette, background and button shape, in Light and Dark. Set to '
-                 + '`none` for the ordinary look. Visitors see the change on their next page load.',
-      body: jsonBody({ name: { type: 'string', enum: ['none', 'easter', 'halloween', 'christmas', 'spring', 'autumn', 'winter', 'summer'] } }, ['name']),
+      summary: 'Set seasonal appearance and its annual calendar',
+      description: 'Select a manual theme or fallback, and optionally save an automatic calendar. '
+                 + 'Rules are evaluated in the chosen IANA time zone, first matching enabled rule wins. '
+                 + 'Dates are inclusive MM-DD strings and may cross New Year. Easter can use offsets '
+                 + 'from Gregorian Easter Sunday. Omitting schedule preserves the saved calendar. '
+                 + 'Animated effects default to enabled and respect reduced motion. Returns the effective '
+                 + 'season_theme, season_manual_theme, season_schedule, season_effects and season_background.',
+      body: jsonBody({
+        name: { type: 'string', enum: ['none', 'easter', 'halloween', 'christmas', 'spring', 'autumn', 'winter', 'summer'] },
+        background: { type: 'string', enum: ['minimal', 'static', 'animated'], description: 'Minimalist background, generated still landscape or gently animated landscape. Omit to preserve the current setting.' },
+        effects: { type: 'boolean', description: 'Enable animated seasonal particles. Omit to preserve the current setting.' },
+        schedule: {
+          type: 'object', required: ['enabled', 'timezone', 'rules'], properties: {
+            enabled: { type: 'boolean' }, timezone: { type: 'string', example: 'Europe/Lisbon' },
+            rules: { type: 'array', minItems: 7, maxItems: 7, items: { type: 'object', required: ['theme', 'enabled'], properties: {
+              theme: { type: 'string', enum: ['easter', 'halloween', 'christmas', 'spring', 'summer', 'autumn', 'winter'] },
+              enabled: { type: 'boolean' }, kind: { type: 'string', enum: ['fixed', 'easter'] },
+              start: { type: 'string', example: '12-01', pattern: '^\\d{2}-\\d{2}$' },
+              end: { type: 'string', example: '12-31', pattern: '^\\d{2}-\\d{2}$' },
+              before: { type: 'integer', minimum: 0, maximum: 60 }, after: { type: 'integer', minimum: 0, maximum: 60 },
+            } } },
+          },
+        },
+      }, ['name']),
       responses: { 200: json({ type: 'object' }), 400: json(ref('Error')) },
     }),
   },

@@ -19,10 +19,15 @@
   <link rel="icon" href="/brand/icon-light.png" />
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/seasons.css" />
+  <link rel="stylesheet" href="/season-backgrounds.css" />
   <!-- Before paint, or a dark-mode visitor gets a white flash. -->
+  <script src="/season-calendar.js"></script>
   <script src="/theme-boot.js"></script>
+  <script src="/season-particles.js" defer></script>
+  <script src="/season-effects.js" defer></script>
 </head>
 <body>
+<div class="season-backdrop" aria-hidden="true"></div>
 
 <!-- The instance's wallpaper, when it has one: the same layer the public page
      uses, filled in by theme-boot.js once the settings arrive. -->

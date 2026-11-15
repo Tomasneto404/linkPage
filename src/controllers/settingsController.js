@@ -3,6 +3,8 @@
 /** Public settings read + admin settings/theme writes. */
 
 const db = require('../models');
+const seasonCalendar = require('../../public/season-calendar');
+const { readSeasonSettings: seasonSettings } = require('../services/seasonService');
 const {
   LOGO_VARIANTS, THEME_LIGHT_VARIANTS, THEME_DARK_VARIANTS,
   DEFAULT_THEMES, SEASON_THEMES, MOBILE_NAV_POSITIONS, HEX_COLOR_RE,
@@ -62,7 +64,7 @@ function getSettings(req, res) {
     // Who may add groups and links through the public page: 'off' (nobody),
     // 'members' (signed-in only) or 'anyone' (guests too).
     contribution_mode:         require('../middleware/guest').contributionMode(),
-    season_theme:              readSeasonTheme(),
+    ...seasonSettings(),
   });
 }
 
@@ -353,12 +355,6 @@ function setRequireLogin(req, res) {
   res.json({ require_login: enabled });
 }
 
-/** The stored season theme, defaulting to 'none'. */
-function readSeasonTheme() {
-  const stored = db.readSetting('season_theme');
-  return SEASON_THEMES.includes(stored) ? stored : 'none';
-}
-
 /**
  * Which seasonal dress the page wears. 'none' is the ordinary look.
  * Stored only when it is not the default, like the other such settings here.
@@ -368,9 +364,26 @@ function setSeasonTheme(req, res) {
   if (!SEASON_THEMES.includes(name)) {
     return res.status(400).json({ error: `Season must be one of: ${SEASON_THEMES.join(', ')}` });
   }
+  if (req.body.effects !== undefined && typeof req.body.effects !== 'boolean') {
+    return res.status(400).json({ error: 'Animated effects must be true or false.' });
+  }
+  if (req.body.background !== undefined && !['minimal', 'static', 'animated'].includes(req.body.background)) {
+    return res.status(400).json({ error: 'Background must be minimal, static or animated.' });
+  }
+  // Validate every field before writing any settings.
+  let schedule;
+  if (req.body.schedule !== undefined) {
+    try { schedule = seasonCalendar.validate(req.body.schedule); }
+    catch (err) { return res.status(400).json({ error: err.message }); }
+  }
   if (name === 'none') db.deleteSetting('season_theme');
   else                 db.writeSetting('season_theme', name);
-  res.json({ season_theme: name });
+  if (schedule) db.writeSetting('season_schedule', JSON.stringify(schedule));
+  if (req.body.effects === false) db.writeSetting('season_effects', '0');
+  else if (req.body.effects === true) db.deleteSetting('season_effects');
+  if (req.body.background === 'minimal') db.deleteSetting('season_background');
+  else if (req.body.background !== undefined) db.writeSetting('season_background', req.body.background);
+  res.json(seasonSettings());
 }
 
 function setFooterEnabled(req, res) {

@@ -18,7 +18,7 @@ const PUBLIC = path.join(__dirname, '..', 'public');
 
 function scriptsOf(htmlFile, urlBase) {
   const html = fs.readFileSync(path.join(PUBLIC, htmlFile), 'utf8');
-  return [...html.matchAll(/<script src="([^"]+)"><\/script>/g)]
+  return [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g)]
     .map(m => new URL(m[1], `http://x${urlBase}`).pathname);
 }
 

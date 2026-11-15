@@ -71,6 +71,7 @@
       root.removeProperty('--primary');
       root.removeProperty('--primary-rgb');
       root.removeProperty('--primary-hover');
+      root.removeProperty('--on-primary');
       return;
     }
     const dark = theme === 'dark';
@@ -78,6 +79,8 @@
     root.setProperty('--primary', base);
     root.setProperty('--primary-rgb', hexToRgb(base).join(','));
     root.setProperty('--primary-hover', shadeColor(base, dark ? 12 : -8));
+    const luminance = hexToRgb(base).map(c => c / 255).map(c => c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
+    root.setProperty('--on-primary', luminance[0] * .2126 + luminance[1] * .7152 + luminance[2] * .0722 > .179 ? '#111111' : '#ffffff');
   }
 
   function applyBarOpacity(value) {
@@ -138,11 +141,29 @@
     else                        root.removeAttribute('data-season');
   }
 
+  let seasonSettings;
+  function refreshSeason() {
+    if (!seasonSettings) return;
+    const s = seasonSettings;
+    applySeason(window.LinkPageSeasons
+      ? window.LinkPageSeasons.resolve(s.season_manual_theme ?? s.season_theme, s.season_schedule)
+      : s.season_theme);
+  }
+  function applySeasonSettings(settings) {
+    seasonSettings = settings;
+    document.documentElement.setAttribute('data-season-effects', settings.season_effects === false ? 'off' : 'on');
+    document.documentElement.setAttribute('data-season-background', ['static', 'animated'].includes(settings.season_background) ? settings.season_background : 'minimal');
+    refreshSeason();
+  }
+  // Open pages switch after midnight too, including after a suspended tab wakes.
+  setInterval(refreshSeason, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshSeason(); });
+
   function applyAppearance(settings, theme) {
     const t = theme || initialTheme(settings.default_theme);
     applyTheme(t, false);
     applyVariants({ light: settings.theme_light_variant, dark: settings.theme_dark_variant });
-    applySeason(settings.season_theme);
+    applySeasonSettings(settings);
     applyAccent(settings, t);
     applyBarOpacity(settings.bar_opacity);
     applyWallpaper(settings, t);
@@ -151,7 +172,7 @@
 
   window.LinkPageTheme = {
     initialTheme, applyTheme, applyVariants,
-    applyAppearance, clearWallpaper, applySeason,
+    applyAppearance, clearWallpaper, applySeason, applySeasonSettings,
     hexToRgb, shadeColor,
     STORAGE_KEY: KEY,
   };

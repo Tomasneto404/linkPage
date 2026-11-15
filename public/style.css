@@ -285,7 +285,7 @@ a.btn { line-height: normal; }
 
 .btn-primary {
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary, #fff);
 }
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-primary:active { transform: scale(0.98); }
@@ -1134,8 +1134,8 @@ body.has-wallpaper .gate-card .field-stack input { background: transparent; }
 }
 
 [data-theme="dark"] .gate-icon {
-  background: rgba(10,132,255,0.12);
-  border-color: rgba(10,132,255,0.2);
+  background: rgba(var(--primary-rgb),0.12);
+  border-color: rgba(var(--primary-rgb),0.2);
 }
 
 .gate-card h1      { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.03em; }
@@ -1442,3 +1442,11 @@ body { padding-bottom: 52px; }
 .link-card-add-label { text-align: left; }
 .link-card-add strong { color: var(--text); font-weight: 600; }
 .link-card-add:hover strong { color: var(--primary); }
+
+/* Shared interaction polish: keyboard focus follows the current accent. */
+:is(button, a, select):focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+[data-theme="dark"] .search-wrap:focus-within { box-shadow: 0 0 0 3px rgba(var(--primary-rgb), .2); }
+[data-theme="dark"] .search-chip { background: rgba(var(--primary-rgb), .18); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

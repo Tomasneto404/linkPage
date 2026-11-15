@@ -1683,8 +1683,12 @@ header {
 .switch input {
   position: absolute;
   opacity: 0;
-  width: 0;
-  height: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+  z-index: 1;
 }
 .switch-slider {
   position: absolute;
@@ -3858,31 +3862,95 @@ a.analytics-rank-title:hover { color: var(--primary); text-decoration: underline
 .group-admin-email { color: var(--text-muted); font-size: 0.8125rem; margin-left: auto; }
 .group-admins-empty { padding: 10px 12px; font-size: 0.8125rem; color: var(--text-muted); }
 
-/* ── Beta pill + notice (used by Single Sign-On) ────────────────────────────
-   The pill reads at a glance on the tab and the panel header; the notice is
-   the explanation nobody has to click into. */
-.beta-pill {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 6px;
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: #FF9500;
-  background: rgba(255, 149, 0, 0.14);
-  border: 1px solid rgba(255, 149, 0, 0.45);
-  border-radius: 999px;
-  vertical-align: middle;
+
+/* Seasonal appearance studio. */
+.season-heading { margin: 2px 0 20px; }
+.season-eyebrow { color: var(--text-dim); font-size: .68rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+.season-heading h2 { margin: 6px 0 7px; font-size: 1.9rem; line-height: 1.15; font-weight: 650; letter-spacing: -.055em; }
+.season-heading p { max-width: 380px; font-size: .84rem; line-height: 1.6; color: var(--text-dim); }
+.season-showcase { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 18px; min-height: 150px; margin-bottom: 22px; transition: background-color .3s ease, color .3s ease; }
+.season-showcase-copy { position: relative; padding: 24px; max-width: 80%; }
+.season-showcase-copy > span { display: block; font-size: .67rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+.season-showcase-copy > strong { font-size: 1.1rem; letter-spacing: -.035em; font-weight: 600; }
+.season-mini-links { display: flex; gap: 7px; margin-top: 18px; }
+.season-mini-links i { display: block; height: 25px; width: 67px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; box-shadow: 0 2px 4px rgb(0 0 0 / .025); }
+.season-mini-links i::before { content: ''; display: block; width: 11px; height: 11px; margin: 6px; background: rgba(var(--primary-rgb), .15); border-radius: 3px; }
+.season-field-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.season-field-heading h3 { font-size: .9rem; font-weight: 600; letter-spacing: -.02em; }
+.season-field-heading > span { color: var(--text-dim); font-size: .68rem; }
+.season-gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 10px; }
+.season-option { appearance: none; border: 0; padding: 0; color: var(--text); background: transparent; text-align: left; font-family: inherit; cursor: pointer; min-width: 0; border-radius: 12px; }
+.season-option-art { position: relative; display: block; height: 65px; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 7px; background-size: 165px 165px, 100% 100%; transition: box-shadow .2s ease, transform .2s ease; }
+.season-option:hover .season-option-art { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.season-option[aria-pressed="true"] .season-option-art { outline: 2px solid var(--primary); outline-offset: 2px; }
+.season-option-art i { display: block; width: 32px; height: 22px; position: absolute; left: 13px; bottom: 13px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: 8px -7px 0 -1px var(--surface-3); }
+.season-option-art i::after { content: ''; position: absolute; inset: 6px auto auto 6px; width: 9px; height: 9px; border-radius: 3px; background: var(--primary); }
+.season-option-art b { display: none; position: absolute; right: 6px; bottom: 6px; width: 16px; height: 16px; line-height: 16px; border-radius: 50%; text-align: center; font-size: 10px; background: var(--primary); color: var(--on-primary, white); }
+.season-option[aria-pressed="true"] b { display: block; }
+.season-option-name { display: block; font-size: .75rem; font-weight: 600; line-height: 1.5; }
+.season-option-note { display: block; font-size: .61rem; line-height: 1.5; color: var(--text-dim); }
+.season-help { margin: 12px 0; color: var(--text-dim); font-size: .72rem; line-height: 1.6; }
+.season-auto-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding: 18px 0; border-top: 1px solid var(--border); }
+.season-auto-row > div > label { font-size: .88rem; font-weight: 600; cursor: pointer; letter-spacing: -.015em; }
+.season-auto-row p { color: var(--text-dim); font-size: .74rem; margin-top: 4px; line-height: 1.5; }
+.season-calendar { border: 0; min-width: 0; padding: 8px 0 0; }
+.season-calendar > legend { font-size: .86rem; font-weight: 600; padding: 0; }
+.season-calendar[hidden] { display: none; }
+.season-zone-label { display: block; font-size: .74rem; font-weight: 500; margin: 8px 0 6px; }
+#seasonForm :is(input:not([type="checkbox"]), select) { font-family: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; min-height: 34px; padding: 6px 8px; font-size: .75rem; min-width: 0; width: auto; }
+#seasonForm #seasonTimezone { width: 100%; }
+#seasonForm :is(input, select, button):focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.season-rule { padding: 13px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); margin: 8px 0; }
+.season-rule-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.season-rule-name { display: flex; align-items: center; gap: 8px; font-size: .8rem; font-weight: 600; cursor: pointer; }
+.season-rule-name input { width: 14px; height: 14px; accent-color: var(--primary); }
+.season-rule-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
+.season-priority { display: flex; align-items: center; gap: 3px; }
+.season-priority > span { color: var(--text-dim); font-size: .65rem; margin-right: 5px; font-variant-numeric: tabular-nums; }
+.season-priority button { border: 1px solid var(--border); border-radius: 6px; width: 28px; height: 28px; font-size: 16px; cursor: pointer; color: var(--text-dim); background: var(--surface); }
+.season-priority button:hover { color: var(--primary); border-color: var(--primary); }
+.season-priority button:disabled { opacity: .25; cursor: default; }
+.season-rule-fields { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 10px 0 0 22px; border: 0; min-width: 0; }
+.season-rule.is-disabled .season-rule-fields { opacity: .4; }
+.season-date-pair { display: flex; gap: 4px; align-items: center; }
+#seasonForm .season-date-pair input { width: 54px; }
+.season-date-to { color: var(--text-dim); font-size: .8rem; padding: 0 3px; }
+.season-offset { display: inline-flex; align-items: center; gap: 5px; font-size: .7rem; color: var(--text-dim); }
+#seasonForm .season-offset input { width: 51px; }
+.season-rule-fields > [data-kind] { flex-basis: 100%; margin-bottom: 2px; }
+.season-test { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px 0 0; font-size: .75rem; }
+.season-test label { font-weight: 600; }
+.season-test output { color: var(--primary); font-weight: 600; }
+.season-save-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; bottom: -22px; background: var(--surface); border-top: 1px solid var(--border); margin: 20px -2px -2px; padding: 14px 2px 4px; z-index: 2; }
+.season-save-bar p { font-size: .72rem; color: var(--text-dim); line-height: 1.5; }
+.season-save-bar button { flex-shrink: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+/* Panel titles were all hidden, including subsections. Keep useful headings. */
+.settings-panel .settings-section-title:not(:first-child) { display: block; margin: 22px 0 10px; }
+@media (max-width: 600px) {
+  .season-heading h2 { font-size: 1.7rem; }
+  .season-showcase-copy { padding: 20px; max-width: 94%; }
+  .season-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+  .season-option-art { height: 80px; background-size: 190px 190px, 100% 100%; }
+  .season-option-note { font-size: .68rem; }
+  .season-option-name { font-size: .8rem; }
+  .season-field-heading { flex-wrap: wrap; }
+  .season-rule { padding: 12px 10px; }
+  .season-rule-fields { padding-left: 0; gap: 5px; }
+  .season-save-bar { bottom: -18px; padding-bottom: 8px; }
 }
-.beta-notice {
-  margin: 0 0 14px;
-  padding: 10px 12px;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: var(--text);
-  background: rgba(255, 149, 0, 0.08);
-  border: 1px solid rgba(255, 149, 0, 0.35);
-  border-radius: var(--radius-sm, 8px);
-}
-.beta-notice strong { color: #B35A00; }
-[data-theme="dark"] .beta-notice strong { color: #FFB83D; }
+/* This editor already sits inside the padded settings panel. */
+#seasonForm { padding: 0; display: block; }
+#seasonForm .season-auto-row > div > label { display: block; margin: 0; color: var(--text); }
+#seasonForm .season-auto-row > .switch { margin: 0; }
+#seasonForm .season-rule-name { margin: 0; color: var(--text); }
+#seasonForm .season-offset { margin: 0; }
+[data-theme="dark"] .switch input:focus-visible + .switch-slider { box-shadow: 0 0 0 3px rgba(var(--primary-rgb), .28); }
+
+.season-background-choice { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+.season-background-choice h3 { font-size: .88rem; font-weight: 600; margin-bottom: 12px; letter-spacing: -.02em; }
+.season-background-picker { display: flex; padding: 3px; gap: 3px; border-radius: 10px; background: var(--surface-3); border: 1px solid var(--border); }
+.season-background-picker button { flex: 1; min-width: 0; min-height: 34px; padding: 7px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text-dim); font-size: .75rem; font-weight: 500; line-height: 1.3; font-family: inherit; cursor: pointer; transition: background .2s ease, color .2s ease, box-shadow .2s ease; }
+.season-background-picker button:hover { color: var(--text); }
+.season-background-picker button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-xs); }
+.season-background-choice + .season-auto-row { margin-top: 8px; }

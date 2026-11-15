@@ -9,11 +9,16 @@
   <link rel="icon" id="favicon" href="/brand/icon-light.png" />
   <link rel="stylesheet" href="admin.css" />
   <link rel="stylesheet" href="/seasons.css" />
+  <link rel="stylesheet" href="/season-backgrounds.css" />
   <!-- The shared theme core, for the sign-in gate: the panel itself keeps its
        own fuller theme code in js/core.js. -->
+  <script src="/season-calendar.js"></script>
   <script src="/theme-boot.js"></script>
+  <script src="/season-particles.js" defer></script>
+  <script src="/season-effects.js" defer></script>
 </head>
 <body>
+<div class="season-backdrop" aria-hidden="true"></div>
 
 <!-- The instance's wallpaper, shown behind the sign-in gate only. The panel
      has its own look and takes it down as soon as somebody is let in. -->
@@ -508,11 +513,12 @@
         <nav class="settings-nav" id="settingsNav">
           <button type="button" class="settings-tab active" data-tab="branding">Branding</button>
           <button type="button" class="settings-tab" data-tab="themes">Themes / Design</button>
+          <button type="button" class="settings-tab" data-tab="seasons">Seasonal Themes</button>
           <button type="button" class="settings-tab" data-tab="publicpage">Public Page</button>
           <button type="button" class="settings-tab" data-tab="icons">Icons</button>
           <button type="button" class="settings-tab" data-tab="public">Public Access</button>
           <button type="button" class="settings-tab" data-tab="users">Accounts</button>
-          <button type="button" class="settings-tab" data-tab="sso">Single Sign-On <span class="beta-pill">BETA</span></button>
+          <button type="button" class="settings-tab" data-tab="sso">Single Sign-On</button>
           <button type="button" class="settings-tab" data-tab="mail">Email</button>
           <button type="button" class="settings-tab" data-tab="contributions">Contributions</button>
           <button type="button" class="settings-tab" data-tab="requests">Link Requests</button>
@@ -691,27 +697,51 @@
             </select>
           </div>
 
-          <div class="settings-section-title" style="margin-top:22px">Season Themes</div>
-          <div class="settings-row-desc" style="margin-bottom:10px">
-            Dress the page in a season — palette, background and shape, in Light and Dark.
-            An accent you have configured still wins; the season decides everything else.
-          </div>
-          <div class="settings-row">
-            <div>
-              <div class="settings-row-label">Season</div>
-              <div class="settings-row-desc" id="seasonThemeDesc">Off. The ordinary look.</div>
+        </div>
+
+        <div class="settings-panel" data-panel="seasons">
+          <form id="seasonForm">
+            <div class="season-heading">
+              <span class="season-eyebrow">A little change of scenery</span>
+              <h2>Made for the season.</h2>
+              <p>Thoughtful colour, soft light and a little celebration. Beautiful in Light and Dark.</p>
             </div>
-            <select id="seasonThemeSelect" class="bulk-group-select" style="width:170px">
-              <option value="none">Off (ordinary)</option>
-              <option value="easter">Easter</option>
-              <option value="halloween">Halloween</option>
-              <option value="christmas">Christmas</option>
-              <option value="spring">Spring</option>
-              <option value="autumn">Autumn</option>
-              <option value="winter">Winter</option>
-              <option value="summer">Summer</option>
-            </select>
-          </div>
+            <div class="season-showcase" id="seasonShowcase" aria-hidden="true">
+              <div class="season-preview-backdrop"></div>
+              <div class="season-showcase-copy"><span id="seasonPreviewLabel">Your everyday look</span><strong>A space for your favourites.</strong><div class="season-mini-links"><i></i><i></i><i></i></div></div>
+            </div>
+            <div class="season-field-heading"><h3 id="seasonChoiceLabel">Choose a theme</h3><span>Light &amp; Dark included</span></div>
+            <div class="season-gallery" id="seasonGallery" role="group" aria-labelledby="seasonChoiceLabel"></div>
+            <p class="season-help">Custom wallpapers take priority over seasonal backgrounds. Your accent stays in place. Reset your accent in Themes / Design to use each season’s signature colour.</p>
+            <div class="season-background-choice">
+              <h3 id="seasonBackgroundLabel">Background style</h3>
+              <div class="season-background-picker" id="seasonBackgroundPicker" role="group" aria-labelledby="seasonBackgroundLabel">
+                <button type="button" data-background="minimal" aria-pressed="true">Minimalist</button>
+                <button type="button" data-background="static" aria-pressed="false">Still image</button>
+                <button type="button" data-background="animated" aria-pressed="false">Animated image</button>
+              </div>
+              <p class="season-help" id="seasonBackgroundDesc">Soft colour and delicate seasonal illustrations.</p>
+            </div>
+            <div class="season-auto-row">
+              <div><label for="seasonEffectsToggle">Animated atmosphere</label><p>Snowflakes, drifting leaves, dandelion seeds and more, matched to your theme.</p><p id="seasonMotionNote" hidden>Your device requests reduced motion. Animations are paused.</p></div>
+              <label class="switch"><input type="checkbox" id="seasonEffectsToggle" /><span class="switch-slider"></span></label>
+            </div>
+            <div class="season-auto-row">
+              <div><label for="seasonAutoToggle">Follow a seasonal calendar</label><p>Change themes automatically on the days you choose.</p></div>
+              <label class="switch"><input type="checkbox" id="seasonAutoToggle" /><span class="switch-slider"></span></label>
+            </div>
+            <fieldset id="seasonCalendarFields" class="season-calendar" hidden>
+              <legend>Annual calendar</legend>
+              <label class="season-zone-label" for="seasonTimezone">Time zone</label>
+              <input type="text" id="seasonTimezone" list="seasonTimezones" placeholder="Europe/Lisbon" required autocomplete="off" spellcheck="false" />
+              <datalist id="seasonTimezones"></datalist>
+              <p class="season-help">Dates repeat every year and include the first and last day. Earlier rows take priority when dates overlap. Move holidays above the seasons.</p>
+              <div id="seasonRules"></div>
+              <div class="season-test"><label for="seasonTestDate">Try a date</label><input type="date" id="seasonTestDate" /><output id="seasonTestResult" for="seasonTestDate" aria-live="polite"></output></div>
+              <p class="season-help">Outside these dates, your selected theme is used. Choose Original for a neutral fallback. Winter can continue into the next year.</p>
+            </fieldset>
+            <div class="season-save-bar"><p id="seasonSaveStatus" role="status" aria-live="polite">Your appearance is up to date.</p><button type="submit" class="btn btn-primary btn-sm" id="saveSeasonBtn" disabled>Save changes</button></div>
+          </form>
         </div>
 
         <!-- ── Public Page ───────────────────────────
@@ -959,9 +989,8 @@
         <!-- ── Single Sign-On ────────────────────── -->
         <div class="settings-panel" data-panel="sso">
           <div class="settings-section-title">
-            Single Sign-On <span class="beta-pill">BETA</span>
+            Single Sign-On
           </div>
-          <div class="beta-notice" role="status">This SSO integration is being tested</div>
           <div class="settings-row-desc" style="margin-bottom:14px">
             Let people sign in through an OpenID Connect provider — Authentik, Keycloak,
             or any other. Passwords keep working alongside it, and so does the admin token.
@@ -2159,6 +2188,7 @@
      so the order below is the order the original single file ran in. -->
 <script src="js/core.js"></script>
 <script src="js/settings.js"></script>
+<script src="js/seasons.js"></script>
 <script src="js/helpers.js"></script>
 <script src="js/sidebar.js"></script>
 <script src="js/cards.js"></script>

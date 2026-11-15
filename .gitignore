@@ -1,4 +1,5 @@
 node_modules/
+.cache/
 data/
 linkpage_data/
 .claude/

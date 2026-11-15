@@ -15,6 +15,8 @@ const path = require('path');
 const { PUBLIC_DIR } = require('../config/env');
 const { escapeHtml } = require('./markdownService');
 const { shadeColor, hexToRgb } = require('../utils/color');
+const calendar = require('../../public/season-calendar');
+const particles = require('../../public/season-particles');
 
 /**
  * The policy the rendered page is served under. `default-src 'none'` means no
@@ -62,7 +64,14 @@ let cachedTokens = null;
 function themeTokens() {
   if (cachedTokens !== null) return cachedTokens;
   try {
-    cachedTokens = fs.readFileSync(path.join(PUBLIC_DIR, 'theme-tokens.css'), 'utf8');
+    cachedTokens = ['theme-tokens.css', 'seasons.css', 'season-backgrounds.css']
+      .map(file => fs.readFileSync(path.join(PUBLIC_DIR, file), 'utf8')).join('\n');
+    // A direct Markdown URL has no browser preference in its query. CSS can
+    // follow the OS without opening this sandbox to scripts or local storage.
+    const darkRules = [...cachedTokens.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, selector]) => selector.includes('[data-theme="dark"]') && !selector.includes(':not([data-theme="dark"])'))
+      .map(([, selector, declarations]) => `${selector.replaceAll('[data-theme="dark"]', ':root:not([data-theme])')}{${declarations}}`).join('\n');
+    cachedTokens += `\n@media (prefers-color-scheme: dark) { :root:not([data-theme]) { color-scheme: dark; } ${darkRules} }`;
   } catch (err) {
     // Without them the document still reads; it simply falls back to the
     // browser's own colours rather than the site's.
@@ -74,13 +83,15 @@ function themeTokens() {
 
 const PAGE_STYLES = `
 * { box-sizing: border-box; }
+html { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 16px/1.65 -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
   padding: 24px 16px 64px;
 }
 body:has(.is-embedded) { background: var(--surface); padding: 18px 22px 40px; }
-.md-shell { max-width: 760px; margin: 0 auto; }
+.md-shell { position: relative; z-index: 40; max-width: 760px; margin: 0 auto; }
 .md-back {
   display: inline-block; margin-bottom: 18px; color: var(--text-muted);
   text-decoration: none; font-size: 0.875rem;
@@ -88,7 +99,7 @@ body:has(.is-embedded) { background: var(--surface); padding: 18px 22px 40px; }
 .md-back:hover { color: var(--primary); }
 .md-doc {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 32px 36px;
+  border-radius: 18px; padding: 32px 36px; box-shadow: 0 8px 32px rgb(0 0 0 / .04);
 }
 .md-doc > :first-child { margin-top: 0; }
 .md-doc > :last-child { margin-bottom: 0; }
@@ -124,7 +135,25 @@ th { background: var(--surface-3); font-weight: 600; }
    flattens itself rather than drawing a second one. */
 .is-embedded { max-width: none; }
 .is-embedded .md-doc { background: none; border: 0; border-radius: 0; padding: 4px 8px 24px; }
+:root[data-season] body:has(.is-embedded) { background: transparent; }
+:root:is([data-season-background="static"], [data-season-background="animated"]) .is-embedded .md-doc {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px;
+}
+@media (max-width: 720px) { .season-effects .season-particle:nth-child(n + 15) { display: none; } }
+@media (prefers-reduced-motion: reduce) { .season-effects { display: none !important; } }
 `;
+
+const cachedLandscapes = new Map();
+function inlineLandscape(season, background) {
+  if (!calendar.names.includes(season) || background === 'minimal') return '';
+  if (!cachedLandscapes.has(season)) {
+    try {
+      const bytes = fs.readFileSync(path.join(PUBLIC_DIR, 'season-backgrounds', `${season}.jpg`));
+      cachedLandscapes.set(season, `:root[data-season] { --season-landscape: url("data:image/jpeg;base64,${bytes.toString('base64')}") !important; }`);
+    } catch { return ''; }
+  }
+  return cachedLandscapes.get(season);
+}
 
 /**
  * Builds the full document. `title` is the link's name; `body` is the fragment
@@ -161,6 +190,13 @@ function renderMarkdownPage({ title, body, theme, embed = false, palette = {} })
   const heading   = escapeHtml(title || 'Document');
   const pageTheme = normalizePageTheme(theme);
   const themeAttr = pageTheme ? ` data-theme="${pageTheme}"` : '';
+  const season = calendar.names.includes(palette.season_theme) ? palette.season_theme : 'none';
+  const background = ['static', 'animated'].includes(palette.season_background) ? palette.season_background : 'minimal';
+  const seasonAttrs = (season === 'none' ? '' : ` data-season="${season}"`)
+    + ` data-season-background="${background}" data-season-effects="${palette.season_effects === false ? 'off' : 'on'}"`;
+  const config = particles.configs[season];
+  const effects = config && palette.season_effects !== false
+    ? `<div id="seasonEffects" class="season-effects season-effects-${config.kind}" data-effect="${season}" aria-hidden="true" inert>${particles.markup(season)}</div>` : '';
 
   // Both variants ride along, exactly as they do on the site: which one
   // applies is decided by data-theme, in theme-tokens.css.
@@ -173,20 +209,24 @@ function renderMarkdownPage({ title, body, theme, embed = false, palette = {} })
     dark:             pageTheme === 'dark',
   });
   const styleAttr = accent ? ` style="${accent}"` : '';
+  const systemDarkAccent = !pageTheme && palette.accent && palette.accentDarkAdjust
+    ? `@media (prefers-color-scheme: dark) { :root:not([data-theme]) { ${accentVariables({ accent: palette.accent, accentDarkAdjust: true, dark: true }).replaceAll(';', ' !important;')} } }` : '';
   // Embedded in the site's overlay: the modal already provides the frame and
   // a way out, so the page drops its own card and Back link.
   const shellClass = embed ? 'md-shell is-embedded' : 'md-shell';
   const backLink   = embed ? '' : '\n  <a class="md-back" href="/">&larr; Back</a>';
   return `<!DOCTYPE html>
-<html lang="en"${themeAttr}${variantAttrs}${styleAttr}>
+<html lang="en"${themeAttr}${variantAttrs}${seasonAttrs}${styleAttr}>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="referrer" content="no-referrer" />
 <title>${heading}</title>
-<style>${themeTokens()}${PAGE_STYLES}</style>
+<style>${themeTokens()}${PAGE_STYLES}${inlineLandscape(season, background)}${systemDarkAccent}</style>
 </head>
 <body>
+<div class="season-backdrop" aria-hidden="true"></div>
+${effects}
 <div class="${shellClass}">${backLink}
   <article class="md-doc">
 ${body || '<p><em>This document is empty.</em></p>'}
@@ -204,6 +244,7 @@ ${body || '<p><em>This document is empty.</em></p>'}
 function instancePalette() {
   const db = require('../models');   // lazy: this module is loaded by models' consumers
   return {
+    ...require('./seasonService').readSeasonSettings(),
     lightVariant:     db.readSetting('theme_light_variant') || 'default',
     darkVariant:      db.readSetting('theme_dark_variant')  || 'default',
     accent:           db.readSetting('accent_color') || null,

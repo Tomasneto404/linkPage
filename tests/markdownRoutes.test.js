@@ -391,3 +391,34 @@ describe('the open-mode setting', () => {
     assert.equal(res.status, 401);
   });
 });
+
+describe('seasonal appearance in Markdown', () => {
+  const calendar = require('../public/season-calendar');
+  test('inherits the active calendar theme, image mode and particles while remaining script-free', async () => {
+    const schedule = calendar.defaults(); schedule.enabled = true;
+    schedule.rules.forEach(r => { r.enabled = false; });
+    schedule.rules[0] = { theme: 'christmas', enabled: true, start: '01-01', end: '12-31' };
+    await c.api('/api/settings/season', { method: 'POST', json: { name: 'spring', schedule, background: 'animated', effects: true } });
+    const link = await makeMarkdownLink({ name: 'Seasonal doc', slug: 'seasonal-doc' });
+    for (const url of ['/f/seasonal-doc?theme=dark', `/r/${link.id}?theme=light&embed=1`]) {
+      const res = await visit(url);
+      assert.equal(res.status, 200);
+      assert.match(htmlTag(res.text), /data-season="christmas"/);
+      assert.match(htmlTag(res.text), /data-season-background="animated"/);
+      assert.match(res.text, /id="seasonEffects"[^>]*data-effect="christmas"/);
+      assert.match(res.text, /data:image\/jpeg;base64,/);
+      assert.doesNotMatch(res.text, /<script\b/i);
+      assert.doesNotMatch(res.text, /<link[^>]*stylesheet/);
+      assert.match(res.headers.get('content-security-policy'), /sandbox allow-popups/);
+      assert.match(res.text, /prefers-reduced-motion/);
+    }
+  });
+  test('minimalist mode and disabled particles also reach the document', async () => {
+    await c.api('/api/settings/season', { method: 'POST', json: { name: 'autumn', schedule: calendar.defaults(), background: 'minimal', effects: false } });
+    const res = await visit('/f/seasonal-doc');
+    assert.match(htmlTag(res.text), /data-season="autumn"/);
+    assert.match(htmlTag(res.text), /data-season-background="minimal"/);
+    assert.doesNotMatch(res.text, /id="seasonEffects"/);
+    assert.doesNotMatch(res.text, /data:image\/jpeg;base64,/);
+  });
+});

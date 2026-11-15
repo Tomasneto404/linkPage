@@ -96,7 +96,8 @@ describe('it agrees with the copy the sign-in screens use', () => {
     const root = { setAttribute() {}, style: { setProperty() {}, removeProperty() {} } };
     const context = {
       window:    {},
-      document:  { documentElement: root, getElementById: () => null, body: { classList: { add() {}, remove() {} } } },
+      setInterval() {},
+      document:  { addEventListener() {}, documentElement: root, getElementById: () => null, body: { classList: { add() {}, remove() {} } } },
       localStorage: { getItem: () => null, setItem() {} },
     };
     context.window.matchMedia = () => ({ matches: false });

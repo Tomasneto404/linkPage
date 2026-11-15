@@ -61,6 +61,7 @@ function applyAccent(theme) {
     root.removeProperty('--primary');
     root.removeProperty('--primary-rgb');
     root.removeProperty('--primary-hover');
+    root.removeProperty('--on-primary');
     return;
   }
   const dark = theme === 'dark';
@@ -68,6 +69,8 @@ function applyAccent(theme) {
   root.setProperty('--primary', base);
   root.setProperty('--primary-rgb', hexToRgb(base).join(','));
   root.setProperty('--primary-hover', shadeColor(base, dark ? 12 : -8));
+  const luminance = hexToRgb(base).map(c => c / 255).map(c => c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
+  root.setProperty('--on-primary', luminance[0] * .2126 + luminance[1] * .7152 + luminance[2] * .0722 > .179 ? '#111111' : '#ffffff');
 }
 
 function applyThemeVariants() {
@@ -87,7 +90,7 @@ function applyThemeSettings(settings) {
     default:          settings.default_theme || 'system',
   };
   applyThemeVariants();
-  window.LinkPageTheme?.applySeason(settings.season_theme);
+  window.LinkPageTheme?.applySeasonSettings(settings);
   if (!localStorage.getItem('linkpage_theme')) {
     applyTheme(getInitialTheme(), false);
   } else {

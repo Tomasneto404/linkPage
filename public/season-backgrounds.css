@@ -1,0 +1,62 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+   Copyright (C) 2026 Tomás Neto
+   Optional generated landscapes; the original minimalist design stays available. */
+:root[data-season="christmas"], [data-season-preview="christmas"] { --season-landscape: url("/season-backgrounds/christmas.jpg"); --season-thumbnail: url("/season-backgrounds/christmas-thumb.jpg"); }
+:root[data-season="halloween"], [data-season-preview="halloween"] { --season-landscape: url("/season-backgrounds/halloween.jpg"); --season-thumbnail: url("/season-backgrounds/halloween-thumb.jpg"); }
+:root[data-season="autumn"], [data-season-preview="autumn"] { --season-landscape: url("/season-backgrounds/autumn.jpg"); --season-thumbnail: url("/season-backgrounds/autumn-thumb.jpg"); }
+:root[data-season="spring"], [data-season-preview="spring"] { --season-landscape: url("/season-backgrounds/spring.jpg"); --season-thumbnail: url("/season-backgrounds/spring-thumb.jpg"); }
+:root[data-season="easter"], [data-season-preview="easter"] { --season-landscape: url("/season-backgrounds/easter.jpg"); --season-thumbnail: url("/season-backgrounds/easter-thumb.jpg"); }
+:root[data-season="winter"], [data-season-preview="winter"] { --season-landscape: url("/season-backgrounds/winter.jpg"); --season-thumbnail: url("/season-backgrounds/winter-thumb.jpg"); }
+:root[data-season="summer"], [data-season-preview="summer"] { --season-landscape: url("/season-backgrounds/summer.jpg"); --season-thumbnail: url("/season-backgrounds/summer-thumb.jpg"); }
+[data-season-preview="none"] { --season-landscape: none; }
+:root, [data-season-preview] {
+  --season-image-filter: saturate(.85);
+  --season-image-veil: color-mix(in srgb, var(--bg) 28%, transparent);
+}
+[data-theme="dark"], [data-theme="dark"] [data-season-preview] {
+  --season-image-filter: brightness(.62) saturate(.8);
+  --season-image-veil: color-mix(in srgb, var(--bg) 36%, transparent);
+}
+.season-backdrop { display: none; position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; contain: strict; }
+.season-preview-backdrop { display: none; position: absolute; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; }
+:root[data-season]:is([data-season-background="static"], [data-season-background="animated"]) body:not(.has-wallpaper) > .season-backdrop { display: block; }
+:root[data-season]:is([data-season-background="static"], [data-season-background="animated"]) body:not(.has-wallpaper)::before { display: none; }
+.season-backdrop::before, .season-preview-backdrop::before {
+  content: ''; position: absolute; inset: -3%;
+  background-image: var(--season-landscape, none); background-position: center; background-size: cover; background-repeat: no-repeat;
+  filter: var(--season-image-filter); transform: scale(1.02);
+}
+.season-backdrop::after, .season-preview-backdrop::after { content: ''; position: absolute; inset: 0; background: var(--season-image-veil); }
+:root[data-season]:is([data-season-background="static"], [data-season-background="animated"]) body:not(.has-wallpaper) .gate {
+  overflow: hidden; background-image: none;
+}
+:root[data-season]:is([data-season-background="static"], [data-season-background="animated"]) body:not(.has-wallpaper) .gate::before {
+  content: ''; position: absolute; inset: -3%; z-index: 0;
+  background-image: var(--season-landscape, none); background-position: center; background-size: cover; background-repeat: no-repeat;
+  filter: var(--season-image-filter); transform: scale(1.02); pointer-events: none;
+}
+:root[data-season]:is([data-season-background="static"], [data-season-background="animated"]) body:not(.has-wallpaper) .gate::after {
+  content: ''; position: absolute; inset: 0; z-index: 0; background: var(--season-image-veil); pointer-events: none;
+}
+.season-showcase:is([data-season-background-preview="static"], [data-season-background-preview="animated"]):not([data-season-preview="none"]) { background-image: none; }
+.season-showcase:is([data-season-background-preview="static"], [data-season-background-preview="animated"]):not([data-season-preview="none"]) .season-preview-backdrop { display: block; }
+.season-option-art:is([data-season-background-preview="static"], [data-season-background-preview="animated"]):not([data-season-preview="none"]) {
+  background-image: linear-gradient(var(--season-image-veil), var(--season-image-veil)), var(--season-thumbnail, var(--season-landscape));
+  background-size: cover; background-position: center;
+}
+:root[data-season-background="animated"] .season-backdrop::before,
+:root[data-season][data-season-background="animated"] body:not(.has-wallpaper) .gate::before,
+[data-season-background-preview="animated"] .season-preview-backdrop::before {
+  animation: season-landscape-drift 48s ease-in-out infinite alternate;
+}
+:root[data-season-paused="on"] .season-backdrop::before,
+:root[data-season-paused="on"] .gate::before,
+:root[data-season-paused="on"] .season-preview-backdrop::before { animation-play-state: paused !important; }
+@keyframes season-landscape-drift {
+  from { transform: scale(1.03) translate3d(-.7%, -.5%, 0); }
+  to { transform: scale(1.09) translate3d(.7%, .5%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .season-backdrop::before, .season-preview-backdrop::before,
+  :root[data-season][data-season-background="animated"] body:not(.has-wallpaper) .gate::before { animation: none !important; transform: none; }
+}

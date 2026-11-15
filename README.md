@@ -118,7 +118,13 @@ Point LinkPage at an **OpenID Connect** provider (Authentik, Keycloak, Google Wo
 |:---:|:---:|
 | ![Christmas season](linkPagePrints/linkPage-v110-season-christmas-light.png) | ![Winter dark season](linkPagePrints/linkPage-v110-season-winter-dark.png) |
 
-Pick a **Season Theme** in Settings → Themes/Design: Easter, Halloween, Christmas, Spring, Autumn, Winter or Summer. Each one dresses the whole page — accent, surfaces, body pattern, button shape — in Light and Dark. An admin's own accent colour still wins; the season takes care of everything else.
+Open **Settings → Seasonal Themes** to preview Original, Easter, Halloween, Christmas, Spring, Summer, Autumn or Winter. Refined palettes, soft ambient backgrounds and subtle vector motifs work in Light and Dark while keeping the same controls and card shapes. Custom accents and wallpapers are preserved.
+
+Choose **Minimalist**, **Still image** or **Animated image** for the background. Minimalist preserves the original soft palette and delicate patterns. Each of the seven seasons also has an original landscape; Animated image adds a slow drift. Particle effects are controlled independently. Custom wallpapers take priority. Markdown files use the same active seasonal palette, background and particles in a new tab or in the document modal, with scripts still disabled. Devices requesting reduced motion see a still background.
+
+**Animated atmosphere** adds slow-moving snowflakes for Christmas and Winter, bats with fluttering wings for Halloween, tumbling leaves for Autumn, floating dandelion seeds for Spring, pastel petals for Easter and sun glints for Summer. Effects follow the active calendar theme and appear in the editor preview before saving. They are decorative, never intercept clicks, use fewer particles on phones, pause in background tabs and switch off when the device requests reduced motion. Turn the option off for a still page.
+
+Turn on **Follow a seasonal calendar** to set an annual date range for each theme, choose a time zone and enable only the themes you want. Dates include both endpoints and can span New Year. Earlier rows take priority; use the arrows to move holidays above the seasons. Easter follows Easter Sunday automatically, with configurable days before and after, or can use fixed dates. Outside scheduled dates, the selected theme is the fallback (choose Original for a neutral page). **Try a date** previews the result without changing the live site. **Save changes** applies the complete selection and calendar together. Open public, admin and sign-in pages re-evaluate the calendar every 30 seconds and when returning to the tab.
 
 ---
 
@@ -132,7 +138,7 @@ Pick a **Season Theme** in Settings → Themes/Design: Easter, Halloween, Christ
 - **Group admins** — administrators pick members to look after a shared group; those members may add and edit links in it, from the public page
 - **Your own page** — a signed-in member keeps private groups, links and starred favourites, with export / import to another instance; a `+` after the group tabs creates a new group in one step, and a `+ Add a link to <group>` card appears inside groups you may add to
 - **Guest contributions** — optional, three-level setting (off / members / anyone). Guests are identified by a browser cookie, see only their own content, and are listed and prunable from a Contributions tab in the panel; retention sweep deletes dormant guests after N days
-- **Season themes** — Easter, Halloween, Christmas, Spring, Autumn, Winter, Summer; each with its own Light and Dark palette, SVG background pattern and button shape
+- **Season themes** — Easter, Halloween, Christmas, Spring, Autumn, Winter, Summer; each with its own Light and Dark palette, subtle SVG motifs and configurable automatic calendar
 - **Touch-friendly reordering** — press and hold a favourite or one of your own links on a touch device, then slide to reorder
 
 ### Core
