@@ -33,6 +33,9 @@ const Link = {
     file_path:   { type: 'string', nullable: true, description: 'Attached file, when the link carries one.' },
     file_name:   { type: 'string', nullable: true, example: 'handbook.pdf' },
     position:    { type: 'integer' },
+    tags: { type:'array', items:{type:'string'} },
+    publish_at: { type:'string', format:'date-time', nullable:true },
+    expires_at: { type:'string', format:'date-time', nullable:true },
     is_hidden:   { type: 'integer', enum: [0, 1], description: 'Hidden links are admin-only.' },
     auto_open:   {
       type: 'integer', enum: [0, 1],
@@ -67,6 +70,8 @@ const Group = {
     name:         { type: 'string', example: 'Finance' },
     color:        { type: 'string', example: '#0071e3' },
     position:     { type: 'integer' },
+    layout: { type:'string', enum:['grid','list','gallery'] },
+    is_private: { type:'boolean' },
     is_protected: { type: 'boolean', description: 'Password-protected; its links need an unlock.' },
     unlock_mode:  { type: 'string', enum: ['session', 'persistent'] },
     sections:     { type: 'array', items: { $ref: '#/components/schemas/Section' } },

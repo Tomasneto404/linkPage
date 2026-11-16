@@ -47,4 +47,5 @@ seedAdminUser()
   .catch(err => console.error('[auth] Could not create the first admin account:', err.message));
 
 startRetentionSweep();
+require('./services/backupService').start();
 app.listen(PORT, () => {});

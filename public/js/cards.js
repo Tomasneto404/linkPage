@@ -17,6 +17,7 @@ function buildLinkHaystack(link) {
     link.url,
     link.file_name,
     link.description,
+    ...(link.tags || []),
   ];
   for (const g of (link.groups || [])) {
     parts.push(g.name, g.section_name, g.parent_section_name);
@@ -47,6 +48,7 @@ function getFilteredLinks() {
     : activeGroup !== 'all' ? links.filter(l => linkBelongsToGroup(l, activeGroup))
     : links;
 
+  if (window.workspaceTagSelection?.size) filtered = filtered.filter(link => [...window.workspaceTagSelection].every(tag => (link.tags || []).includes(tag)));
   const tokens = effectiveSearchTokens();
   if (tokens.length) {
     // AND across tokens — each chip/keyword must match at least one
@@ -349,7 +351,8 @@ function buildLinkCard(link) {
     <div class="link-body">
       <div class="link-name">${highlightText(link.name, q)}</div>
       <div class="link-domain">${highlightText(getLinkDisplayLabel(link), q)}</div>
-      ${descHtml}${badgeHtml}
+      ${descHtml}
+      ${(link.tags || []).length ? `<div class="link-user-tags">${link.tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}</div>` : ''}${badgeHtml}
     </div>
     <button type="button" class="link-copy-btn" title="Copy link" aria-label="Copy link">
       <svg class="link-copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"

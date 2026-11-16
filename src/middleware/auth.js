@@ -197,6 +197,16 @@ const PUBLIC_UPLOAD_SETTINGS = [
  * file exists. Off — the default — it does nothing at all.
  */
 function guardUploads(req, res, next) {
+  const workspace = require('../models/workspace');
+  let stored;
+  try { stored = '/uploads/' + path.basename(decodeURIComponent(req.path)); } catch { return res.status(404).end(); }
+  // A file explicitly used as public branding must still load on the sign-in
+  // page, even if the same library icon is also used by a private link.
+  if (PUBLIC_UPLOAD_SETTINGS.some(key => db.readSetting(key) === stored)) return next();
+  const referencing = db.getAllLinks().filter(l => [l.file_path, l.image_path, l.favicon_path].includes(stored));
+  const groups = db.getAllGroups();
+  const restricted = referencing.filter(l => !workspace.published(l) || l.group_ids.some(id => groups.find(g => g.id === id)?.is_private));
+  if (restricted.length && req.user?.role !== 'admin' && !require('../services/linkService').visibleSharedLinks(req).some(l => referencing.some(r => r.id === l.id))) return res.status(404).end();
   if (req.user || !isMembersOnly()) return next();
 
   let requested;

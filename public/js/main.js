@@ -33,6 +33,13 @@ async function loadData({ transition = false } = {}) {
     }
   }
 
+  const requestedGroup = new URLSearchParams(location.search).get('group');
+  if (requestedGroup) {
+    const id = /^u\d+$/.test(requestedGroup) ? requestedGroup : Number(requestedGroup);
+    if (groups.some(g => g.id === id)) activeGroup = id;
+    const url = new URL(location.href); url.searchParams.delete('group'); history.replaceState(null, '', url);
+  }
+
   // If the active tab was a now-locked group — or a personal one that has gone,
   // because it was deleted or because its owner signed out — fall back to "All"
   // rather than leave an empty grid with no explanation.
@@ -100,6 +107,7 @@ async function init() {
   ]);
   // The admin token is not a member: it has no page of its own.
   currentUser = me.via === 'session' ? me.user : null;
+  await restorePublicAdminAccess();
   contributionMode = settings.contribution_mode || 'off';
 
   // A members-only page shows a stranger nothing at all, not even its frame.

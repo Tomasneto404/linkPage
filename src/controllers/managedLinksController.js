@@ -24,7 +24,7 @@ const { safeDeleteFile } = require('../services/uploadService');
 /** A signed-in account's managed groups. Administrators look after every group. */
 function managedGroupIds(req) {
   if (req.user?.role === 'admin') return new Set(db.getAllGroups().map(g => g.id));
-  return new Set(db.getManagedGroupIds(req.user.id));
+  return new Set(require('../models/workspace').managedIds(req.user.id));
 }
 
 /** Group admins are accounts. The admin token has panel routes of its own. */
@@ -76,6 +76,9 @@ function editableLink(req, res, managed) {
     });
     return null;
   }
+  const metadata = require('../models/workspace');
+  const allowedToEdit = groupIds.every(id => req.user.role === 'admin' || (metadata.ranks[metadata.role(req.user.id, id)] || 0) >= 3 || (link.created_by === req.user.id && metadata.role(req.user.id, id) === 'contributor'));
+  if (!allowedToEdit) { res.status(403).json({ error: 'You may contribute here, but cannot edit another member’s links.' }); return null; }
   return link;
 }
 

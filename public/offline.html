@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Copyright (C) 2026 Tomás Neto -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f5f7">
+  <meta name="robots" content="noindex">
+  <title>You're offline · LinkPage</title>
+  <link rel="icon" href="/pwa/icon-192.png">
+  <link rel="stylesheet" href="/pwa/offline.css">
+  <script src="/pwa/offline.js" defer></script>
+</head>
+<body>
+  <main>
+    <img src="/pwa/icon-192.png" width="72" height="72" alt="LinkPage">
+    <span class="eyebrow">A moment to reconnect</span>
+    <h1>You're offline.</h1>
+    <p>Your workspace will be here when your connection returns. Links and private documents need a connection to open.</p>
+    <div class="actions"><button id="retry" type="button">Try again</button><a href="/">Back to links</a></div>
+    <p class="status" id="connectionStatus" role="status" aria-live="polite"></p>
+  </main>
+</body>
+</html>

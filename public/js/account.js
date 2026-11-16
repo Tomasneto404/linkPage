@@ -28,6 +28,7 @@ function renderAccountControl() {
     ?.classList.toggle('hidden', !currentUser?.must_change_password);
   const next = encodeURIComponent(location.pathname + location.search);
 
+  if (!currentUser && isGlobalPageAdmin()) { slot.innerHTML = '<a href="/admin" class="admin-btn">Admin panel</a><button type="button" class="admin-btn" id="endPublicAdmin">Sign out</button>'; document.getElementById('endPublicAdmin').onclick = () => { localStorage.removeItem('linkpage_admin_token'); publicAdminToken = null; location.reload(); }; return; }
   if (!currentUser) {
     // One way in for everybody. The sign-in page works out who is an
     // administrator and sends them to the panel; everyone else comes back
@@ -123,6 +124,8 @@ document.addEventListener('keydown', e => {
 });
 
 async function signOut() {
+  publicAdminToken = null;
+  localStorage.removeItem('linkpage_admin_token');
   try {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
   } catch { /* leaving anyway */ }
@@ -229,7 +232,7 @@ function fillComposerGroups(selectedKey = null, { sharedOnly = false } = {}) {
     .map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
   const shared = managedGroups()
     .map(g => `<option value="s${g.id}">${escapeHtml(g.name)}</option>`).join('');
-  const sharedBlock = shared ? `<optgroup label="Groups you look after">${shared}</optgroup>` : '';
+  const sharedBlock = shared || isGlobalPageAdmin() ? `<optgroup label="Shared groups">${isGlobalPageAdmin() ? '<option value="s0">Not in a shared group</option>' : ''}${shared}</optgroup>` : '';
 
   sel.innerHTML = sharedOnly
     ? sharedBlock
@@ -416,7 +419,7 @@ function openComposer(link, { group: preset } = {}) {
     el('myLinkDesc').value = link.description || '';
     setComposerMode(link.file_path ? 'file' : 'url');
     const membership = (link.groups || [])[0];
-    fillComposerGroups(shared ? `s${membership?.id}` : (membership?.id || null), { sharedOnly: shared });
+    fillComposerGroups(shared ? `s${membership?.id || 0}` : (membership?.id || null), { sharedOnly: shared });
     fillComposerSections(membership?.section_id || null);
   } else {
     setComposerMode('url');
@@ -573,8 +576,20 @@ async function saveSharedLink(name, url) {
   const form = new FormData();
   form.append('name', name);
   form.append('description', el('myLinkDesc').value.trim());
-  form.append('group_id', String(group.id));
-  if (el('myLinkSection').value) form.append('section_id', el('myLinkSection').value);
+  const administrator = isGlobalPageAdmin();
+  const sectionId = el('myLinkSection').value ? Number(el('myLinkSection').value) : null;
+  if (administrator) {
+    const original = composerLink?.groups || [];
+    const assignments = group ? (composerLink && original[0]?.id === group.id
+      ? original.map((membership, index) => ({ group_id: membership.id, section_id: index === 0 ? sectionId : membership.section_id ?? null }))
+      : [{ group_id: group.id, section_id: sectionId }]) : [];
+    const unchanged = composerLink && ((original[0]?.id || null) === (group?.id || null)) && (original[0]?.section_id ?? null) === sectionId;
+    if (!unchanged) form.append('groups', JSON.stringify(assignments));
+  } else {
+    if (!group) return showComposerError('Choose a shared group.');
+    form.append('group_id', String(group.id));
+    if (sectionId) form.append('section_id', String(sectionId));
+  }
 
   if (composerMode === 'url') {
     form.append('url', url);
@@ -587,17 +602,18 @@ async function saveSharedLink(name, url) {
   if (composerIcon) form.append('image', composerIcon);
   else if (el('myLinkIconRemoved').checked) form.append('remove_image', 'true');
 
+  const base = administrator ? '/api/links' : '/api/managed/links';
   const res = composerLink
-    ? await myRequest(`/api/managed/links/${composerLink.id}`, { method: 'PUT', form })
-    : await myRequest('/api/managed/links', { form });
+    ? await myRequest(`${base}/${composerLink.id}`, { method: 'PUT', form })
+    : await myRequest(base, { form });
   if (!res.ok) return showComposerError(res.body.error || 'Could not save that link.');
 
   const wasEditing = !!composerLink;
   closeComposer();
-  activeGroup = group.id;
+  activeGroup = group?.id || 'all';
   saveStoredGroup(activeGroup);
   await loadData({ transition: true });
-  showToast(wasEditing ? 'Link saved' : `Link added to ${group.name}`);
+  showToast(wasEditing ? 'Link saved' : group ? `Link added to ${group.name}` : 'Link added');
 }
 
 // Deleting asks twice, on the button itself: a modal for one confirmation is
@@ -611,7 +627,7 @@ el('myLinkDeleteBtn')?.addEventListener('click', async () => {
   }
   const res = isPersonal(composerLink)
     ? await myRequest(`${myBase()}/links/${composerLink.personal_id}`, { method: 'DELETE' })
-    : await myRequest(`/api/managed/links/${composerLink.id}`, { method: 'DELETE' });
+    : await myRequest(`${isGlobalPageAdmin() ? '/api/links' : '/api/managed/links'}/${composerLink.id}`, { method: 'DELETE' });
   if (!res.ok) { showComposerError(res.body.error || 'Could not delete that link.'); return; }
   closeComposer();
   await loadData({ transition: true });

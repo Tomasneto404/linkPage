@@ -42,7 +42,7 @@ const AUDIT_ONLY_PATHS = new Set([
  * would have nothing to show anyone else and would tell everyone watching that
  * somebody was busy.
  */
-const isPersonal = p => p.startsWith('/api/my/');
+const isPersonal = p => p.startsWith('/api/my/') || p.startsWith('/api/workspace/filters') || p === '/api/workspace/notifications/read';
 
 function auditAndBroadcast(req, res, next) {
   if (!req.path.startsWith('/api/')) return next();
@@ -50,8 +50,14 @@ function auditAndBroadcast(req, res, next) {
   if (SSE_BROADCAST_SKIP.has(req.path)) return next();
   if (/^\/api\/groups\/\d+\/unlock$/.test(req.path)) return next();
 
+  const appearance = req.path.startsWith('/api/settings/') ? require('../services/appearanceService') : null;
+  const beforeAppearance = appearance ? JSON.stringify(appearance.snapshot()) : null;
   res.on('finish', () => {
     if (res.statusCode < 200 || res.statusCode >= 300) return;
+    if (appearance && beforeAppearance !== JSON.stringify(appearance.snapshot())) {
+      require('../models/workspace').addVersion('settings',0,'Before configuration change',beforeAppearance,req.user?.id);
+      appearance.record('Configuration changed',req.user?.id);
+    }
     writeAuditFromRequest(req);
     if (isPersonal(req.path))                 broadcastToUser(req.user?.id);
     else if (!AUDIT_ONLY_PATHS.has(req.path)) broadcastDataUpdate();

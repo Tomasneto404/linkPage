@@ -85,6 +85,8 @@ function parseAssignments(raw) {
  * page can merge it with the shared set in a single request.
  */
 function data(req, res) {
+  const workspace = require('../models/workspace');
+  const managedIds = req.user.role === 'admin' ? db.getAllGroups().map(group => group.id) : workspace.managedIds(owner(req));
   res.set('Cache-Control', 'private, no-store');
   res.json({
     groups:    db.getPersonalGroups(owner(req)),
@@ -96,7 +98,8 @@ function data(req, res) {
     favorites: visibleFavoriteIds(req),
     // Shared groups this person is a group admin of, so the page can offer
     // to add links to them and to edit the links that are theirs to edit.
-    managed_group_ids: db.getManagedGroupIds(owner(req)),
+    managed_group_ids: managedIds,
+    group_roles: Object.fromEntries(managedIds.map(id => [id, req.user.role === 'admin' ? 'manager' : workspace.role(owner(req), id)])),
   });
 }
 
@@ -517,6 +520,7 @@ function file(req, res) {
       theme:   req.query.theme,
       embed:   req.query.embed === '1',
       palette: instancePalette(),
+      reader: req.query,
     }));
   }
 

@@ -1719,6 +1719,7 @@ const paths = {
       params: [
         pathParam('id', 'Link id'),
         queryParam('theme', 'light or dark, for a rendered markdown page'),
+        queryParam('font','small, normal or large'),queryParam('width','narrow, standard or wide'),queryParam('focus','Set to 1 for focus mode'),queryParam('q','Find text in the document'),
       ],
       responses: {
         200: { description: 'A rendered markdown document', content: { 'text/html': { schema: { type: 'string' } } } },
@@ -1739,6 +1740,7 @@ const paths = {
       params: [
         pathParam('slug', 'The link\'s custom URL', 'string'),
         queryParam('theme', 'light or dark, matching the site theme'),
+        queryParam('font','small, normal or large'),queryParam('width','narrow, standard or wide'),queryParam('focus','Set to 1 for focus mode'),queryParam('q','Find text in the document'),
         queryParam('embed', 'Set to 1 to drop the page chrome, for showing it in a frame'),
       ],
       responses: {
@@ -1761,6 +1763,33 @@ const paths = {
 };
 
 // ─── The document ─────────────────────────────────────────────────────────────
+
+// Workspace operations share the same credential rules as their source resources.
+for (const [method, suffix, summary, auth] of [
+  ['get','search','Search visible links, groups and Markdown content','open'],
+  ['get','filters','List your saved tag filters','user'],['post','filters','Save a tag filter','user'],['delete','filters/{id}','Delete your saved filter','user'],
+  ['get','managed-groups','List shared groups you administer','user'],['put','managed-groups/{id}','Update a group you administer','user'],['post','managed-groups/{id}/members','Assign a member role in a group you administer','user'],['delete','managed-groups/{id}/members/{userId}','Remove a group role','user'],
+  ['get','library','Read links, layouts and group permissions','admin'],['put','links/{id}','Set link tags and publication dates','admin'],['put','groups/{id}','Set group layout, privacy and member roles','admin'],
+  ['get','versions','List document or appearance versions','admin'],['get','versions/{id}','Read a version','admin'],['post','versions/{id}/restore','Restore a document or appearance version','admin'],
+  ['get','notifications','List contribution, link health and backup notifications','admin'],['post','notifications/read','Mark notifications as read','admin'],
+  ['get','presets','List appearance presets','admin'],['post','presets','Save or import an appearance preset','admin'],['get','presets/{id}','Export an appearance preset','admin'],['post','presets/{id}/apply','Apply an appearance preset','admin'],['delete','presets/{id}','Delete an appearance preset','admin'],
+  ['post','backups/import','Import a full backup archive','admin'],['get','backups','List full backups and automatic backup settings','admin'],['put','backups/schedule','Configure automatic full backups','admin'],['post','backups','Create a complete database and files backup','admin'],['get','backups/{id}/file','Download a complete backup archive','admin'],['post','backups/{id}/restore','Restore a full backup after confirmation','admin'],['delete','backups/{id}','Delete a backup archive','admin'],
+]) {
+  const route='/api/workspace/'+suffix;
+  paths[route] ||= {};
+  const properties=suffix==='links/{id}'?{tags:{type:'array',items:{type:'string'}},publish_at:{type:'string',nullable:true,format:'date-time'},expires_at:{type:'string',nullable:true,format:'date-time'}}
+    :suffix==='groups/{id}'?{layout:{type:'string',enum:['grid','list','gallery']},is_private:{type:'boolean'},access:{type:'array',items:{type:'object',properties:{user_id:{type:'integer'},role:{type:'string',enum:['viewer','contributor','editor','manager']}}}}}
+    :suffix==='backups/schedule'?{enabled:{type:'boolean'},frequency:{type:'string',enum:['daily','weekly']},hour:{type:'integer',minimum:0,maximum:23},retention:{type:'integer',minimum:1,maximum:30}}
+    :suffix.endsWith('/restore')?{confirm:{type:'string',description:'Full backup restores require RESTORE'}}
+    :suffix==='filters'?{name:{type:'string'},tags:{type:'array',items:{type:'string'}}}
+    :suffix==='notifications/read'?{keys:{type:'array',items:{type:'string'}}}
+    :suffix==='presets'?{name:{type:'string'},payload:{type:'object'}}:{};
+  paths[route][method]=op({tag:TAGS.system,summary,auth,
+    params:[...(suffix.includes('{userId}')?[pathParam('userId','Member ID')]:[]),...(suffix.includes('{id}')?[pathParam('id','Resource identifier',suffix.startsWith('backups')?'string':'integer')]:[]),...(suffix==='search'?[queryParam('q','Search query, up to 160 characters'),queryParam('view','Admin explicitly requests hidden and scheduled content')]:[]),...(suffix==='versions'?[queryParam('kind','document or settings'),queryParam('link_id','Shared document link ID',{type:'integer'})]:[])],
+    ...(['post','put'].includes(method)?{body:suffix==='backups/import'?formBody({backup:{type:'string',format:'binary'}},['backup']):jsonBody(properties)}:{}),
+    responses:{200:json({type:'object'}),...(method==='post'?{201:json({type:'object'})}:{}),...(method==='delete'?{204:NO_CONTENT}:{}),400:json(ref('Error'))},
+  });
+}
 
 const DESCRIPTION = `
 The HTTP API behind LinkPage.

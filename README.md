@@ -6,7 +6,9 @@ A modern, self-hosted WebUI designed for enterprises to centralize and publish i
 
 Instead of scattering important resources across emails, chats, and shared drives, LinkPage provides a single branded landing page (e.g. `linkpage.company.com`) where teams can quickly access everything they need — from internal tools and documentation to public-facing resources.
 
-> **v1.1.0** adds **sign-in accounts**, **single sign-on through Authentik or any OpenID Connect provider**, **password reset by email**, **group admins** who may add links to one shared group, a **private page per member** with their own groups and starred favourites, optional **anonymous guest contributions** scoped to the browser, and seven **seasonal themes** that redress the whole page in Light and Dark.
+> **v2.0.0** brings an **installable PWA**, redesigned **seasonal landscapes and animated particles**, an **automatic theme calendar**, **⌘K / Ctrl+K search** across links and Markdown contents, and a new **Workspace** for tags, publication dates, group permissions, version history, complete backups, notifications and portable appearance presets. Accounts, OpenID Connect single sign-on, private member pages and guest contributions remain included.
+
+Upgrading from 1.x? Read the [upgrade notes](#upgrading-to-200) before replacing your container.
 
 ---
 
@@ -16,9 +18,9 @@ Instead of scattering important resources across emails, chats, and shared drive
 
 | Light Mode | Dark Mode |
 |:---:|:---:|
-| ![Public page – light mode](linkPagePrints/linkPage-v110-public-light.png) | ![Public page – dark mode](linkPagePrints/linkPage-v110-public-dark.png) |
+| ![LinkPage 2.0 public page in light mode](linkPagePrints/linkPage-v200-public-light.png) | ![LinkPage 2.0 public page in dark mode](linkPagePrints/linkPage-v200-public-dark.png) |
 
-The public page greets end users with a clean card grid, sticky group tabs for filtering, a live search bar, and auto-fetched favicons — no sign-in required. When there are more groups than fit the bar, the tab strip scrolls sideways with faded edges and nudge arrows (mouse wheel, trackpad and touch all work), and can optionally wrap around endlessly.
+The public page greets end users with a clean card grid, sticky group tabs, tag filters, a live search bar and auto-fetched favicons. Sign-in is optional unless enabled by an administrator. When groups overflow, dedicated arrow lanes scroll the tab strip without overlapping the groups; mouse wheel, trackpad and touch work too, with optional endless looping.
 
 ---
 
@@ -26,9 +28,23 @@ The public page greets end users with a clean card grid, sticky group tabs for f
 
 | Light Mode | Dark Mode |
 |:---:|:---:|
-| ![Admin panel – light mode](linkPagePrints/linkPage-adminSide-lightMode.png) | ![Admin panel – dark mode](linkPagePrints/linkPage-adminSide-darkMode.png) |
+| ![LinkPage 2.0 admin panel in light mode](linkPagePrints/linkPage-v200-admin-light.png) | ![LinkPage 2.0 admin panel in dark mode](linkPagePrints/linkPage-v200-admin-dark.png) |
 
-The admin panel is protected by a secret token. The left sidebar lists all groups with their sections and subsections; the main area shows link cards with drag-to-reorder, bulk selection, import/export, per-card click counts, and one-click link creation. The top bar badges pending link requests.
+Sign in with an administrator account or the recovery admin token. The sidebar lists groups, sections and subsections; the main area offers drag-to-reorder, bulk selection, import/export and per-card analytics. The header adds global search, Workspace and a notification centre.
+
+---
+
+### Search and Workspace
+
+| Search everywhere | Tags and publication dates |
+|:---:|:---:|
+| ![Global search with actual link icons](linkPagePrints/linkPage-v200-search.png) | ![Workspace link tags and publishing controls](linkPagePrints/linkPage-v200-workspace-library.png) |
+
+Press **⌘K / Ctrl+K** to search links, groups and Markdown contents, with keyboard navigation and each link's own icon. Open **Workspace** in the admin header to organise the shared library and manage access, history, backups and appearances.
+
+| Document history | Complete backups |
+|:---:|:---:|
+| ![Document version history](linkPagePrints/linkPage-v200-workspace-history.png) | ![Complete backups and automatic schedule](linkPagePrints/linkPage-v200-workspace-backups.png) |
 
 ---
 
@@ -72,11 +88,11 @@ Admins and members use the same **Sign in** button on the public page. Members l
 
 ---
 
-### Group admins
+### Group permissions
 
-![Group dialog with Group admins](linkPagePrints/linkPage-v110-group-admins.png)
+![Workspace group layouts and member access](linkPagePrints/linkPage-v200-workspace-access.png)
 
-Tick members in a group's dialog and they become its **group admins**: they can add links to that group and edit links that live only in groups they manage. The group itself — name, colour, password — stays the administrators'. On the public page, group admins see a **+ Add a link to _Team_** card at the end of the group and a pencil on each editable link.
+Assign **viewer**, **contributor**, **editor** or **manager** access in **Workspace → Library → Groups & access**. Private groups appear only to assigned members and global administrators. Contributors add and edit their own links, editors edit group links, and managers also manage the group's name, colour, layout and members from the public page. Existing group admins keep manager access. Global administrators can edit all visible shared links directly on the public page, including links without a group.
 
 ---
 
@@ -102,7 +118,7 @@ An administrator can open the page to anonymous **guest contributions**: a brows
 
 | Single sign-on | Email |
 |:---:|:---:|
-| ![Settings → Single Sign-On](linkPagePrints/linkPage-v110-sso.png) | ![Settings → Email](linkPagePrints/linkPage-v110-mail.png) |
+| ![Single sign-on settings](linkPagePrints/linkPage-v200-sso.png) | ![Settings → Email](linkPagePrints/linkPage-v110-mail.png) |
 
 Point LinkPage at an **OpenID Connect** provider (Authentik, Keycloak, Google Workspace, Okta…) and the sign-in page offers a one-click button. The flow uses the authorization code grant with PKCE, verifies the ID token's signature, issuer, audience, expiry and nonce, and optionally creates accounts on first sign-in or links by verified email. With an **SMTP** server, the sign-in page offers *Email me a reset link*; links work once, for an hour, and are built from the configured page address so a forged `Host` header cannot redirect a reset.
 
@@ -110,13 +126,13 @@ Point LinkPage at an **OpenID Connect** provider (Authentik, Keycloak, Google Wo
 
 ### Season themes
 
-| Summer | Halloween · Dark |
+| Christmas | Halloween · Dark |
 |:---:|:---:|
-| ![Summer season](linkPagePrints/linkPage-v110-season-summer-light.png) | ![Halloween dark season](linkPagePrints/linkPage-v110-season-halloween-dark.png) |
+| ![Christmas landscape](linkPagePrints/linkPage-v200-season-christmas.png) | ![Halloween landscape in dark mode](linkPagePrints/linkPage-v200-season-halloween.png) |
 
-| Christmas | Winter · Dark |
+| Spring | Autumn · Dark |
 |:---:|:---:|
-| ![Christmas season](linkPagePrints/linkPage-v110-season-christmas-light.png) | ![Winter dark season](linkPagePrints/linkPage-v110-season-winter-dark.png) |
+| ![Spring landscape](linkPagePrints/linkPage-v200-season-spring.png) | ![Autumn landscape in dark mode](linkPagePrints/linkPage-v200-season-autumn.png) |
 
 Open **Settings → Seasonal Themes** to preview Original, Easter, Halloween, Christmas, Spring, Summer, Autumn or Winter. Refined palettes, soft ambient backgrounds and subtle vector motifs work in Light and Dark while keeping the same controls and card shapes. Custom accents and wallpapers are preserved.
 
@@ -126,11 +142,49 @@ Choose **Minimalist**, **Still image** or **Animated image** for the background.
 
 Turn on **Follow a seasonal calendar** to set an annual date range for each theme, choose a time zone and enable only the themes you want. Dates include both endpoints and can span New Year. Earlier rows take priority; use the arrows to move holidays above the seasons. Easter follows Easter Sunday automatically, with configurable days before and after, or can use fixed dates. Outside scheduled dates, the selected theme is the fallback (choose Original for a neutral page). **Try a date** previews the result without changing the live site. **Save changes** applies the complete selection and calendar together. Open public, admin and sign-in pages re-evaluate the calendar every 30 seconds and when returning to the tab.
 
+| Theme preview and background choices | Automatic calendar |
+|:---:|:---:|
+| ![Seasonal theme editor](linkPagePrints/linkPage-v200-season-editor.png) | ![Annual calendar with theme priorities](linkPagePrints/linkPage-v200-season-calendar.png) |
+
+---
+
+### Markdown reading
+
+![Seasonal Markdown document with reading options and contents index](linkPagePrints/linkPage-v200-markdown.png)
+
+Markdown documents inherit the active season. Open reading options to find text, adjust font size and width, or enter focus mode; the contents index jumps between headings. The same controls work in a separate tab or the document modal, with document scripts disabled.
+
+---
+
+### Installable app
+
+<p align="center">
+  <img src="linkPagePrints/linkPage-v200-public-mobile.png" width="260" alt="LinkPage on a phone" />
+  <img src="linkPagePrints/linkPage-v200-pwa-offline.png" width="260" alt="PWA offline reconnect page" />
+</p>
+
+Install LinkPage on your computer or phone to open it in its own window. Chrome and Edge offer **Install app** when installation is available; on iPhone and iPad, use **Safari → Share → Add to Home Screen**. Safari on Mac offers **File → Add to Dock**. The app also provides an installation guide and an offline reconnect page. Links, documents and changes need a connection. Only the generic offline page and its assets enter the service worker's cache; account data, API replies, documents and uploads do not.
+
+Serve the app over **HTTPS** for installation and service workers. `localhost` works for development; plain HTTP on a LAN address does not. Browser support and installation menus vary; see the [MDN installation guide](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable).
+
 ---
 
 ## Features
 
-### New in v1.1.0
+### New in v2.0.0
+
+- **Installable PWA** — home-screen and dock installation, standalone windows, app icons, offline recovery and a controlled worker update prompt.
+- **Seasonal redesign** — seven original landscapes, Light and Dark palettes, minimalist/still/animated backgrounds and independently randomised particles.
+- **Automatic themes** — annual date ranges, time zones, priorities, Easter-relative dates and date previews.
+- **Global search** — ⌘K / Ctrl+K, actual link icons, keyboard navigation and Markdown content search.
+- **Workspace library** — tags, saved filters, publication/expiry dates and grid/list/gallery group layouts.
+- **Permissions** — private groups and viewer/contributor/editor/manager roles, plus public-page editing for global admins.
+- **History and reading tools** — document and appearance versions, compare/restore, Markdown contents, find, size, width and focus controls.
+- **Complete backups** — create/download/import/restore, recovery copies, retention and daily/weekly scheduling.
+- **Notifications and appearances** — per-admin read state and portable branding/theme presets.
+- **UI refinements** — separate scroll-arrow hit targets, responsive controls and SSO without BETA badges.
+
+### Accounts and collaboration
 
 - **Accounts** — invite-only, with an administrator seed on first start and an admin-issued password reset link; one Sign-in button on the public page that lands admins in the panel and members on the links
 - **Single sign-on** — any OpenID Connect provider (Authentik, Keycloak, Google Workspace, Okta…); authorization code with PKCE, ID token signature / issuer / audience / expiry / nonce verified, optional account creation and email-linking, administrator group mapping, and single-sign-on-only mode
@@ -141,10 +195,22 @@ Turn on **Follow a seasonal calendar** to set an annual date range for each them
 - **Season themes** — Easter, Halloween, Christmas, Spring, Autumn, Winter, Summer; each with its own Light and Dark palette, subtle SVG motifs and configurable automatic calendar
 - **Touch-friendly reordering** — press and hold a favourite or one of your own links on a touch device, then slide to reorder
 
+### Workspace tools
+
+Open **Workspace** in the admin header for the shared library, history, full backups, notifications and saved appearances. The public page also has **Search everywhere** (**⌘K / Ctrl+K**). Search includes the contents of Markdown attachments, honours group passwords, private group membership and publication windows, and includes only the signed-in member’s own private documents. Results show the link’s custom icon or cached favicon.
+
+- **Library → Links:** add up to 24 tags and set optional publication and expiry dates in your local time zone. Tag filters on the public page work across groups; signed-in members can save filters to their account. Scheduling is enforced by the server for listings, search, document links and raw attachments; open public pages refresh within 30 seconds.
+- **Library → Groups & access:** choose a card grid, compact list or large image cards per group. A private group is visible only to assigned members and global administrators. Viewer roles can read; contributors can add and edit their own links; editors can edit group links; managers can also rename the group, choose its layout and manage member access from the public page. Existing group admins retain manager access. A link also placed in a public group stays public. General administrators may edit shared links from the public page, including ungrouped links; an ordinary edit preserves all existing group memberships. Hidden links remain absent from the public page.
+- **History:** text-file versions are recorded on creation and each in-place save, with up to 30 versions per document. Compare a saved version with the current text and restore it; restoring first preserves the current version. Appearance and presentation settings have a separate history. Authentication secrets are not included in appearance versions.
+- **Markdown reading options:** use the contents index, find text within a document, change the text size or reading width, or enable focus mode. Controls work in a new tab and inside the document modal. Document content stays script-free and sandboxed.
+- **Backups:** create or import a complete `.tgz` archive of the database, shared files, private files, icons and configuration. Download it, or restore it after typing `RESTORE`. A recovery copy is made first. Restoring ends existing sessions and preserves the current instance’s administrator token. Restores currently require the same database schema version. Automatic daily or weekly backups have an explicit UTC hour and keep 1–30 copies (default 7); automatic backups are off until enabled. Copies remain on the local data volume, so download them for storage elsewhere.
+- **Notifications:** pending contributions, unavailable links and the latest backup result in one place, with read state per administrator.
+- **Appearance:** save, export, import and apply named presets of the colours, seasonal calendar, background, particle preference and branding images. Applying a preset preserves the prior appearance in History. Portable images are limited to 15 MB in total.
+
 ### Core
 
 - **Public page** — clean, searchable landing page for end users with group tabs and multi-keyword search
-- **Scrollable group tabs** — with more groups than fit the bar, the tab strip becomes a horizontal scroller driven by the mouse wheel, trackpad, touch or its two edge arrows; the edges fade and each arrow retracts at the end it reaches. Turn on *Looping Group Tabs* and the strip wraps around endlessly instead of stopping
+- **Scrollable group tabs** — with more groups than fit the bar, use the mouse wheel, trackpad, touch or arrows in separate lanes; arrows disable at each end without exposing a group underneath. Turn on *Looping Group Tabs* for continuous scrolling
 - **Admin panel** — full link and group management for administrators; sign in with an account or the break-glass admin token
 - **Multiple groups per link** — assign a link to as many groups as needed via a checkbox multi-select
 - **Sections & subsections** — organize cards under named section headings, and nest one level of subsections inside them; drag to reorder in the sidebar (reflected on the public page), or drag a link straight onto a group/section/subsection
@@ -503,20 +569,35 @@ docker run --rm -v "$PWD:/repo" -v "$HOME/.cache/trivy:/root/.cache" \
 
 ---
 
+## Upgrading to 2.0.0
+
+1. Make a complete copy of the persistent `linkpage_data` volume while the container is stopped. Keep the image version that created that copy.
+2. Pull `tomasneto26/linkpage:2.0.0`, update your Compose image tag and start the service with the same volume. Database migrations run automatically. Accounts, links, groups and branding are retained.
+3. Open **Workspace** in the admin header to review permissions, configure backups and explore the new tools. Automatic backups remain off until enabled. Existing group admins keep manager access.
+
+The backup tools in 2.0 restore archives from the **same database schema version**. To roll back to 1.x, restore your pre-upgrade volume copy together with the previous image. Do not run an older image against the migrated database.
+
+PWA installation requires HTTPS outside localhost. If a reverse proxy adds a Content Security Policy, allow the same-origin manifest, worker, scripts and images. The PWA does not make private resources available offline.
+
+---
+
 ## Releasing (maintainers)
 
 The version lives in exactly one place — `version` in [package.json](package.json) — and is
 read at runtime by `/api/version`, shown in the admin sidebar and the About row, and compared
 against GitHub Releases by the update checker. Nothing else needs editing.
 
-1. Bump `version` in `package.json`.
+1. Bump `version` in `package.json` and the root package records in `package-lock.json`.
 2. Add a `## vX.Y.Z` section at the top of [CHANGELOG.md](CHANGELOG.md), one `### Title` +
    paragraph per entry. This single file feeds the in-app changelog (via `/api/changelog`),
    the GitHub release notes, and the CI guard below.
-3. Commit, then push the tag:
+3. Run `npm test` and `npm run test:browser`. Refresh screenshots with `node scripts/screenshots.cjs` (requires Chromium, or set `LINKPAGE_BROWSER_PATH`). The script uses a temporary demo database. Generate PWA icons with `node scripts/pwa-icons.cjs` if the brand mark changes; update the offline cache version in `public/sw.js` when offline assets change.
+4. Commit, push `main`, then push the matching tag:
 
    ```bash
-   git tag v1.0.4 && git push origin v1.0.4
+   git push origin main
+   git tag -a v2.0.0 -m "LinkPage 2.0.0"
+   git push origin v2.0.0
    ```
 
 [The workflow](.github/workflows/docker-publish.yml) takes it from there:

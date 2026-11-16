@@ -139,8 +139,8 @@ describe('seedFirstRunContent', () => {
   test('it explains how to get in', async () => {
     const res = await c.pub('/f/welcome', { headers: { 'X-Forwarded-For': '203.0.113.202' } });
 
-    assert.match(res.text, /<h2>How it works<\/h2>/, 'what the two sides are');
-    assert.match(res.text, /<h2>Getting in<\/h2>/);
+    assert.match(res.text, /<h2[^>]*>How it works<\/h2>/, 'what the two sides are');
+    assert.match(res.text, /<h2[^>]*>Getting in<\/h2>/);
     assert.match(res.text, /data\/admin-token\.txt/, 'where the token is kept');
     assert.match(res.text, /server&#39;s console|server's console/, 'and where it is printed');
     assert.match(res.text, /Rotate Token/, 'named exactly as the button is');
@@ -151,7 +151,7 @@ describe('seedFirstRunContent', () => {
     const res = await c.pub('/f/welcome', { headers: { 'X-Forwarded-For': '203.0.113.200' } });
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type'), /text\/html/);
-    assert.match(res.text, /<h1>Welcome to LinkPage<\/h1>/);
+    assert.match(res.text, /<h1[^>]*>Welcome to LinkPage<\/h1>/);
     assert.match(res.text, /<table>/, 'the table in the document rendered');
   });
 

@@ -39,7 +39,7 @@ describe('/f/<slug> for a markdown link', () => {
     const res = await visit('/f/quarterly');
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type'), /text\/html/);
-    assert.match(res.text, /<h1>Quarterly Report<\/h1>/);
+    assert.match(res.text, /<h1[^>]*>Quarterly Report<\/h1>/);
     assert.match(res.text, /<strong>up<\/strong>/);
     assert.match(res.text, /<a href="https:\/\/example\.com\/d"/);
   });
@@ -98,7 +98,7 @@ describe('/r/<id> for a markdown link', () => {
 
     const res = await visit(`/r/${link.id}`);
     assert.equal(res.status, 200, 'no 302 to /uploads/...');
-    assert.match(res.text, /<h1>Quarterly Report<\/h1>/);
+    assert.match(res.text, /<h1[^>]*>Quarterly Report<\/h1>/);
   });
 
   test('a URL-backed link still redirects', async () => {
@@ -311,7 +311,7 @@ describe('embedded rendering', () => {
     const embedded = await visit('/f/embedded?embed=1');
     assert.doesNotMatch(embedded.text, /class="md-back"/, 'the overlay supplies its own');
     assert.match(embedded.text, /class="md-shell is-embedded"/);
-    assert.match(embedded.text, /<h1>Quarterly Report<\/h1>/, 'the document itself is unchanged');
+    assert.match(embedded.text, /<h1[^>]*>Quarterly Report<\/h1>/, 'the document itself is unchanged');
   });
 
   test('embed and theme combine', async () => {

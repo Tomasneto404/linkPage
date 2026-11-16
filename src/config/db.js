@@ -34,7 +34,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 20;
+const CURRENT_SCHEMA_VERSION = 21;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -680,6 +680,40 @@ const MIGRATIONS = [
       db.exec('CREATE INDEX IF NOT EXISTS idx_guest_link_groups_group ON guest_link_groups(group_id)');
     },
   },
+  {
+    version: 21,
+    name: 'Workspace tools: metadata, access, history, filters and presets',
+    apply: () => db.exec(`
+      CREATE TABLE IF NOT EXISTS workspace_link_details (
+        link_id INTEGER PRIMARY KEY, tags TEXT NOT NULL DEFAULT '[]',
+        publish_at TEXT, expires_at TEXT, created_by INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS workspace_group_details (
+        group_id INTEGER PRIMARY KEY, layout TEXT NOT NULL DEFAULT 'grid', is_private INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS workspace_group_access (
+        group_id INTEGER NOT NULL, user_id INTEGER NOT NULL, role TEXT NOT NULL,
+        PRIMARY KEY(group_id, user_id)
+      );
+      CREATE TABLE IF NOT EXISTS workspace_versions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, entity_id INTEGER NOT NULL,
+        title TEXT NOT NULL, content TEXT NOT NULL, actor_id INTEGER,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      );
+      CREATE INDEX IF NOT EXISTS workspace_versions_entity ON workspace_versions(kind, entity_id, id);
+      CREATE TABLE IF NOT EXISTS workspace_filters (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT NOT NULL, name TEXT NOT NULL, tags TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS workspace_notification_reads (
+        owner TEXT NOT NULL, item_key TEXT NOT NULL, PRIMARY KEY(owner, item_key)
+      );
+      CREATE TABLE IF NOT EXISTS workspace_presets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, payload TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      );
+    `),
+  },
+
 ];
 
 function readSchemaVersion() {

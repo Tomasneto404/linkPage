@@ -32,7 +32,20 @@ app.use(express.json({ limit: '32mb' }));
 app.use(securityHeaders);
 
 // Static assets.
-app.use(express.static(PUBLIC_DIR));
+app.use(express.static(PUBLIC_DIR, {
+  setHeaders(res, filename) {
+    if (filename.endsWith('/sw.js') || filename.endsWith('/manifest.webmanifest')) {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    }
+    if (filename.endsWith('/sw.js')) res.setHeader('Service-Worker-Allowed', '/');
+  },
+}));
+
+// File snapshots and restores must not race user mutations.
+app.use((req,res,next) => {
+  if (require('./services/backupService').isBusy() && !['GET','HEAD','OPTIONS'].includes(req.method) && !req.path.startsWith('/api/workspace/backups')) return res.status(503).json({error:'A backup is in progress. Please retry shortly.'});
+  next();
+});
 
 // Works out who is asking, before anything downstream needs to know. Never
 // rejects; the route guards decide what to do with the answer. Ahead of

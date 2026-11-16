@@ -15,6 +15,7 @@ function safeGroup(row) {
   const { password_hash, ...rest } = row;
   return {
     ...rest,
+    ...require('./workspace').groupDetails(row.id),
     is_protected: !!password_hash,
     // Coerce NULLs (groups created before v5 had no unlock_mode column) to
     // the historical default so the wire format never has nulls.
@@ -181,6 +182,7 @@ function updateGroup(id, { name, color, password, unlockMode }) {
  * groups they belong to are preserved.
  */
 function deleteGroup(id) {
+  require('./workspace').deleteGroupDetails(id);
   db.prepare('DELETE FROM link_groups WHERE group_id = ?').run(id);
   // Its admins go with it: a later group given the same id must not inherit them.
   db.prepare('DELETE FROM group_managers WHERE group_id = ?').run(id);

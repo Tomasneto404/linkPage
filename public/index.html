@@ -6,6 +6,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LinkPage</title>
+  <meta name="theme-color" content="#f5f5f7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/pwa/pwa.css" />
+  <script src="/pwa/pwa.js" defer></script>
   <link rel="icon" id="favicon" href="/brand/icon-light.png" />
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="seasons.css" />
@@ -86,41 +93,31 @@
       pointer-events: auto;
     }
 
-    /* Always-on affordance: two nudge buttons sitting on the faded edges. Only
-       rendered while the strip actually overflows, and each one retracts once
-       that end is reached (never, while looping). */
+    /* The arrows own separate columns, so no group sits under a control. */
+    .tabs-strip { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; }
+    .tabs-strip.is-scrollable { grid-template-columns: 40px minmax(0, 1fr) 40px; column-gap: 6px; }
+    .tabs-strip:has(.tabs-track:empty) { display: none; }
+    .tabs-viewport { grid-column: 1; grid-row: 1; min-width: 0; padding: 20px 12px 26px; margin: -20px 0 -26px; }
+    .tabs-strip.is-scrollable .tabs-viewport { grid-column: 2; }
+    .tabs-track { position: relative; }
+    .tabs-viewport.is-scrollable { --fade-l: 14px; --fade-r: 14px; }
     .tabs-arrow {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      width: 24px;
-      height: 24px;
-      padding: 0;
-      border: 1px solid var(--border);
-      border-radius: 50%;
-      background: var(--surface);
-      color: var(--text-muted);
-      box-shadow: var(--shadow-xs);
-      cursor: pointer;
-      opacity: 0.9;
-      transition: opacity var(--transition), color var(--transition),
-                  background var(--transition), transform var(--transition);
+      position: relative; display: none; align-items: center; justify-content: center;
+      grid-row: 1; width: 40px; height: 36px; padding: 0; z-index: 1;
+      border: 1px solid var(--bar-control-border); border-radius: 10px;
+      background: var(--bar-control-bg); color: var(--text-dim);
+      box-shadow: var(--shadow-xs); cursor: pointer; touch-action: manipulation;
+      transition: color var(--transition), background var(--transition), transform var(--transition), opacity var(--transition);
     }
-    .tabs-strip.is-scrollable .tabs-arrow { display: flex; }
-    .tabs-strip.at-start .tabs-arrow-l,
-    .tabs-strip.at-end   .tabs-arrow-r { display: none; }
-    .tabs-arrow:hover {
-      opacity: 1;
-      color: var(--text);
-      background: var(--surface-3);
-    }
-    .tabs-arrow:active { transform: translateY(-50%) scale(0.92); }
-    .tabs-arrow-l { left: 0; }
-    .tabs-arrow-r { right: 0; }
-    .tabs-arrow svg { width: 13px; height: 13px; }
+    .tabs-strip.is-scrollable .tabs-arrow { display: inline-flex; }
+    .tabs-arrow-l { grid-column: 1; }
+    .tabs-arrow-r { grid-column: 3; }
+    .tabs-arrow:hover:not(:disabled) { color: var(--primary); background: var(--surface-3); }
+    .tabs-arrow:active:not(:disabled) { transform: scale(.94); }
+    .tabs-arrow:disabled { opacity: .3; cursor: default; }
+    .tabs-arrow:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .tabs-arrow svg { width: 16px; height: 16px; pointer-events: none; }
+    .tabs:has(.tabs-strip.is-scrollable) { padding-top: 6px; padding-bottom: 6px; }
 
     .tab {
       display: inline-flex;
@@ -343,7 +340,7 @@
 
       /* Touch swipes the strip already; the arrows would only cover pills on a
          narrow bar. */
-      .tabs-strip.is-scrollable .tabs-arrow { display: none; }
+      .tabs-strip.is-scrollable .tabs-arrow { display: inline-flex; }
       .tabs-viewport.is-scrollable { --fade-l: 16px; --fade-r: 16px; }
     }
     @media (max-width: 480px) {
@@ -987,6 +984,8 @@
   <script src="/theme-boot.js"></script>
   <script src="/season-particles.js" defer></script>
   <script src="/season-effects.js" defer></script>
+  <link rel="stylesheet" href="/workspace.css" />
+  <script src="/workspace.js" defer></script>
 </head>
 <body>
 <div class="season-backdrop" aria-hidden="true"></div>
@@ -1074,10 +1073,10 @@
       <div class="tabs-viewport" id="tabsViewport">
         <div class="tabs-track" id="tabs"></div>
       </div>
-      <button class="tabs-arrow tabs-arrow-l" id="tabsPrev" aria-label="Show previous groups">
+      <button class="tabs-arrow tabs-arrow-l" id="tabsPrev" type="button" aria-controls="tabsViewport" aria-label="Show previous groups">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18 9 12l6-6"/></svg>
       </button>
-      <button class="tabs-arrow tabs-arrow-r" id="tabsNext" aria-label="Show next groups">
+      <button class="tabs-arrow tabs-arrow-r" id="tabsNext" type="button" aria-controls="tabsViewport" aria-label="Show next groups">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
       </button>
     </div>

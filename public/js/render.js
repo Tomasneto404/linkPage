@@ -109,7 +109,7 @@ function appendSectionHeading(grid, label, count, level = 0) {
 function activeContributableGroup() {
   const g = typeof activeGroup === 'string' && activeGroup.startsWith('u')
     ? personalGroups().find(x => x.id === activeGroup)
-    : (typeof activeGroup === 'number' && managedGroupIds.includes(activeGroup)
+    : (typeof activeGroup === 'number' && (isGlobalPageAdmin() || managedGroupIds.includes(activeGroup))
         ? managedGroups().find(x => x.id === activeGroup)
         : null);
   return g || null;
@@ -144,6 +144,8 @@ function renderLinks(transition = false) {
   }
 
   function doRender() {
+    window.renderWorkspaceTags?.(links);
+    grid.dataset.layout = groups.find(g => g.id === activeGroup)?.layout || 'grid';
     const filtered = getFilteredLinks();
     grid.innerHTML = '';
     const addable = activeContributableGroup();

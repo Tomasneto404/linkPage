@@ -5,6 +5,47 @@ the GitHub release notes: the release workflow lifts the section matching the
 pushed tag out of this file. Newest release first; the top section must match
 `version` in package.json.
 
+## v2.0.0
+
+### Install LinkPage as an app
+LinkPage is now a Progressive Web App with desktop and mobile installation, home-screen and maskable icons, a standalone window, and shortcuts to the public page and admin panel. Supported browsers offer an Install app button; iPhone and iPad users get Add to Home Screen instructions. A dedicated offline page helps you reconnect. Only that generic page and its assets enter offline storage: API responses, accounts, links, uploaded files and private documents are never cached by the service worker. Production installation requires HTTPS; localhost works for development.
+
+### A new seasonal experience
+Seven redesigned seasons bring original landscape backgrounds, refined Light and Dark palettes, and animated snowflakes, bats, autumn leaves, dandelion seeds, petals and summer glints. Choose the original minimalist background, a still landscape or a slowly animated image, with particles controlled separately. Particle positions and animation phases are independently randomised. Motion respects accessibility preferences, stays out of the way of clicks and pauses in background tabs.
+
+### A calendar for your themes
+Set annual date ranges, a time zone and theme priorities. Ranges may cross New Year; Easter can follow Easter Sunday with configurable offsets. Preview any date before saving, enable only the seasons you want, and use a fallback theme outside scheduled dates. Open pages follow the calendar automatically. Markdown documents inherit the same palette, landscape and seasonal effects in a new tab or the document viewer.
+
+### Search everywhere
+Command-K or Control-K opens a keyboard-friendly search across links, groups and Markdown document contents. Results show the link's own icon or cached favicon. Search respects passwords, private groups and publication dates, and only includes a member's own personal documents.
+
+### Tags, saved filters and group layouts
+Add tags to links, filter across groups and save named filters. Choose card grids, compact lists or large image cards for each shared group. Library tools live together in the new Workspace menu in the admin header.
+
+### Private groups and member roles
+Assign viewer, contributor, editor or manager access per group. Contributors edit their own links; editors edit group links; managers can also change the group's name, colour, layout and membership from the public page. Existing group admins keep manager access. General administrators can create, edit and delete shared links directly on the public page, including links without a group. Editing a link without moving it preserves all group memberships, and hidden links remain absent from the public page.
+
+### Document and appearance history
+Keep up to 30 text-file versions per document, compare a saved version with the current text, and restore an earlier copy while preserving the current one. Appearance settings have their own history; authentication secrets are excluded.
+
+### A calmer Markdown reader
+Use a contents index, find text, change the text size or reading width, and switch to focus mode. Reading controls work in both the document viewer and a separate tab. Documents remain sandboxed and script-free.
+
+### Complete backups
+Create, download, import and restore archives containing the database, shared and private files, icons and configuration. Schedule daily or weekly backups, choose a UTC hour and keep up to 30 copies. A recovery archive is made before restoration; existing sessions end and the current instance's administrator token is preserved. Restores require the same database schema version. Automatic backups start disabled and archives stay on the server until downloaded.
+
+### Notifications and scheduled publishing
+A notification centre gathers pending contributions, unavailable links and the latest backup result, with read state per administrator. Set publication and expiry dates for links; the server enforces availability in listings, search, direct document URLs and raw attachments.
+
+### Portable appearance presets
+Save, export, import and apply named appearances containing branding images, colours, seasonal backgrounds, particles and the annual calendar. Applying an appearance preserves the prior settings in history.
+
+### Interface refinements
+Group scroll arrows now occupy separate lanes, with their own click targets on desktop and mobile, so clicking an arrow cannot accidentally select a group. Search uses actual link icons, seasonal controls have live previews, and the single sign-on settings no longer show BETA badges.
+
+### Upgrading from 1.x
+Existing database migrations run automatically on startup; accounts, links, groups and branding are retained. Make a copy of the persistent data volume before upgrading. The workspace adds private groups, permissions, history and scheduling; review access assignments before making an existing group private. Keep the previous image and volume copy together if you need to roll back, because an older image must not be pointed at the migrated database.
+
 ## v1.1.0
 
 ### Accounts

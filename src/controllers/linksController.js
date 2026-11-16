@@ -408,6 +408,8 @@ async function create(req, res) {
   });
 
   const linkId = result.lastInsertRowid;
+  require('../models/workspace').setLinkDetails(Number(linkId), { created_by: req.user?.id || null });
+  if (filePath && isEditableFile(fileName)) { const full=resolveStoredFilePath(filePath); if(full && fs.existsSync(full) && fs.statSync(full).size<=FILE_EDIT_MAX_BYTES) require('../models/workspace').addVersion('document',Number(linkId),name.trim(),fs.readFileSync(full,'utf8'),req.user?.id); }
 
   // Favicons only make sense for real URLs — skip for file-backed links.
   // Fire-and-forget: the link is saved immediately and the favicon is cached
@@ -478,6 +480,7 @@ async function update(req, res) {
   // loses it whether the caller mentioned it or not.
   const autoOpen = willBeMarkdown ? autoOpenResult.autoOpen : false;
 
+  if ((newFilePath || shouldRemoveFile) && isEditableFile(existingLink.file_name)) { const full=resolveStoredFilePath(existingLink.file_path); if(full && fs.existsSync(full) && fs.statSync(full).size<=FILE_EDIT_MAX_BYTES) require('../models/workspace').addVersion('document',existingLink.id,existingLink.name,fs.readFileSync(full,'utf8'),req.user?.id); }
   // Image files belong to the shared icon library — never delete them on update.
   // The library endpoints own that lifecycle. Attached files are still per-link.
   if ((newFilePath || shouldRemoveFile) && existingLink.file_path) {
@@ -611,9 +614,11 @@ function putFile(req, res) {
   try {
     // Atomic-ish write: stage to a sibling and rename, so a partial write
     // never leaves visitors looking at half a file.
+    require('../models/workspace').addVersion('document', link.id, link.name, fs.readFileSync(fullPath, 'utf8'), req.user?.id);
     const tmpPath = `${fullPath}.tmp`;
     fs.writeFileSync(tmpPath, content, 'utf8');
     fs.renameSync(tmpPath, fullPath);
+    require('../models/workspace').addVersion('document', link.id, link.name, content, req.user?.id);
 
     const stat = fs.statSync(fullPath);
     res.json({ size: stat.size, mtime: stat.mtimeMs });

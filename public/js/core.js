@@ -327,6 +327,12 @@ function goToSignIn() {
 
 /** `{ id, email, display_name, role }` when somebody is signed in, else null. */
 let currentUser = null;
+let publicAdminToken = null;
+function isGlobalPageAdmin() { return currentUser?.role === 'admin' || !!publicAdminToken; }
+async function restorePublicAdminAccess() {
+  if (currentUser) return;
+  try { const token = localStorage.getItem('linkpage_admin_token'); if (!token) return; const res = await fetch('/api/auth/verify', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ token }) }); const data = await res.json(); if (res.ok && data.valid === true) publicAdminToken = token; } catch {}
+}
 
 /** Bytes used against this member's allowance, for the composer to show. */
 let personalStorage = null;
@@ -339,6 +345,7 @@ let favoriteIds = [];
 
 /** Shared groups this member is a group admin of: theirs to add links to. */
 let managedGroupIds = [];
+let groupRoles = {};
 
 /**
  * Who may add groups and links through the public page: 'off' | 'members' |
@@ -360,15 +367,15 @@ const myBase = () => (currentUser ? '/api/my' : '/api/guest');
 const isPersonal = item => item?.owner === 'me' || item?.owner === 'guest';
 
 /** Shared groups this member looks after, in the page's order. */
-const managedGroups = () => groups.filter(g => !isPersonal(g) && managedGroupIds.includes(g.id));
+const managedGroups = () => groups.filter(g => !isPersonal(g) && (isGlobalPageAdmin() || managedGroupIds.includes(g.id)));
 
 /**
  * A shared link this member may change: one that lives only in groups they
  * look after. The server applies the same rule; this only decides whether to
  * offer the pencil.
  */
-const canManageLink = link => !isPersonal(link) && (link.groups || []).length > 0
-  && link.groups.every(g => managedGroupIds.includes(g.id));
+const canManageLink = link => !isPersonal(link) && (isGlobalPageAdmin() || ((link.groups || []).length > 0
+  && link.groups.every(g => managedGroupIds.includes(g.id) && (groupRoles[g.id] !== 'contributor' || link.created_by === currentUser?.id))));
 
 /**
  * Personal ids are the member's own and can coincide with shared ones — their
@@ -412,6 +419,7 @@ async function fetchPersonal() {
     personalStorage = data.storage || null;
     favoriteIds = Array.isArray(data.favorites) ? data.favorites : [];
     managedGroupIds = Array.isArray(data.managed_group_ids) ? data.managed_group_ids : [];
+    groupRoles = data.group_roles || {};
     return adoptPersonal(data);
   } catch {
     return { groups: [], links: [] };
@@ -432,6 +440,7 @@ function sessionEnded() {
 /** A request to /api/my/* that sends a form or JSON, with the session. */
 async function myRequest(url, { method = 'POST', json, form } = {}) {
   const init = { method, credentials: 'same-origin', headers: {} };
+  if (publicAdminToken && /^\/api\/links(?:\/|$)/.test(url)) init.headers['X-Admin-Token'] = publicAdminToken;
   if (json !== undefined) {
     init.headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(json);

@@ -136,7 +136,8 @@ function layoutTabScroller(keep = null) {
   // the end pills' glow room to spill (see .tabs-viewport). Measuring with it
   // would overstate how much strip actually fits and throw the centring off by
   // half the padding, so take it back out.
-  const vpW  = t.vp.clientWidth - horizontalPadding(t.vp);
+  t.strip.classList.remove('is-scrollable');
+  let vpW = t.vp.clientWidth - horizontalPadding(t.vp);
 
   t.overflowing = groups.length > 0 && one > vpW + 1;
   t.loop        = t.overflowing && tabsLoopEnabled;
@@ -145,6 +146,7 @@ function layoutTabScroller(keep = null) {
 
   t.vp.classList.toggle('is-scrollable', t.overflowing);
   t.strip.classList.toggle('is-scrollable', t.overflowing);
+  vpW = t.vp.clientWidth - horizontalPadding(t.vp);
 
   if (!t.overflowing) {
     t.vp.scrollLeft = 0;
@@ -192,6 +194,8 @@ function updateTabEdges() {
 
   t.strip.classList.toggle('at-start', atStart);
   t.strip.classList.toggle('at-end', atEnd);
+  document.getElementById('tabsPrev').disabled = atStart;
+  document.getElementById('tabsNext').disabled = atEnd;
   t.vp.style.setProperty('--fade-l', atStart ? '0px' : '');
   t.vp.style.setProperty('--fade-r', atEnd   ? '0px' : '');
 }
@@ -327,10 +331,13 @@ function bindTabScroller() {
   // Edge arrows: one nudge per click, and keep nudging while held down.
   for (const [id, dir] of [['tabsPrev', -1], ['tabsNext', 1]]) {
     const btn = document.getElementById(id);
-    btn.addEventListener('click', () => glideTabs(dir));
-    btn.addEventListener('pointerdown', () => {
+    btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); if (!btn.disabled) glideTabs(dir); });
+    btn.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      if (btn.disabled || e.button !== 0) return;
+      btn.setPointerCapture?.(e.pointerId);
       clearInterval(t.holdTimer);
-      t.holdTimer = setInterval(() => glideTabs(dir), 300);
+      t.holdTimer = setInterval(() => { if (!btn.disabled) glideTabs(dir); }, 380);
     });
   }
   for (const ev of ['pointerup', 'pointercancel', 'blur']) {

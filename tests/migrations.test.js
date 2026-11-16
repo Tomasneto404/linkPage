@@ -18,7 +18,7 @@ const path   = require('node:path');
 const harness = require('./helpers/harness');
 
 const SRC = path.join(__dirname, '..', 'src');
-const CURRENT_SCHEMA_VERSION = 20;
+const CURRENT_SCHEMA_VERSION = 21;
 
 let c;
 before(async () => { c = await harness.start(); });

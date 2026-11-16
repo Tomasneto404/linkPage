@@ -12,7 +12,7 @@ const { groupUnlockLimiter } = require('../middleware/rateLimit');
 // ─── Public read ──────────────────────────────────────────────────────────────
 
 function list(req, res) {
-  const groups   = db.getAllGroups();
+  const groups = db.getAllGroups().filter(g => require('../models/workspace').canViewGroup(req, g));
   const expiries = getUnlockedGroupExpiries(req);
   res.json(groups.map(g => {
     if (!g.is_protected)        return { ...g, is_unlocked: true };
@@ -101,7 +101,7 @@ function unlock(req, res) {
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid group id' });
 
   const group = db.getGroupById(id);
-  if (!group) return res.status(404).json({ error: 'Group not found' });
+  if (!group || !require('../models/workspace').canViewGroup(req, group)) return res.status(404).json({ error: 'Group not found' });
   if (!group.is_protected) return res.json({ valid: true });
 
   const password = typeof req.body.password === 'string' ? req.body.password : '';

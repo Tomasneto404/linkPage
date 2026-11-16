@@ -37,7 +37,8 @@ const MARKDOWN_CSP = [
   // rather than injecting its HTML — that keeps the document inside its own
   // sandbox instead of running beside the admin token. Only this site may.
   "frame-ancestors 'self'",
-  "sandbox allow-popups",
+  "sandbox allow-popups allow-forms",
+  "form-action 'self'",
 ].join('; ');
 
 /** Themes the page will honour; anything else falls back to the system one. */
@@ -186,7 +187,9 @@ const safeVariant = v => (VARIANT_RE.test(String(v || '')) ? String(v) : 'defaul
  * names and the accent — so the document wears the same colours as the page
  * the reader came from, rather than an approximation of them.
  */
-function renderMarkdownPage({ title, body, theme, embed = false, palette = {} }) {
+function renderMarkdownPage({ title, body, theme, embed = false, palette = {}, reader: readerQuery = {} }) {
+  const reading = require('./markdownReader').reader(body || '',readerQuery,normalizePageTheme(theme),embed);
+  body = reading.body;
   const heading   = escapeHtml(title || 'Document');
   const pageTheme = normalizePageTheme(theme);
   const themeAttr = pageTheme ? ` data-theme="${pageTheme}"` : '';
@@ -216,18 +219,19 @@ function renderMarkdownPage({ title, body, theme, embed = false, palette = {} })
   const shellClass = embed ? 'md-shell is-embedded' : 'md-shell';
   const backLink   = embed ? '' : '\n  <a class="md-back" href="/">&larr; Back</a>';
   return `<!DOCTYPE html>
-<html lang="en"${themeAttr}${variantAttrs}${seasonAttrs}${styleAttr}>
+<html lang="en"${themeAttr}${variantAttrs}${seasonAttrs}${reading.attributes}${styleAttr}>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="referrer" content="no-referrer" />
 <title>${heading}</title>
-<style>${themeTokens()}${PAGE_STYLES}${inlineLandscape(season, background)}${systemDarkAccent}</style>
+<style>${themeTokens()}${PAGE_STYLES}${inlineLandscape(season, background)}${systemDarkAccent}${require('./markdownReader').styles}</style>
 </head>
 <body>
 <div class="season-backdrop" aria-hidden="true"></div>
 ${effects}
 <div class="${shellClass}">${backLink}
+${reading.toolbar}
   <article class="md-doc">
 ${body || '<p><em>This document is empty.</em></p>'}
   </article>

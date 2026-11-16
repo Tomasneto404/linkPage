@@ -204,6 +204,11 @@ function deriveAuditEntry(req) {
   // Audit log itself (clear/prune) — recorded so the clearing is traceable.
   if (p === '/api/audit' && M === 'DELETE')              return { action: 'audit.clear', entityType: 'audit', entityId: null, summary: 'Cleared the audit log' };
 
+  if (p.startsWith('/api/workspace/')) {
+    const parts=p.split('/');const resource=parts[3]||'workspace';
+    return { action: `workspace.${resource}.${M.toLowerCase()}`, entityType: resource, entityId: Number.isInteger(Number(parts[4])) ? Number(parts[4]) : null, summary: `${M==='POST'?'Updated':M==='DELETE'?'Removed':'Changed'} ${resource}${name?` "${truncate(name)}"`:''}` };
+  }
+
   // Anything else under /api that mutated — generic fallback.
   // Long opaque segments — tokens, mostly — are blanked out. Every route that
   // carries one has an entry above; this is for the one added later without.

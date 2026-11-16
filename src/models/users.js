@@ -175,6 +175,11 @@ function deleteUser(id) {
   db.prepare('UPDATE user_tokens SET created_by_user_id = NULL WHERE created_by_user_id = ?').run(id);
   db.prepare('DELETE FROM user_identities WHERE user_id = ?').run(id);
   db.prepare('DELETE FROM group_managers WHERE user_id = ?').run(id);
+  db.prepare('DELETE FROM workspace_group_access WHERE user_id = ?').run(id);
+  db.prepare('DELETE FROM workspace_filters WHERE owner = ?').run(`user:${id}`);
+  db.prepare('DELETE FROM workspace_notification_reads WHERE owner = ?').run(`user:${id}`);
+  db.prepare('UPDATE workspace_versions SET actor_id = NULL WHERE actor_id = ?').run(id);
+  db.prepare('UPDATE workspace_link_details SET created_by = NULL WHERE created_by = ?').run(id);
   return db.prepare('DELETE FROM users WHERE id = ?').run(id);
 }
 

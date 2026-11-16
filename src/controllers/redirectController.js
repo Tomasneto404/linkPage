@@ -22,6 +22,7 @@ const { truncate } = require('../services/auditService');
  * when it returns false it has already answered the request (a bounce to /).
  */
 function passesVisibilityGate(req, res, link, isAdmin) {
+  if (!isAdmin && !require('../services/linkService').visibleSharedLinks(req).some(l => l.id === link.id)) { res.redirect(302, '/'); return false; }
   // Hidden links are reachable only by admins; everyone else gets bounced home.
   if (link.is_hidden && !isAdmin) {
     res.redirect(302, '/');
@@ -90,7 +91,7 @@ function redirect(req, res) {
 
   // A markdown attachment is rendered here rather than bounced to its source,
   // so the reader lands on the document itself.
-  if (isMarkdownLink(link)) return sendRenderedMarkdown(res, link, req.query.theme, req.query.embed === '1');
+  if (isMarkdownLink(link)) return sendRenderedMarkdown(res, link, req.query.theme, req.query.embed === '1', req.query);
 
   res.redirect(302, link.url);
 }
@@ -112,7 +113,7 @@ function isMarkdownLink(link) {
  * under a policy that permits no script at all. The raw source stays available
  * at its /uploads/... path for anyone who wants it.
  */
-function sendRenderedMarkdown(res, link, theme, embed = false) {
+function sendRenderedMarkdown(res, link, theme, embed = false, reader = {}) {
   const fullPath = resolveStoredFilePath(link.file_path);
   if (!fullPath || !fs.existsSync(fullPath)) {
     return res.status(404).send('File missing on disk');
@@ -137,6 +138,7 @@ function sendRenderedMarkdown(res, link, theme, embed = false) {
     // The site's own palette, so the document is not merely light or dark but
     // the same light or dark the reader just came from.
     palette: instancePalette(),
+    reader,
   }));
 }
 
@@ -170,7 +172,7 @@ function serveBySlug(req, res) {
   trackVisit(req, link, isAdmin);
   setVisitHeaders(res);
 
-  if (isMarkdownLink(link)) return sendRenderedMarkdown(res, link, req.query.theme, req.query.embed === '1');
+  if (isMarkdownLink(link)) return sendRenderedMarkdown(res, link, req.query.theme, req.query.embed === '1', req.query);
   if (link.file_path)       return sendAttachedFile(res, link);
   res.redirect(302, link.url);
 }

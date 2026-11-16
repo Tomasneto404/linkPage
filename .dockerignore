@@ -2,6 +2,16 @@ node_modules
 data
 .git
 .claude
+.cache/
+.codex/
+.agents/
+.DS_Store
+linkPagePrints/
+linkpage_data/
+data.backup-*/
+tests/
+scripts/
+publish_commands.md
 *.md
 # …except the changelog, which /api/changelog parses at runtime.
 !CHANGELOG.md

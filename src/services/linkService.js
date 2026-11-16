@@ -64,8 +64,13 @@ function filterVisibleLinks(links, groups, unlockedIds) {
  */
 function visibleSharedLinks(req) {
   const { getUnlockedGroupIds } = require('../utils/groupCrypto');
-  const visible = db.getAllLinks().filter(l => !l.is_hidden);
-  return filterVisibleLinks(visible, db.getAllGroups(), getUnlockedGroupIds(req));
+  const workspace = require('../models/workspace');
+  const allGroups = db.getAllGroups();
+  const visible = db.getAllLinks().filter(l => !l.is_hidden && workspace.published(l));
+  const allowed = new Set(allGroups.filter(g => workspace.canViewGroup(req, g)).map(g => g.id));
+  const scoped = visible.filter(l => !l.group_ids.length || l.group_ids.some(id => allowed.has(id)))
+    .map(l => { const groups = l.groups.filter(g => allowed.has(g.id)); const first = groups[0]; return { ...l, groups, group_ids: groups.map(g => g.id), group_id: first?.id ?? null, group_name: first?.name ?? null, group_color: first?.color ?? null }; });
+  return filterVisibleLinks(scoped, allGroups, getUnlockedGroupIds(req));
 }
 
 module.exports = { ensureGroupByName, ensureSectionByName, filterVisibleLinks, visibleSharedLinks };

@@ -84,6 +84,7 @@ function decorateLink(linkRow, memberships) {
   const first  = groups[0] || null;
   return {
     ...linkRow,
+    ...require('./workspace').linkDetails(linkRow.id),
     groups,
     group_ids:   groups.map(g => g.id),
     group_id:    first ? first.id    : null,
@@ -274,6 +275,7 @@ function updateLink(id, { name, url, description, imagePath, groupIds, removeIma
 
 /** Deletes a link and all its recorded clicks and group memberships. */
 function deleteLink(id) {
+  require('./workspace').deleteLinkDetails(id);
   db.prepare('DELETE FROM link_clicks WHERE link_id = ?').run(id);
   db.prepare('DELETE FROM link_groups WHERE link_id = ?').run(id);
   // Members' stars on it. No foreign key would do this, and a favourite of a
