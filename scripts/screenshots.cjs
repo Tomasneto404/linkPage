@@ -77,6 +77,8 @@ async function main() {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => { try { localStorage.setItem('linkpage_theme', 'light'); } catch { /* Sandboxed documents have no storage. */ } });
   async function capture(name, options = {}) {
+    const requested = process.env.LINKPAGE_SCREENSHOTS_ONLY?.split(',').filter(Boolean);
+    if (requested?.length && !requested.includes(name)) return;
     const originalViewport = page.viewportSize();
     const { section, fullPage: _unused, ...screenshotOptions } = options;
     await page.evaluate(() => document.fonts.ready);
@@ -129,6 +131,7 @@ async function main() {
   await page.goto('/login/'); await page.locator('#signInEmail').waitFor(); await capture('signin-light'); await page.fill('#signInEmail', 'alex@example.test'); await page.fill('#signInPassword', 'release-demo-password');
   await Promise.all([page.waitForURL('**/admin/**'), page.click('#signInBtn')]); await page.locator('#adminWrap').waitFor({ state: 'visible' });
   await page.evaluate(() => applyTheme('light')); await capture('admin-light'); await page.evaluate(() => applyTheme('dark')); await capture('admin-dark'); await page.evaluate(() => applyTheme('light'));
+  await page.evaluate(()=>openAuditLog());await page.locator('#auditOverlay .audit-row').first().waitFor();await capture('audit-log');await page.keyboard.press('Escape');
   await page.evaluate(()=>openStatsModal(links.find(link=>link.name==='Team calendar')));await page.locator('#recentClicksContainer .click-row').first().waitFor();await capture('statistics',{fullPage:false});await page.keyboard.press('Escape');
   await page.evaluate(()=>document.getElementById('openAnalyticsBtn').click());await page.locator('.analytics-line-chart').waitFor();await capture('analytics',{fullPage:false});await page.setViewportSize({width:390,height:844});await capture('analytics-mobile',{fullPage:false});await page.setViewportSize({width:1440,height:1000});await page.keyboard.press('Escape');
   await page.goto('/g/'+groups[0].slug);await page.locator('.lp-widget-clock').waitFor();await page.evaluate(id=>window.LinkPageWidgets.openEditor(id),note.id);await page.locator('.lp-widget-editor-dialog').waitFor();await capture('widget-editor',{fullPage:false});await page.keyboard.press('Escape');await page.goto('/admin/');await page.locator('#adminWrap').waitFor();
@@ -136,7 +139,7 @@ async function main() {
   await page.click('#workspaceDialog [data-tab="history"]'); await page.selectOption('#workspaceHistoryDoc', String(doc.id)); await page.locator('[data-view-version]').first().waitFor(); await capture('workspace-history');
   await page.click('#workspaceDialog [data-tab="backups"]'); await page.locator('[data-download-backup]').first().waitFor(); await capture('workspace-backups');
   await page.click('#workspaceDialog [data-tab="library"]'); await page.click('[data-resource="groups"]'); await page.selectOption('#workspaceResource', String(groups[0].id)); await capture('workspace-access'); await page.keyboard.press('Escape');
-  await page.evaluate(() => document.getElementById('openSettingsBtn').click()); await page.click('[data-tab="seasons"]'); await page.click('[data-season-choice="christmas"]'); await page.click('[data-background="static"]'); await capture('season-editor');
+  await page.evaluate(() => document.getElementById('openSettingsBtn').click());await page.click('[data-tab="branding"]');await capture('settings-branding');await page.click('[data-tab="publicpage"]');await capture('settings-public-page');await page.click('[data-tab="seasons"]'); await page.click('[data-season-choice="christmas"]'); await page.click('[data-background="static"]'); await capture('season-editor');
   await page.locator('#seasonAutoToggle').check(); await scrollSettingsTo('#seasonCalendarFields'); await capture('season-calendar');
   await page.click('[data-tab="sso"]'); await capture('sso');
   await page.click('[data-tab="mail"]'); await capture('mail');

@@ -75,7 +75,7 @@ The dashboard compares periods, filters by group, estimates device and browser u
 ### Audit Log
 
 <p align="center">
-  <img src="linkPagePrints/linkPage-auditLog.png" width="560" alt="Admin audit log" />
+  <img src="linkPagePrints/linkPage-v210-audit-log.png" width="560" alt="Admin audit log" />
 </p>
 
 Every admin change and every public click lands in the audit log, with the entity name, action id, IP (attribution tag included) and device. It auto-refreshes live, filters by search text and entry type, and exports to CSV or JSON.
@@ -86,7 +86,7 @@ Every admin change and every public click lands in the audit log, with the entit
 
 | Branding | Public Page |
 |:---:|:---:|
-| ![Settings – branding](linkPagePrints/linkPage-settings.png) | ![Settings – public page](linkPagePrints/linkPage-settings-publicPage.png) |
+| ![Settings – branding](linkPagePrints/linkPage-v210-settings-branding.png) | ![Settings – public page](linkPagePrints/linkPage-v210-settings-public-page.png) |
 
 Settings are split into tabs: **Branding** (site title, header icon, light/dark logos, favicon, developer footer), **Themes / Design** (accent colour, palette variants, default theme), **Public Page** (default group, phone navbar position, group-coloured tabs, looping group tabs), **Icons** (reusable library), **Public Access** (optional password gate), **Link Requests**, **IP Attribution**, **Security** (one-click admin token rotation) and **About** with an on-demand "Check for updates" button.
 

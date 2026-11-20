@@ -17,7 +17,7 @@ The release uses schema version 24. Upgrading the application and changing datab
 | Explicit migration | The command included in the image imports with Compose `DB_ENGINE`/`PG*` settings and refuses occupied targets |
 | Migration startup guards | Missing sources and an unselected migration over an existing SQLite directory are refused |
 | Runtime | HTTP healthcheck passes and the application process runs as UID 1000 |
-| Documentation | Local document/image links checked; 33 new screenshots generated from a disposable demonstration instance |
+| Documentation | Local document/image links checked; 36 new screenshots generated from a disposable demonstration instance |
 
 The Docker script uses uniquely named temporary resources and preserves its report and test backups under `.cache/production-*`. It never uses the development instance's database or data directory.
 
