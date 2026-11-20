@@ -6,19 +6,21 @@ A modern, self-hosted WebUI designed for enterprises to centralize and publish i
 
 Instead of scattering important resources across emails, chats, and shared drives, LinkPage provides a single branded landing page (e.g. `linkpage.company.com`) where teams can quickly access everything they need — from internal tools and documentation to public-facing resources.
 
-> **v2.0.0** brings an **installable PWA**, redesigned **seasonal landscapes and animated particles**, an **automatic theme calendar**, **⌘K / Ctrl+K search** across links and Markdown contents, and a new **Workspace** for tags, publication dates, group permissions, version history, complete backups, notifications and portable appearance presets. Accounts, OpenID Connect single sign-on, private member pages and guest contributions remain included.
+> **v2.1.0** adds **PostgreSQL with verified SQLite migration**, configurable **RSS, clock, weather, Gotify and Markdown widgets**, direct page arrangement, comparative **analytics**, and **Custom fade** backgrounds with adjustable effect speed. It also refines Settings, Workspace, document editing, sharing and motion. PWA installation, seasonal themes, accounts and single sign-on remain included.
 
-Upgrading from 1.x? Read the [upgrade notes](#upgrading-to-200) before replacing your container.
+Already using SQLite? Read the [SQLite → PostgreSQL guide](docs/sqlite-to-postgresql.md) before changing engines. To stay on SQLite, read the [2.1.0 upgrade notes](#upgrading-to-210).
 
 ---
 
 ## Screenshots
 
+Screenshots use a disposable demonstration workspace.
+
 ### Public Page
 
 | Light Mode | Dark Mode |
 |:---:|:---:|
-| ![LinkPage 2.0 public page in light mode](linkPagePrints/linkPage-v200-public-light.png) | ![LinkPage 2.0 public page in dark mode](linkPagePrints/linkPage-v200-public-dark.png) |
+| ![LinkPage 2.1 public page in light mode](linkPagePrints/linkPage-v210-public-light.png) | ![LinkPage 2.1 public page in dark mode](linkPagePrints/linkPage-v210-public-dark.png) |
 
 The public page greets end users with a clean card grid, sticky group tabs, tag filters, a live search bar and auto-fetched favicons. Sign-in is optional unless enabled by an administrator. When groups overflow, dedicated arrow lanes scroll the tab strip without overlapping the groups; mouse wheel, trackpad and touch work too, with optional endless looping.
 
@@ -28,7 +30,7 @@ The public page greets end users with a clean card grid, sticky group tabs, tag 
 
 | Light Mode | Dark Mode |
 |:---:|:---:|
-| ![LinkPage 2.0 admin panel in light mode](linkPagePrints/linkPage-v200-admin-light.png) | ![LinkPage 2.0 admin panel in dark mode](linkPagePrints/linkPage-v200-admin-dark.png) |
+| ![LinkPage 2.1 admin panel in light mode](linkPagePrints/linkPage-v210-admin-light.png) | ![LinkPage 2.1 admin panel in dark mode](linkPagePrints/linkPage-v210-admin-dark.png) |
 
 Sign in with an administrator account or the recovery admin token. The sidebar lists groups, sections and subsections; the main area offers drag-to-reorder, bulk selection, import/export and per-card analytics. The header adds global search, Workspace and a notification centre.
 
@@ -38,23 +40,35 @@ Sign in with an administrator account or the recovery admin token. The sidebar l
 
 | Search everywhere | Tags and publication dates |
 |:---:|:---:|
-| ![Global search with actual link icons](linkPagePrints/linkPage-v200-search.png) | ![Workspace link tags and publishing controls](linkPagePrints/linkPage-v200-workspace-library.png) |
+| ![Global search with actual link icons](linkPagePrints/linkPage-v210-search.png) | ![Workspace link tags and publishing controls](linkPagePrints/linkPage-v210-workspace-library.png) |
 
 Press **⌘K / Ctrl+K** to search links, groups and Markdown contents, with keyboard navigation and each link's own icon. Open **Workspace** in the admin header to organise the shared library and manage access, history, backups and appearances.
 
 | Document history | Complete backups |
 |:---:|:---:|
-| ![Document version history](linkPagePrints/linkPage-v200-workspace-history.png) | ![Complete backups and automatic schedule](linkPagePrints/linkPage-v200-workspace-backups.png) |
+| ![Document version history](linkPagePrints/linkPage-v210-workspace-history.png) | ![Complete backups and automatic schedule](linkPagePrints/linkPage-v210-workspace-backups.png) |
 
 ---
+
+### Widgets and direct arrangement
+
+| A group dashboard | Edit a widget on the public page |
+|:---:|:---:|
+| ![Clocks, RSS, weather forecast and shared Markdown tasks](linkPagePrints/linkPage-v210-widgets.png) | ![Widget editor with saved Markdown source](linkPagePrints/linkPage-v210-widget-editor.png) |
+
+Global administrators can drag whole widgets and resize them with a dashed preview. Group managers edit their own groups’ widget content. RSS, weather and Gotify credentials remain on the server; notes support shared Markdown tasks. Cards reveal their loaded content smoothly and retain their size and order after refresh.
+
+| Settings and theme controls | Custom effects and palette |
+|:---:|:---:|
+| ![Consistent Settings navigation and aligned dropdowns](linkPagePrints/linkPage-v210-settings-themes.png) | ![Background speed, colour palette and effect preview](linkPagePrints/linkPage-v210-settings-effects.png) |
 
 ### Click Analytics
 
 | Per-link stats | Dashboard over any period |
 |:---:|:---:|
-| ![Per-link click stats](linkPagePrints/linkPage-statistics.png) | ![Analytics dashboard](linkPagePrints/linkPage-analytics.png) |
+| ![Per-link click stats](linkPagePrints/linkPage-v210-statistics.png) | ![Analytics dashboard](linkPagePrints/linkPage-v210-analytics.png) |
 
-Per-link analytics show total clicks, unique visitors, today and this-week counts, a recent-click log with IP and device type, and a bar chart of top visitor IPs. The dashboard aggregates any period: daily click volume, most valuable links and most active visitors — the latter labelled with their IP attribution tag where one exists.
+The dashboard compares periods, filters by group, estimates device and browser usage, highlights unopened links and shows when resources are used. Unique IPs are visitor estimates, not account counts. Charts use UTC and expose their data in a table; CSV exports use the same filters. Per-link details remain available from each admin card.
 
 ---
 
@@ -90,7 +104,7 @@ Admins and members use the same **Sign in** button on the public page. Members l
 
 ### Group permissions
 
-![Workspace group layouts and member access](linkPagePrints/linkPage-v200-workspace-access.png)
+![Workspace group layouts and member access](linkPagePrints/linkPage-v210-workspace-access.png)
 
 Assign **viewer**, **contributor**, **editor** or **manager** access in **Workspace → Library → Groups & access**. Private groups appear only to assigned members and global administrators. Contributors add and edit their own links, editors edit group links, and managers also manage the group's name, colour, layout and members from the public page. Existing group admins keep manager access. Global administrators can edit all visible shared links directly on the public page, including links without a group.
 
@@ -118,7 +132,7 @@ An administrator can open the page to anonymous **guest contributions**: a brows
 
 | Single sign-on | Email |
 |:---:|:---:|
-| ![Single sign-on settings](linkPagePrints/linkPage-v200-sso.png) | ![Settings → Email](linkPagePrints/linkPage-v110-mail.png) |
+| ![Single sign-on settings](linkPagePrints/linkPage-v210-sso.png) | ![Settings → Email](linkPagePrints/linkPage-v110-mail.png) |
 
 Point LinkPage at an **OpenID Connect** provider (Authentik, Keycloak, Google Workspace, Okta…) and the sign-in page offers a one-click button. The flow uses the authorization code grant with PKCE, verifies the ID token's signature, issuer, audience, expiry and nonce, and optionally creates accounts on first sign-in or links by verified email. With an **SMTP** server, the sign-in page offers *Email me a reset link*; links work once, for an hour, and are built from the configured page address so a forged `Host` header cannot redirect a reset.
 
@@ -128,11 +142,11 @@ Point LinkPage at an **OpenID Connect** provider (Authentik, Keycloak, Google Wo
 
 | Christmas | Halloween · Dark |
 |:---:|:---:|
-| ![Christmas landscape](linkPagePrints/linkPage-v200-season-christmas.png) | ![Halloween landscape in dark mode](linkPagePrints/linkPage-v200-season-halloween.png) |
+| ![Christmas landscape](linkPagePrints/linkPage-v210-season-christmas.png) | ![Halloween landscape in dark mode](linkPagePrints/linkPage-v210-season-halloween.png) |
 
 | Spring | Autumn · Dark |
 |:---:|:---:|
-| ![Spring landscape](linkPagePrints/linkPage-v200-season-spring.png) | ![Autumn landscape in dark mode](linkPagePrints/linkPage-v200-season-autumn.png) |
+| ![Spring landscape](linkPagePrints/linkPage-v210-season-spring.png) | ![Autumn landscape in dark mode](linkPagePrints/linkPage-v210-season-autumn.png) |
 
 Open **Settings → Seasonal Themes** to preview Original, Easter, Halloween, Christmas, Spring, Summer, Autumn or Winter. Refined palettes, soft ambient backgrounds and subtle vector motifs work in Light and Dark while keeping the same controls and card shapes. Custom accents and wallpapers are preserved.
 
@@ -144,22 +158,60 @@ Turn on **Follow a seasonal calendar** to set an annual date range for each them
 
 | Theme preview and background choices | Automatic calendar |
 |:---:|:---:|
-| ![Seasonal theme editor](linkPagePrints/linkPage-v200-season-editor.png) | ![Annual calendar with theme priorities](linkPagePrints/linkPage-v200-season-calendar.png) |
+| ![Seasonal theme editor](linkPagePrints/linkPage-v210-season-editor.png) | ![Annual calendar with theme priorities](linkPagePrints/linkPage-v210-season-calendar.png) |
 
 ---
 
 ### Markdown reading
 
-![Seasonal Markdown document with reading options and contents index](linkPagePrints/linkPage-v200-markdown.png)
+![Seasonal Markdown document with reading options and contents index](linkPagePrints/linkPage-v210-markdown.png)
 
 Markdown documents inherit the active season. Open reading options to find text, adjust font size and width, or enter focus mode; the contents index jumps between headings. The same controls work in a separate tab or the document modal, with document scripts disabled.
+
+Choose **Write text** when adding a link to create Markdown or another text document directly, up to 5 MB. On the public page, editing a Markdown attachment loads its saved source into the editor; uploading a Markdown file also lets you revise it before saving. Personal and guest documents keep their existing privacy rules. A failed load blocks saving an empty replacement and offers a retry.
+
+### Sharing, widgets and animation options
+
+Shared groups have stable addresses such as `/g/engineering`; renaming a group preserves its address. Use the QR button or right-click a group tab to copy or share its link. Sections have their own share action, and link cards offer QR codes too. Browser Back and Forward follow group navigation, and signing in preserves the requested group and section. Passwords and membership checks still apply to shared addresses.
+
+Global search displays each result's group, highlights matches and opens results in a new tab. Recent queries belong to the signed-in account; anonymous queries stay in that browser session. Hover over a truncated card title to read the full name. On phones, the group menu provides a searchable list and page actions.
+
+Open **Workspace → Widgets**, or **Add widget** on the public page, to choose from the widget gallery and preview real content before saving. Administrators can manage all widgets; group managers can edit content in widgets assigned exclusively to groups they manage. Only global administrators can move or resize shared widgets: drag the card to reorder it, or pull its bottom-right corner to change its column span and height. A dashed preview appears immediately and follows the proposed size until release. The resize control also accepts arrow keys. Sizes and order persist after reloading. Each widget supports three widths, automatic/compact/tall content areas or a fixed height, multiple groups and desktop/mobile visibility. Device visibility controls presentation; group permissions control access.
+
+Global administrators can also drag one shared link over another to exchange their positions on the public page and in the admin panel. Inside a group, their section slots are exchanged too. Other memberships and the cards between them are preserved. Personal links and favourites keep their existing personal ordering.
+
+Settings and Workspace use consistent form spacing and controls. On phones, Settings offers a category selector and Workspace keeps every section visible in its navigation. Workspace retains a fixed dialog size while switching sections; less-used widget layout options are grouped in a disclosure.
+
+Widgets share the link cards' Subtle fade, Smooth glide and Spring entrance, pointer hover and animated reordering. Refreshing their data does not replay the entrance. The Off setting and reduced-motion preferences suppress these effects.
+
+**Analytics** compares a selected period with the preceding equivalent window. Choose the last 24 hours, 7, 30 or 90 days, or all recorded activity, and filter by group or exclude detected automation. The dashboard includes click and unique-IP totals, catalogue usage, a comparative activity chart, a weekday/hour heatmap, device and browser estimates, group and address rankings, resources without clicks and recent activity. Shared links count once in totals and may appear in several group rankings. All chart buckets use UTC. IP addresses estimate visitors; they are not account or person counts. Device and automation labels are estimates from the user agents already recorded. CSV export uses the same filters, includes zero-click links and protects text cells from spreadsheet formula execution. Refreshing retains the last loaded view if a request fails.
+
+| Widget | Options |
+| --- | --- |
+| RSS / Atom | List or cards, dates, optional publisher images and descriptions, headline filter, 1–30 articles |
+| Clock | Digital or analog face, optional seconds, 12/24 hours, local or named time zone and up to four additional zones |
+| Weather | City lookup or coordinates, feels-like temperature, wind, humidity, rain and up to seven forecast days |
+| Gotify | Minimum priority, message count, unread filter and personal read state; no messages are deleted from Gotify |
+| Notes | Plain text or Markdown with links and shared tasks; administrators and group managers can tick tasks on the public page |
+
+Source requests run on the server. Refresh intervals range from one minute to one hour, with an updated timestamp and a manual refresh action. A failed refresh retains the last good data with a status message. Manual refreshes have a ten-second cooldown per widget and a request limit. Gotify client tokens and optional weather API keys stay on the server. Gotify read state belongs to the signed-in account; anonymous visitors keep it in their browser. Markdown task changes detect conflicting edits instead of replacing a newer note. Internet feeds are the default; an administrator must explicitly approve trusted intranet sources. Optional RSS images load directly from publishers.
+
+**Settings → Themes** offers Off, Subtle, Smooth and Spring UI motion, plus Aurora, Colour mesh, Soft colour waves, Starlight, **Orbital · 3D** and **Glass sculptures · 3D** backgrounds. The 3D scenes contain rotating rings, spheres and translucent cubes; moving the pointer gently changes the viewing angle. Subtle fades cards in, Smooth glides them upward, and Spring scales them in with a short, damped bounce. Large libraries use shorter, smaller movements without stagger. Smooth and Spring also add pointer-driven card tilt, lifted icons and animated settling after link/group reordering. Data refreshes do not replay entrances. Dropdown pickers animate on browsers supporting customisable selects, with native controls as fallback. The app icon responds to hover, and theme changes crossfade on supported browsers.
+
+The original/minimalist background remains available, and custom wallpapers take priority. Reduced-motion preferences and the Off option stop animation. These are native CSS/browser animations inspired by Smooth UI and Motion. The Appearance menu also lets each browser choose its own background, motion level and automatic day/night hours (07:00–19:00 by default). Markdown pages inherit the selected background and 3D geometry without enabling document scripts; mouse interaction is available on the app pages.
+
+**Effect speed** ranges from 0.25× to 3× and controls animated backgrounds, 3D movement and seasonal particles separately from UI motion. **Custom fade** supports two to six colours and four effects: Crossfade, Drifting clouds, Soft ripples and Slow orbit. Configure the site defaults in **Settings → Themes / Design**, or override the effect settings for one browser in **Appearance**. The editor previews its palette and effect before saving. Palettes and timing are included in appearance presets, backups and Markdown reader links. Reduced-motion settings still take priority.
+
+**Background composition** makes layering explicit: **Custom background only** shows the chosen background without seasonal decoration; **Season particles + custom** keeps snow, bats, leaves or other seasonal particles over that background, without the seasonal landscape or patterns; **Full season + custom** combines the seasonal scenery and particles with the selected animated or 3D background. Uploaded wallpapers can also retain particles or the full seasonal atmosphere. With **Original / seasonal** and the default composition, the normal seasonal design is shown. The same composition applies to public, admin, sign-in and Markdown pages, and can be overridden per browser.
+
+Link health checks retry with GET when HEAD is rejected, distinguish authentication/rate limiting from missing pages, and require repeated failures before marking a link unavailable. **Workspace → Library → Links** shows the reason, a manual recheck and an automatic-check switch.
 
 ---
 
 ### Installable app
 
 <p align="center">
-  <img src="linkPagePrints/linkPage-v200-public-mobile.png" width="260" alt="LinkPage on a phone" />
+  <img src="linkPagePrints/linkPage-v210-public-mobile.png" width="260" alt="LinkPage on a phone" />
   <img src="linkPagePrints/linkPage-v200-pwa-offline.png" width="260" alt="PWA offline reconnect page" />
 </p>
 
@@ -257,7 +309,7 @@ linkPage/
 ├── src/
 │   ├── server.js       # Startup: banner, health check, listen
 │   ├── app.js          # Express app: middleware order, static files, routes
-│   ├── config/         # env vars, constants, SQLite connection + migrations, secrets
+│   ├── config/         # env vars, constants, PostgreSQL/SQLite connections + migrations, secrets
 │   ├── routes/         # One router per resource; index.js mounts them all
 │   ├── controllers/    # Request handling and validation per resource
 │   ├── models/         # SQL data access (parameterized statements only)
@@ -290,7 +342,8 @@ All persistent data lives in `/app/data` inside the container, mapped to `./link
 
 | Path | Purpose |
 |------|---------|
-| `data/links.db` | SQLite database — links, groups, sections & subsections, link↔group mappings, icon library, settings, click analytics, link requests, IP tags, user accounts, sessions, invites, and the admin audit log. The schema is auto-migrated on startup. |
+| `data/links.db` | Legacy SQLite database, also used when PostgreSQL is not configured. Kept unchanged by the PostgreSQL import. |
+| PostgreSQL | Links, groups, settings, accounts, sessions, analytics and workspace data when configured. Compose stores it in the `postgres_data` volume. Uploads and secrets still live in the app's data directory. |
 | `data/admin-token.txt` | Admin token generated on first startup |
 | `data/admin-initial-password.txt` | The first administrator's password, written only when one is generated. Deletes itself once that password is changed. |
 | `data/group-secret.txt` | Key used to sign group-unlock cookies and hash group passwords |
@@ -331,7 +384,7 @@ Wrong guesses are throttled: ten failed sign-ins from one address, or twenty aga
 
 ### Click Tracking
 
-Every link card points to `/r/:id` (a server-side redirect) instead of the destination URL directly. The server records the click — IP address, user agent, timestamp — in SQLite before redirecting. This works without JavaScript and is not blocked by ad blockers.
+Every link card points to `/r/:id` (a server-side redirect) instead of the destination URL directly. The server records the click — IP address, user agent, timestamp — in the configured database before redirecting. This works without JavaScript and is not blocked by ad blockers.
 
 ---
 
@@ -345,14 +398,17 @@ Every link card points to `/r/:id` (a server-side redirect) instead of the desti
 
 ### Option A — Pull from Docker Hub (recommended)
 
-The easiest way to run LinkPage. No need to clone the repository or build anything.
+For a **new PostgreSQL installation**, use the pinned production Compose file below. The published image also supports SQLite without database connection variables. **Existing SQLite users: follow the [migration guide](docs/sqlite-to-postgresql.md), retaining the original data mount and taking a stopped backup, before adopting this Compose configuration.**
 
 **`docker-compose.prod.yml`**
 
 ```yaml
 services:
   linkpage:
-    image: tomasneto26/linkpage:latest
+    image: tomasneto26/linkpage:2.1.0
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "3000:3000"
     volumes:
@@ -362,17 +418,49 @@ services:
       - PORT=3000
       - DATA_DIR=/app/data
       - UPLOADS_DIR=/app/data/uploads
+      - DB_ENGINE=postgresql
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGDATABASE=linkpage
+      - PGUSER=linkpage
+      - PGPASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - MIGRATE_SQLITE=${MIGRATE_SQLITE:-0}
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: linkpage
+      POSTGRES_DB: linkpage
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linkpage -d linkpage"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+volumes:
+  postgres_data:
 ```
 
 **1. Create the file**
 
 ```bash
-curl -O https://raw.githubusercontent.com/Tomasneto404/linkPage/main/docker-compose.prod.yml
+curl -fsSLo docker-compose.prod.yml https://raw.githubusercontent.com/Tomasneto404/linkPage/v2.1.0/docker-compose.prod.yml
 ```
 
 Or create it manually with the contents above.
 
-**2. Start the app**
+**2. Configure the database password**
+
+Create an `.env` file beside the Compose file (preserve existing variables if it already exists):
+
+```dotenv
+POSTGRES_PASSWORD=replace-with-a-long-random-password
+MIGRATE_SQLITE=0
+```
+
+**3. Start the app**
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d
@@ -380,7 +468,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 Docker will pull the image from Docker Hub automatically and start the container.
 
-**3. Get your admin token**
+**4. Get your admin token**
 
 ```bash
 docker compose -f docker-compose.prod.yml logs linkpage
@@ -394,7 +482,7 @@ Look for a line like:
 
 Copy the full token. It is saved to `linkpage_data/admin-token.txt` and reused across restarts.
 
-**4. Open the app**
+**5. Open the app**
 
 | Page | URL |
 |------|-----|
@@ -403,7 +491,9 @@ Copy the full token. It is saved to `linkpage_data/admin-token.txt` and reused a
 
 Paste the token into the admin panel to unlock link management.
 
-**Updating to the latest image**
+**Updating to a newer release**
+
+Change the pinned image tag to the desired version, read its upgrade notes, then recreate the service:
 
 ```bash
 docker compose -f docker-compose.prod.yml pull
@@ -432,6 +522,9 @@ Clone the repository and build the image locally.
 services:
   linkpage:
     build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "3000:3000"
     volumes:
@@ -441,9 +534,30 @@ services:
       - PORT=3000
       - DATA_DIR=/app/data
       - UPLOADS_DIR=/app/data/uploads
+      - DB_ENGINE=postgresql
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGDATABASE=linkpage
+      - PGUSER=linkpage
+      - PGPASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - MIGRATE_SQLITE=${MIGRATE_SQLITE:-0}
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: linkpage
+      POSTGRES_DB: linkpage
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linkpage -d linkpage"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
 volumes:
-  linkpage_data:
+  postgres_data:
 ```
 
 **Steps**
@@ -451,7 +565,9 @@ volumes:
 ```bash
 git clone https://github.com/Tomasneto404/linkPage.git
 cd linkPage
-docker compose up -d
+cp .env.example .env
+# Edit .env and set POSTGRES_PASSWORD before starting.
+docker compose up -d --build
 ```
 
 **Updating**
@@ -477,14 +593,9 @@ docker compose up -d --build
 
 ---
 
-### Full reset (wipes all data)
+### Data and database volumes
 
-```bash
-docker compose down -v
-docker compose up -d
-```
-
-A new admin token will be generated on the next startup.
+Normal updates preserve both the application directory and PostgreSQL volume. `docker compose down` retains named volumes. The `-v` option deletes them and is not an upgrade command. Follow the [backup and recovery procedure](docs/sqlite-to-postgresql.md#backups-after-migration) before changing database configuration.
 
 ---
 
@@ -508,6 +619,30 @@ For development with auto-restart on file changes:
 ```bash
 npm run dev
 ```
+
+### PostgreSQL and importing an existing SQLite installation
+
+For the complete procedure, including Docker Compose, named volumes, a verified first start, backups and recovery, read **[Moving an existing SQLite installation to PostgreSQL](docs/sqlite-to-postgresql.md)**.
+
+SQLite remains available without database configuration. To use PostgreSQL, create an empty database and set `DATABASE_URL`; alternatively set `DB_ENGINE=postgresql` and the usual `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` and `PGPASSWORD` variables. The app creates and migrates its schema on startup. Connection failures stop startup; there is no silent fallback to SQLite.
+
+For local development, copy `.env.example` to `.env`, configure the connection and run `npm run dev`. This command loads `.env`; `npm start` expects variables supplied by the environment.
+
+Before importing, stop the existing app and back up its complete data directory, including `links.db`, uploads, private uploads and secrets. Then choose one import method:
+
+```bash
+# Automatic import on first startup into an empty PostgreSQL database:
+DATABASE_URL='postgresql://user:password@localhost/linkpage' MIGRATE_SQLITE=1 npm start
+
+# Or explicit import from an existing SQLite database:
+DATABASE_URL='postgresql://user:password@localhost/linkpage' npm run db:migrate -- /path/to/links.db
+```
+
+The explicit command runs before starting the app against the target. Do not combine it with `MIGRATE_SQLITE=1`. Import checks row counts and content inside one transaction, preserves row IDs and sequence positions, and refuses an occupied target. The SQLite source remains unchanged. Keep the same `DATA_DIR` to preserve uploaded files, tokens and signing secrets. Test sign-in, groups, documents and private pages before admitting new writes. Returning to SQLite before new writes is possible by removing the PostgreSQL configuration; after new writes, restore a matching complete backup instead of switching to the stale SQLite copy.
+
+The Compose files configure PostgreSQL 18, a health check and an internal database service. Set `POSTGRES_PASSWORD` in `.env` before startup. The database volume is separate from the application data directory; retain both. The published 2.1.0 image includes the explicit importer and both database engines.
+
+Workspace backups on PostgreSQL contain a verified logical database snapshot and the existing files; restore uses a transaction and creates a recovery copy first. Restores require the same schema version. Download backups to separate storage before upgrades.
 
 ---
 
@@ -541,6 +676,12 @@ npm run test:browser
 Without a browser they skip, saying how to get one. `LINKPAGE_BROWSER_PATH` points them at any
 other Chromium-based executable instead.
 
+The same API suite can run against a dedicated PostgreSQL test database. Each file creates and removes its own isolated schema:
+
+```bash
+LINKPAGE_TEST_POSTGRES_URL='postgresql://user:password@localhost/linkpage_test' npm run test:postgres
+```
+
 CI runs both suites on every push to `main`, every `v*` tag and every pull request; the
 Docker image is only built and pushed when they are green.
 
@@ -569,6 +710,15 @@ docker run --rm -v "$PWD:/repo" -v "$HOME/.cache/trivy:/root/.cache" \
 
 ---
 
+## Upgrading to 2.1.0
+
+1. Stop the existing application and back up its complete data directory. Keep the previous image and Compose configuration with that copy.
+2. To **retain SQLite**, update your existing service to `tomasneto26/linkpage:2.1.0`, preserve the same volume and omit `DATABASE_URL`/`DB_ENGINE=postgresql`. Schema migrations run at startup.
+3. To **move to PostgreSQL**, follow the [migration guide](docs/sqlite-to-postgresql.md): keep the same application data mount, use an empty target and enable the one-time verified import, then disable `MIGRATE_SQLITE` after checking the result.
+4. Verify sign-in, protected/private groups, attachments, layouts, widgets and scheduled content. Create and download a new Workspace backup. After moving to PostgreSQL, backing up the old SQLite file alone no longer protects new data.
+
+The PostgreSQL connection is explicit; connection failures do not fall back to SQLite. Backups restore to the same schema version. An older image must be paired with its own stopped-directory backup rather than pointed at an upgraded database.
+
 ## Upgrading to 2.0.0
 
 1. Make a complete copy of the persistent `linkpage_data` volume while the container is stopped. Keep the image version that created that copy.
@@ -591,13 +741,13 @@ against GitHub Releases by the update checker. Nothing else needs editing.
 2. Add a `## vX.Y.Z` section at the top of [CHANGELOG.md](CHANGELOG.md), one `### Title` +
    paragraph per entry. This single file feeds the in-app changelog (via `/api/changelog`),
    the GitHub release notes, and the CI guard below.
-3. Run `npm test` and `npm run test:browser`. Refresh screenshots with `node scripts/screenshots.cjs` (requires Chromium, or set `LINKPAGE_BROWSER_PATH`). The script uses a temporary demo database. Generate PWA icons with `node scripts/pwa-icons.cjs` if the brand mark changes; update the offline cache version in `public/sw.js` when offline assets change.
+3. Run `npm test`, `npm run test:postgres` against an isolated test database, and `npm run test:browser`. Build the candidate and run `node scripts/production-smoke.cjs` to verify the real SQLite upgrade and recovery path. See the [validation record](docs/release-2.1.0-validation.md) for browser and physical-device boundaries. Refresh screenshots with `node scripts/screenshots.cjs` (requires Chromium, or set `LINKPAGE_BROWSER_PATH`). The script uses a temporary demo database. Generate PWA icons with `node scripts/pwa-icons.cjs` if the brand mark changes; update the offline cache version in `public/sw.js` when offline assets change.
 4. Commit, push `main`, then push the matching tag:
 
    ```bash
    git push origin main
-   git tag -a v2.0.0 -m "LinkPage 2.0.0"
-   git push origin v2.0.0
+   git tag -a v2.1.0 -m "LinkPage 2.1.0"
+   git push origin v2.1.0
    ```
 
 [The workflow](.github/workflows/docker-publish.yml) takes it from there:
@@ -605,8 +755,11 @@ against GitHub Releases by the update checker. Nothing else needs editing.
 | Job | What it does |
 |-----|-------------|
 | `test` | Runs the whole suite. Red suite ⇒ nothing else runs. |
+| `cross_browser_test` | Checks public/admin and narrow-screen flows in Firefox and WebKit. |
+| `postgres_test` | Runs the API regression suite in isolated PostgreSQL schemas. |
+| `production_test` | Builds the candidate and verifies the real 2.0.0 SQLite import plus backup recovery in Docker. |
 | `verify-tag` | Fails unless the tag, `package.json` and a `CHANGELOG.md` section all agree — a mistyped tag stops here instead of publishing a mislabelled image. |
-| `build` | Builds and pushes for amd64 + arm64: `:X.Y.Z` and `:X.Y` from the tag, `:latest` from the push to `main`. |
+| `build` | Builds and pushes for amd64 + arm64: `:X.Y.Z` and `:X.Y` from the tag, `:latest` only from a verified stable release tag. Branch pushes verify the candidate without publishing it. |
 | `release` | Creates (or updates) the GitHub Release, with the notes lifted straight out of `CHANGELOG.md` plus the `docker pull` line. Re-running the workflow on the same tag is safe. |
 
 Because the release notes and the in-app changelog come from the same file, the "Update
