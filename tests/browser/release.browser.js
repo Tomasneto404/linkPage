@@ -7,6 +7,24 @@ before(async()=>{c=await harness.start();browser=await launchBrowser();if(!brows
 after(async()=>{await browser?.close();await harness.stop();fs.mkdirSync('.cache',{recursive:true});fs.writeFileSync('.cache/browser-'+report.engine+'-release.json',JSON.stringify(report,null,2));});const btest=browserTest(test,()=>browser);
 async function fresh(width){const firefox=report.engine==='firefox',context=await browser.newContext({baseURL:c.baseUrl,viewport:{width,height:900},...(firefox?{}:{isMobile:width<600,hasTouch:width<600})}),page=await context.newPage();page.setDefaultTimeout(12000);return page;}
 async function login(page){await page.goto('/login/');await page.fill('#signInEmail','release-admin@example.test');await page.fill('#signInPassword',password);await Promise.all([page.waitForURL('**/admin/**'),page.click('#signInBtn')]);await page.locator('#adminWrap').waitFor();}
+btest('replacing theme transitions preserves the final theme without browser errors',async()=>{
+  const page=await fresh(1280),errors=[];page.on('pageerror',error=>errors.push(error.message));
+  try{
+    await page.goto('/g/'+group.slug);await page.locator('.link-card[data-link-id]').waitFor();
+    await page.evaluate(async()=>{
+      const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+      for(const theme of ['dark','light','dark','light','dark','light']){
+        window.applyTheme(theme);
+        for(let frame=0;frame<60&&document.documentElement.dataset.theme!==theme;frame++)await nextFrame();
+        if(document.documentElement.dataset.theme!==theme)throw new Error('Theme update did not commit');
+      }
+      for(let frame=0;frame<60&&document.documentElement.classList.contains('theme-view-transition');frame++)await nextFrame();
+    });
+    assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
+    assert.equal(await page.locator('html').evaluate(element=>element.classList.contains('theme-view-transition')),false);
+    assert.deepEqual(errors,[]);report.checks.push({name:'interrupted theme transitions',width:1280});
+  }finally{await page.context().close();}
+});
 for(const width of [1280,390]){
   btest(`release public navigation, search, Markdown and PWA at ${width}px`,async()=>{
     const page=await fresh(width),errors=[];page.on('pageerror',error=>errors.push(error.message));try{

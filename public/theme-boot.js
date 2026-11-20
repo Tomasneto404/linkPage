@@ -204,6 +204,9 @@
     document.documentElement.classList.add('theme-view-transition');
     try{
       const transition=document.startViewTransition(()=>{applyingTransition=true;try{commit();}finally{applyingTransition=false;}});currentTransition=transition;
+      // Replacing a transition rejects ready even when its update and finished
+      // promises succeed. This is expected when appearance settings change fast.
+      transition.ready.catch(()=>{});
       transition.finished.catch(()=>{}).finally(()=>{if(currentTransition===transition){currentTransition=null;document.documentElement.classList.remove('theme-view-transition');}});
       return true;
     }catch{document.documentElement.classList.remove('theme-view-transition');return false;}
