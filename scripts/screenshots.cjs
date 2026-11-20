@@ -69,7 +69,7 @@ async function main() {
   await api('/api/workspace/backups/schedule', 'PUT', { enabled: true, frequency: 'daily', hour: 3, retention: 7 });
   await api('/api/workspace/backups', 'POST', {});
   const schedule = calendar.defaults(); schedule.enabled = true;
-  const context = await browser.newContext({ baseURL: c.baseUrl, viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+  const context = await browser.newContext({ baseURL: c.baseUrl, viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, locale: 'en-GB', timezoneId: 'Europe/Lisbon', reducedMotion: 'reduce' });
   const page = await context.newPage();
   page.setDefaultTimeout(15000);
   await page.route('**/api/widgets/'+rss.id+'/data',route=>route.fulfill({json:{updated_at:new Date().toISOString(),stale:false,data:{title:'Team updates',items:[{title:'The next release is ready for review',url:'https://workspace.example.invalid/releases',description:'A shared checklist for the next milestone.',date:new Date().toISOString()},{title:'New components in the design system',url:'https://workspace.example.invalid/design',description:'Buttons, forms and navigation patterns for every team.',date:new Date(Date.now()-86400000).toISOString()},{title:'Working agreements, in one place',url:'https://workspace.example.invalid/handbook',description:'A practical handbook for everyone in the workspace.',date:new Date(Date.now()-2*86400000).toISOString()}]}}}));
@@ -77,14 +77,42 @@ async function main() {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => { try { localStorage.setItem('linkpage_theme', 'light'); } catch { /* Sandboxed documents have no storage. */ } });
   async function capture(name, options = {}) {
+    const originalViewport = page.viewportSize();
+    const { section, fullPage: _unused, ...screenshotOptions } = options;
     await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => document.activeElement?.blur());
     await page.evaluate(async()=>{await Promise.all(document.getAnimations().filter(animation=>animation.effect?.getComputedTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{})));});
-    await page.screenshot({ path: path.join(folder, 'linkPage-v210-' + name + '.png'), fullPage: true, ...options });
+    const hasDialog = await page.evaluate(() => [...document.querySelectorAll('.modal-overlay,dialog[open]')].some(element => element.checkVisibility()));
+    // A stitched full-page capture leaves fixed footers, scenery and modal
+    // backdrops at their old viewport height. Render the complete desktop page
+    // in one real viewport instead; dialogs and phone shots keep their viewport.
+    if (!hasDialog && originalViewport.width >= 640) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const height = await page.evaluate(() => Math.ceil(document.documentElement.scrollHeight));
+        if (height <= page.viewportSize().height) break;
+        if (height > 2400) throw new Error(`Screenshot ${name} needs an explicit content section`);
+        await page.setViewportSize({ width: originalViewport.width, height });
+      }
+    }
+    await page.evaluate(() => window.scrollTo(0, 0));
+    if (section) {
+      const bounds = await page.locator(section).boundingBox();
+      if (!bounds) throw new Error(`Missing screenshot section: ${section}`);
+      screenshotOptions.clip = { x: 0, y: 0, width: originalViewport.width, height: Math.ceil(bounds.y + bounds.height + 16) };
+    }
+    await page.screenshot({ path: path.join(folder, 'linkPage-v210-' + name + '.png'), fullPage: false, ...screenshotOptions });
+    await page.setViewportSize(originalViewport);
+  }
+  async function scrollSettingsTo(selector) {
+    await page.locator(selector).evaluate(element => {
+      const panel = element.closest('.settings-body');
+      panel.scrollTop += element.getBoundingClientRect().top - panel.getBoundingClientRect().top - 12;
+    });
   }
   await page.goto('/'); await page.locator('.link-card').first().waitFor(); await capture('public-light');
   await page.evaluate(() => applyTheme('dark')); await capture('public-dark');
   await page.evaluate(() => applyTheme('light'));
-  await page.goto('/g/'+groups[0].slug);await page.locator('.lp-widget-clock').waitFor();await page.locator('.lp-weather-forecast').waitFor();await capture('widgets');
+  await page.goto('/g/'+groups[0].slug);await page.locator('.lp-widget-clock').waitFor();await page.locator('.lp-weather-forecast').waitFor();await capture('widgets',{section:'.lp-widgets'});
   await page.setViewportSize({width:390,height:844});await capture('widgets-mobile',{fullPage:false});await page.setViewportSize({width:1440,height:1000});await page.goto('/');
   await page.keyboard.press('Control+k'); await page.fill('#globalSearchInput', 'team');
   await page.locator('#globalSearchResults a').first().waitFor(); await capture('search'); await page.keyboard.press('Escape');
@@ -98,7 +126,7 @@ async function main() {
   await api('/api/settings/season', 'POST', { name: 'christmas', background: 'static', effects: true, schedule: calendar.defaults() });
   await page.goto('/f/team-handbook?theme=light'); await page.locator('.md-reader-tools summary').click(); await page.locator('.md-toc summary').click(); await capture('markdown');
   await api('/api/settings/season', 'POST', { name: 'none', background: 'minimal', effects: true, schedule: calendar.defaults() });
-  await page.goto('/login/'); await page.fill('#signInEmail', 'alex@example.test'); await page.fill('#signInPassword', 'release-demo-password');
+  await page.goto('/login/'); await page.locator('#signInEmail').waitFor(); await capture('signin-light'); await page.fill('#signInEmail', 'alex@example.test'); await page.fill('#signInPassword', 'release-demo-password');
   await Promise.all([page.waitForURL('**/admin/**'), page.click('#signInBtn')]); await page.locator('#adminWrap').waitFor({ state: 'visible' });
   await page.evaluate(() => applyTheme('light')); await capture('admin-light'); await page.evaluate(() => applyTheme('dark')); await capture('admin-dark'); await page.evaluate(() => applyTheme('light'));
   await page.evaluate(()=>openStatsModal(links.find(link=>link.name==='Team calendar')));await page.locator('#recentClicksContainer .click-row').first().waitFor();await capture('statistics',{fullPage:false});await page.keyboard.press('Escape');
@@ -109,10 +137,26 @@ async function main() {
   await page.click('#workspaceDialog [data-tab="backups"]'); await page.locator('[data-download-backup]').first().waitFor(); await capture('workspace-backups');
   await page.click('#workspaceDialog [data-tab="library"]'); await page.click('[data-resource="groups"]'); await page.selectOption('#workspaceResource', String(groups[0].id)); await capture('workspace-access'); await page.keyboard.press('Escape');
   await page.evaluate(() => document.getElementById('openSettingsBtn').click()); await page.click('[data-tab="seasons"]'); await page.click('[data-season-choice="christmas"]'); await page.click('[data-background="static"]'); await capture('season-editor');
-  await page.locator('#seasonAutoToggle').focus(); await page.locator('#seasonAutoToggle').press('Space'); await page.locator('#seasonAutoToggle').scrollIntoViewIfNeeded(); await capture('season-calendar');
+  await page.locator('#seasonAutoToggle').check(); await scrollSettingsTo('#seasonCalendarFields'); await capture('season-calendar');
   await page.click('[data-tab="sso"]'); await capture('sso');
-  await page.click('[data-tab="themes"]');await capture('settings-themes',{fullPage:false});await page.locator('#ambientEffectsEditor details').evaluate(el=>el.open=true);await page.locator('#ambientEffectsEditor').scrollIntoViewIfNeeded();await capture('settings-effects',{fullPage:false});await page.keyboard.press('Escape');
-  await api('/api/settings/theme','POST',{ambient_background:'custom',ambient_colors:['#77a8d4','#b7a9e7','#e9c8d6','#a7cfc9'],ambient_effect:'drift',ambient_speed:.5});await page.goto('/g/'+groups[0].slug);await page.locator('.lp-weather-forecast').waitFor();await capture('custom-fade',{fullPage:false});
+  await page.click('[data-tab="mail"]'); await capture('mail');
+  await api('/api/settings/contributions','PUT',{mode:'anyone',retention_days:30});
+  await page.click('[data-tab="contributions"]'); await capture('contributions');
+  await page.click('[data-tab="themes"]');await capture('settings-themes',{fullPage:false});await page.locator('#ambientEffectsEditor details').evaluate(el=>el.open=true);await scrollSettingsTo('#ambientEffectsEditor');await capture('settings-effects',{fullPage:false});await page.keyboard.press('Escape');
+  await api('/api/settings/theme','POST',{ambient_background:'custom',ambient_colors:['#77a8d4','#b7a9e7','#e9c8d6','#a7cfc9'],ambient_effect:'drift',ambient_speed:.5});await page.goto('/g/'+groups[0].slug);await page.locator('.lp-weather-forecast').waitFor();await capture('custom-fade',{section:'.lp-widgets'});
+  await api('/api/settings/theme','POST',{ambient_background:'off'});
+  await context.clearCookies(); await page.goto('/'); await page.click('#guestAddBtn'); await page.locator('#myLinkOverlay').waitFor({state:'visible'});
+  await page.fill('#myLinkName','Reading for the next project'); await page.fill('#myLinkUrl','https://example.org/reading'); await capture('guest-add');
+  const personal=c.session();await personal.login(member.email,'release-demo-password');
+  const personalGroup=(await personal.fetch('/api/my/groups',{method:'POST',json:{name:'My reading list',color:'#0071e3'}})).body;
+  for(const [name,url,description]of [['Interface notes','https://example.org/interface','Patterns and small details worth keeping.'],['Research library','https://example.org/research','Reading and references for the next project.'],['Ideas for later','https://example.org/ideas','A little room for ideas that can wait.']]){
+    const form=new FormData();for(const [key,value]of Object.entries({name,url,description,groups:JSON.stringify([{group_id:personalGroup.id}])}))form.append(key,value);
+    const response=await personal.fetch('/api/my/links',{method:'POST',form});if(response.status!==201)throw new Error('Could not seed personal demo link');
+  }
+  await personal.logout();
+  await page.goto('/login/');await page.fill('#signInEmail',member.email);await page.fill('#signInPassword','release-demo-password');await Promise.all([page.waitForURL(url=>!url.pathname.startsWith('/login')),page.click('#signInBtn')]);
+  await page.locator('.tab-mine',{hasText:'My reading list'}).first().click();await page.locator('.link-card',{hasText:'Interface notes'}).waitFor();await capture('member-view');
+  await page.goto('/?account=1');await page.locator('#accountOverlay').waitFor({state:'visible'});await capture('your-account');
   if (errors.length) throw new Error('Browser errors: ' + errors.join('; '));
   await context.close();
 }

@@ -96,7 +96,7 @@ Settings are split into tabs: **Branding** (site title, header icon, light/dark 
 
 | One sign-in for everybody | Your account |
 |:---:|:---:|
-| ![Sign in](linkPagePrints/linkPage-v110-signin-light.png) | ![Your account dialog](linkPagePrints/linkPage-v110-your-account.png) |
+| ![Sign in](linkPagePrints/linkPage-v210-signin-light.png) | ![Your account dialog](linkPagePrints/linkPage-v210-your-account.png) |
 
 Admins and members use the same **Sign in** button on the public page. Members land back on the links; administrators land in the admin panel. The admin token stays as the way back in when nobody can sign in. Each account has its own dialog for passwords, active sessions on other devices, export / import of their own links, and — when an administrator has set it up — a one-click **Connect** button for single sign-on through Authentik or any other OpenID Connect provider.
 
@@ -112,7 +112,7 @@ Assign **viewer**, **contributor**, **editor** or **manager** access in **Worksp
 
 ### A page of your own
 
-![Member view with a personal group open and the "+ Add a link" card](linkPagePrints/linkPage-v110-member-view.png)
+![Member view with a personal group open and the "+ Add a link" card](linkPagePrints/linkPage-v210-member-view.png)
 
 A signed-in member keeps their own private groups and links beside the shared ones, with the **+** at the end of the tab bar to make a new group in one step. Favourites gather starred shared links; everything a member creates is theirs alone, within an administrator-configured storage allowance.
 
@@ -122,7 +122,7 @@ A signed-in member keeps their own private groups and links beside the shared on
 
 | On the public page | Admin moderation |
 |:---:|:---:|
-| ![Guest add-link dialog](linkPagePrints/linkPage-v110-guest-add.png) | ![Settings → Contributions](linkPagePrints/linkPage-v110-contributions.png) |
+| ![Guest add-link dialog](linkPagePrints/linkPage-v210-guest-add.png) | ![Settings → Contributions](linkPagePrints/linkPage-v210-contributions.png) |
 
 An administrator can open the page to anonymous **guest contributions**: a browser identified by its own cookie keeps its own groups and links, visible only in that browser. The admin panel lists every guest with counts and storage, with per-guest **Delete** and **Remove every guest**, and a retention sweep that prunes browsers not seen for N days.
 
@@ -132,7 +132,7 @@ An administrator can open the page to anonymous **guest contributions**: a brows
 
 | Single sign-on | Email |
 |:---:|:---:|
-| ![Single sign-on settings](linkPagePrints/linkPage-v210-sso.png) | ![Settings → Email](linkPagePrints/linkPage-v110-mail.png) |
+| ![Single sign-on settings](linkPagePrints/linkPage-v210-sso.png) | ![Settings → Email](linkPagePrints/linkPage-v210-mail.png) |
 
 Point LinkPage at an **OpenID Connect** provider (Authentik, Keycloak, Google Workspace, Okta…) and the sign-in page offers a one-click button. The flow uses the authorization code grant with PKCE, verifies the ID token's signature, issuer, audience, expiry and nonce, and optionally creates accounts on first sign-in or links by verified email. With an **SMTP** server, the sign-in page offers *Email me a reset link*; links work once, for an hour, and are built from the configured page address so a forged `Host` header cannot redirect a reset.
 

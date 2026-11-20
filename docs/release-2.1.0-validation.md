@@ -8,8 +8,8 @@ The release uses schema version 24. Upgrading the application and changing datab
 | --- | --- |
 | SQLite/API suite | 897 passed; the PostgreSQL-only driver test is skipped in this run |
 | PostgreSQL suite | 884 passed in isolated schemas |
-| Chromium browser suite | 87 passed, including desktop and mobile emulation |
-| Installed Firefox 159 | Four release flows passed at desktop and narrow viewport sizes, using WebDriver BiDi |
+| Chromium browser suite | 87 passed, including desktop and mobile emulation; five targeted release checks also passed after the transition fix |
+| Installed Firefox 159 | Five release checks passed at desktop and narrow viewport sizes, using WebDriver BiDi |
 | Docker production candidate | Published 2.0.0 SQLite fixture imported into PostgreSQL with every original table checked |
 | File and credential preservation | SQLite bytes, uploads, private files, administrator token and signing secrets retained |
 | Authentication and access | Existing session, existing password, private group access and guarded personal attachments checked |
@@ -17,13 +17,13 @@ The release uses schema version 24. Upgrading the application and changing datab
 | Explicit migration | The command included in the image imports with Compose `DB_ENGINE`/`PG*` settings and refuses occupied targets |
 | Migration startup guards | Missing sources and an unselected migration over an existing SQLite directory are refused |
 | Runtime | HTTP healthcheck passes and the application process runs as UID 1000 |
-| Documentation | Local document/image links checked; 27 new screenshots generated from a disposable demonstration instance |
+| Documentation | Local document/image links checked; 33 new screenshots generated from a disposable demonstration instance |
 
 The Docker script uses uniquely named temporary resources and preserves its report and test backups under `.cache/production-*`. It never uses the development instance's database or data directory.
 
 ## Release gates
 
-GitHub Actions runs the API suite, PostgreSQL suite and complete Chromium browser suite. Separate Firefox and WebKit jobs test public navigation, search, Markdown, PWA assets, Settings, background configuration, widget resizing, Workspace and analytics at desktop and narrow widths. The production job builds the candidate and repeats the 2.0.0 migration/recovery procedure. Repository, base-image and built-image vulnerability checks gate publication.
+GitHub Actions runs the API suite, PostgreSQL suite and complete Chromium browser suite. Separate Firefox and WebKit jobs test public navigation, search, Markdown, PWA assets, Settings, background configuration, widget resizing, Workspace and analytics at desktop and narrow widths, plus interrupted theme transitions. The production job builds the candidate and repeats the 2.0.0 migration/recovery procedure. Repository, base-image and built-image vulnerability checks gate publication.
 
 Only a matching stable version tag publishes the multi-platform image and `latest`. Tag, package version and CHANGELOG section must agree. The GitHub Release is created after the image build and push succeed.
 
