@@ -5,6 +5,35 @@ the GitHub release notes: the release workflow lifts the section matching the
 pushed tag out of this file. Newest release first; the top section must match
 `version` in package.json.
 
+## v2.1.0
+
+### PostgreSQL with a verified SQLite migration
+PostgreSQL is now supported alongside SQLite. Import an existing SQLite installation automatically once, or use the migration command included in the Docker image. The importer verifies row counts and content in one transaction, preserves IDs and identity sequences, and opens the SQLite source read-only. Startup refuses missing sources, occupied import targets and an unselected migration over an existing SQLite directory. Keep the same application data mount so files, credentials and signing secrets remain available. Existing SQLite installations can upgrade without changing engines. Follow the [SQLite-to-PostgreSQL guide](https://github.com/Tomasneto404/linkPage/blob/v2.1.0/docs/sqlite-to-postgresql.md) for backups, Compose configuration, verification and recovery.
+
+### Configurable widgets
+Add RSS/Atom, digital or analog clocks, weather forecasts, Gotify notifications and Markdown notes with shared tasks. The gallery previews real widget content before saving. Configure article layouts, dates and optional images, extra time zones, notification priorities and personal read state. Widgets support several groups, device visibility, manual refresh, updated timestamps and cached data when a provider is temporarily unavailable. Source credentials remain on the server. Group managers can edit widgets assigned exclusively to groups they manage.
+
+### Arrange the page directly
+Global administrators can drag whole widget cards, resize them using the bottom-right control and see a dashed preview with dimensions during resizing. Sizes and order persist; changing height on a phone preserves the desktop column span. Shared links can be dragged over each other to exchange positions on public and admin pages, including their section slots inside the current group, while retaining other memberships.
+
+### Analytics with useful comparisons
+Compare the last 24 hours, 7, 30 or 90 days with the preceding equivalent period, or view all recorded activity. Filter by group and optionally exclude detected automation. The dashboard adds catalogue usage, links without clicks, previous-period charts, weekday/hour activity, device and browser estimates, group rankings and recent clicks. Chart buckets use UTC. IPs estimate visitors rather than people or accounts. Export the selected catalogue as CSV, including zero-click resources and spreadsheet-safe text cells.
+
+### Custom backgrounds and shared motion
+New ambient backgrounds include pointer-responsive 3D orbital scenes and glass sculptures. Custom fade supports two to six colours with Crossfade, Drifting clouds, Soft ripples and Slow orbit effects. Adjust background, 3D and particle speed from 0.25× to 3×. Choose custom backgrounds alone, seasonal particles over a custom background, or the full seasonal atmosphere. Site defaults and personal preferences carry through to script-free Markdown pages and appearance presets. Widgets share link entrance, hover and reorder motion; a page refresh reveals each widget after its content arrives. Off and reduced-motion preferences remain respected.
+
+### Sharing, search and document editing
+Groups have stable readable addresses and QR sharing; sections can be shared directly too. Search shows each resource's icon and group context, highlights matches and opens results in new tabs. Recent queries belong to the current account. Create text documents directly when adding a link, and edit saved Markdown source from the public page. Long document forms stay bounded, failed source loads cannot overwrite saved text, and full link titles are available on hover.
+
+### More consistent administration
+Settings and Workspace keep stable dialog dimensions and aligned form controls, with clearer navigation and fewer competing boxes. Phone Settings uses a category picker; Workspace shows every section without horizontal scrolling. Theme dropdowns retain their arrow and selected text, including automatic day/night mode. Menus and controls share line icons, touch targets and focus states. The existing brand, theme palettes, seasonal assets and original minimalist background remain available.
+
+### Safer operations and fewer false alarms
+PostgreSQL Workspace backups include verified logical snapshots and existing attachments, with recovery copies and transaction rollback during restoration. Link checks distinguish authentication, rate limiting and transient failures from missing resources and require repeated failures before flagging a dead link. Unchanged page refreshes preserve card nodes, and larger collections use bounded entrance effects to reduce flicker and animation jitter.
+
+### Upgrading from 2.0.0
+Back up the complete stopped data directory before replacing the image. To retain SQLite, keep your existing mount and omit PostgreSQL connection variables. To migrate, use an empty PostgreSQL database, retain the same application mount and enable `MIGRATE_SQLITE=1` for the verified import, then disable it after verification. The production Compose example pins 2.1.0 and uses PostgreSQL 18; set its database password before startup. Backups restore to the same schema version; retain the old image and stopped backup together for rollback. GitHub Actions verifies the API, PostgreSQL, browser flows and Docker migration/recovery before publishing versioned images and `latest`.
+
 ## v2.0.0
 
 ### Install LinkPage as an app

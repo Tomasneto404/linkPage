@@ -12,6 +12,8 @@ const express = require('express');
 const router = express.Router();
 
 router.use(require('./events'));
+router.use(require('./sharing'));
+router.use(require('./widgets'));
 router.use(require('./workspace'));
 router.use(require('./auth'));
 router.use(require('./users'));

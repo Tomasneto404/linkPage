@@ -140,7 +140,7 @@ function setLinkGroups(linkId, assignments) {
 
 /** Returns every link ordered by position, with all its groups attached. */
 function getAllLinks() {
-  const rows         = db.prepare('SELECT * FROM links ORDER BY position ASC, created_at DESC').all();
+  const rows         = db.prepare('SELECT * FROM links ORDER BY position ASC, created_at DESC, id ASC').all();
   const memberships  = loadAllMemberships();
   return rows.map(r => decorateLink(r, memberships.get(r.id) || []));
 }
@@ -319,10 +319,30 @@ function reorderLinks(orderedIds) {
   orderedIds.forEach((id, index) => update.run(index, id));
 }
 
+/** Exchange two slots atomically, preserving hidden links and other memberships. */
+function swapLinks(firstId, secondId, groupId = null) {
+  db.exec('BEGIN');
+  try {
+    const ids = db.prepare('SELECT id FROM links ORDER BY position ASC, created_at DESC, id ASC').all().map(row => row.id);
+    const a = ids.indexOf(firstId), b = ids.indexOf(secondId);
+    if (a < 0 || b < 0) throw new Error('Link no longer exists');
+    [ids[a], ids[b]] = [ids[b], ids[a]];
+    if (groupId !== null) {
+      const membership = db.prepare('SELECT section_id FROM link_groups WHERE link_id=? AND group_id=?');
+      const first = membership.get(firstId, groupId), second = membership.get(secondId, groupId);
+      if (!first || !second) throw new Error('Both links must belong to this group');
+      db.prepare('UPDATE link_groups SET section_id=? WHERE link_id=? AND group_id=?').run(second.section_id, firstId, groupId);
+      db.prepare('UPDATE link_groups SET section_id=? WHERE link_id=? AND group_id=?').run(first.section_id, secondId, groupId);
+    }
+    reorderLinks(ids);
+    db.exec('COMMIT');
+  } catch (error) { db.exec('ROLLBACK'); throw error; }
+}
+
 module.exports = {
   getAllLinks, getLinkById, getLinkBySlug, findLinkBySlug,
   checkDuplicateUrl, getLinkUrlIndex, addLinkGroup,
   createLink, updateLink, deleteLink,
   updateLinkFavicon, updateLinkImage, updateLinkBrokenStatus, updateLinkVisibility,
-  getAllLinksForHealthCheck, reorderLinks,
+  getAllLinksForHealthCheck, reorderLinks, swapLinks,
 };

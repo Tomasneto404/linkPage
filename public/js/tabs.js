@@ -253,9 +253,8 @@ function bindTabScroller() {
       if (g) openUnlockModal(g);
       return;
     }
-    activeGroup = key;
-    saveStoredGroup(activeGroup);
-    renderTabs(); renderLinks(true);
+    if(window.navigateGroup)window.navigateGroup(key);
+    else {activeGroup=key;saveStoredGroup(activeGroup);renderTabs();renderLinks();}
   });
 
   t.vp.addEventListener('scroll', () => {
@@ -425,6 +424,7 @@ document.getElementById('unlockForm').addEventListener('submit', async e => {
     saveStoredGroup(activeGroup);
     closeUnlockModal();
     await loadData();
+    window.LinkPageNavigation?.syncUrl();
   } catch {
     err.textContent = 'Could not reach the server.';
     err.classList.remove('hidden');

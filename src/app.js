@@ -32,6 +32,7 @@ app.use(express.json({ limit: '32mb' }));
 app.use(securityHeaders);
 
 // Static assets.
+app.use(require('./middleware/appearanceBoot'));
 app.use(express.static(PUBLIC_DIR, {
   setHeaders(res, filename) {
     if (filename.endsWith('/sw.js') || filename.endsWith('/manifest.webmanifest')) {

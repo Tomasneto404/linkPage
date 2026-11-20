@@ -8,9 +8,9 @@ const models = require('../models');
 const history = require('../models/workspace');
 const { UPLOADS_DIR } = require('../config/env');
 const calendar = require('../../public/season-calendar');
-const KEYS = ['site_title','accent_color','accent_dark_adjust','accent_glow','theme_light_variant','theme_dark_variant','default_theme','season_theme','season_schedule','season_effects','season_background','wallpaper_light','wallpaper_dark','wallpaper_fog','bar_opacity','logo_light','logo_dark','brand_icon','favicon','footer_enabled','mobile_nav_position','group_tab_color','group_tabs_loop'];
+const KEYS = ['ambient_speed','ambient_colors','ambient_effect','ambient_blend','ambient_background','motion_style','site_title','accent_color','accent_dark_adjust','accent_glow','theme_light_variant','theme_dark_variant','default_theme','season_theme','season_schedule','season_effects','season_background','wallpaper_light','wallpaper_dark','wallpaper_fog','bar_opacity','logo_light','logo_dark','brand_icon','favicon','footer_enabled','mobile_nav_position','group_tab_color','group_tabs_loop'];
 const ASSETS = ['wallpaper_light','wallpaper_dark','logo_light','logo_dark','brand_icon','favicon'];
-const ENUMS = { theme_light_variant:['default','snow','warm'],theme_dark_variant:['default','midnight','slate'],default_theme:['system','light','dark'],season_theme:['none',...calendar.names],season_background:['minimal','static','animated'],mobile_nav_position:['top','bottom'] };
+const ENUMS = { ambient_blend:['separate','particles','season'],ambient_background:['off','aurora','mesh','waves','starlight','orbital','prism','custom'],motion_style:['off','subtle','smooth','spring'],theme_light_variant:['default','snow','warm'],theme_dark_variant:['default','midnight','slate'],default_theme:['system','light','dark','daylight'],season_theme:['none',...calendar.names],season_background:['minimal','static','animated'],mobile_nav_position:['top','bottom'] };
 function snapshot() { return Object.fromEntries(KEYS.map(key=>[key,models.readSetting(key)]).filter(([,v])=>v !== null)); }
 function record(title, actorId) { history.addVersion('settings',0,title,JSON.stringify(snapshot()),actorId); }
 function validate(settings) {
@@ -27,6 +27,7 @@ function validate(settings) {
       try { calendar.validate(JSON.parse(value)); }
       catch { throw invalid('Invalid seasonal calendar'); }
     }
+    if(['ambient_speed','ambient_colors','ambient_effect'].includes(key))try{require('../../public/ambient-settings').validate({[key]:value});}catch(error){throw invalid(error.message);}
     clean[key] = value;
   }
   return clean;

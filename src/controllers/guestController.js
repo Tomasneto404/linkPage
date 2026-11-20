@@ -287,26 +287,30 @@ function sendPrivate(res, filename, { downloadName, inline = true } = {}) {
   res.sendFile(abs);
 }
 function icon(req, res) {
+  if(!req.guest)return res.status(404).end();
   const row = db.getGuestLinkRow(owner(req), idParam(req));
   if (!row?.icon_file) return res.status(404).end();
   sendPrivate(res, row.icon_file);
 }
 function favicon(req, res) {
+  if(!req.guest)return res.status(404).end();
   const row = db.getGuestLinkRow(owner(req), idParam(req));
   if (!row?.favicon_file) return res.status(404).end();
   sendPrivate(res, row.favicon_file);
 }
 function file(req, res) {
+  if(!req.guest)return res.status(404).end();
   const row = db.getGuestLinkRow(owner(req), idParam(req));
   if (!row?.attachment_file) return res.status(404).end();
   const isMd = /\.md$/i.test(row.file_name || '');
-  if (isMd) {
+  if (isMd && req.query.raw!=='1') {
     const abs = resolvePrivateFilePath(row.attachment_file);
     if (!abs) return res.status(404).end();
     const fs = require('node:fs');
     const html = renderMarkdownPage({
       title: row.file_name, body: renderMarkdown(fs.readFileSync(abs, 'utf8')),
       palette: instancePalette(req), csp: MARKDOWN_CSP,
+      theme:req.query.theme,embed:req.query.embed==='1',reader:req.query,
     });
     res.set('Content-Security-Policy', MARKDOWN_CSP);
     privateHeaders(res);

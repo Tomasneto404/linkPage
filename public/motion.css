@@ -1,0 +1,55 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Tomás Neto */
+/* UI motion profiles. Data refreshes never animate the entire card grid. */
+html[data-motion=subtle]{--ui-duration:150ms;--ui-ease:cubic-bezier(.2,.8,.2,1)}
+html[data-motion=smooth]{--ui-duration:240ms;--ui-ease:cubic-bezier(.22,1,.36,1)}
+html[data-motion=spring]{--ui-duration:360ms;--ui-ease:cubic-bezier(.34,1.3,.64,1)}
+html[data-motion] :is(.link-card,.lp-widget,.lp-nav-button,.ws-header-button,.btn,.tab){transition-property:background-color,border-color,box-shadow,transform,color;transition-duration:var(--ui-duration,150ms);transition-timing-function:var(--ui-ease,ease)}
+/* Hover takes over after the entrance, without changing its resting transform. */
+html[data-motion] :is(.link-card,.lp-widget).lp-entering:hover{transform:none}
+html[data-motion=smooth] :is(.lp-dialog[open],.ws-dialog[open],.modal-overlay:not(.hidden)>.modal){animation:lp-fluid-enter 220ms cubic-bezier(.22,1,.36,1) both}
+html[data-motion=spring] :is(.lp-dialog[open],.ws-dialog[open],.modal-overlay:not(.hidden)>.modal){animation:lp-spring-enter 360ms cubic-bezier(.22,1,.36,1) both}
+html[data-motion=subtle] :is(.lp-dialog[open],.ws-dialog[open],.modal-overlay:not(.hidden)>.modal){animation:lp-subtle-enter 140ms ease-out both}
+html[data-motion=off] :is(.lp-dialog,.ws-dialog,.modal,.link-card,.lp-widget,.btn,.tab,.lp-nav-button,.ws-header-button){animation:none!important;transition:none!important}
+@keyframes lp-subtle-enter{from{opacity:.85}to{opacity:1}}
+@keyframes lp-fluid-enter{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes lp-spring-enter{0%{opacity:0;transform:translateY(16px) scale(.96)}70%{opacity:1;transform:translateY(-2px) scale(1.008)}100%{opacity:1;transform:none}}
+@media(hover:hover){html[data-motion=smooth] :is(.link-card,.lp-widget):not(.lp-widget-resizing):not(.lp-widget-dragging):hover{transform:translateY(-3px);box-shadow:0 10px 28px rgb(0 0 0/.07)}html[data-motion=spring] :is(.link-card,.lp-widget):not(.lp-widget-resizing):not(.lp-widget-dragging):hover{transform:translateY(-3px) scale(1.008);box-shadow:0 12px 30px rgb(0 0 0/.08)}html[data-motion=smooth] :is(.btn,.lp-nav-button):active,html[data-motion=spring] :is(.btn,.lp-nav-button):active{transform:scale(.97)}}
+@media(prefers-reduced-motion:reduce){html[data-motion] :is(.lp-dialog,.ws-dialog,.modal,.link-card,.lp-widget,.btn,.tab,.lp-nav-button,.ws-header-button){animation:none!important;transition:none!important;transform:none!important}}
+
+@media(hover:hover) and (pointer:fine){
+  html:is([data-motion=smooth],[data-motion=spring]) :is(.link-card,.lp-widget).lp-pointer-hover:not(.dragging):not(.is-dragging):not(.lp-widget-resizing):not(.lp-widget-dragging){transform:perspective(900px) translateY(-4px) rotateX(var(--card-rx,0deg)) rotateY(var(--card-ry,0deg));border-color:rgba(var(--primary-rgb),.23);box-shadow:0 14px 32px rgba(var(--primary-rgb),.08)}
+  html:is([data-motion=smooth],[data-motion=spring]) .link-card.lp-pointer-hover .link-icon{transform:translateY(-2px) scale(1.06) rotate(-3deg);box-shadow:0 5px 12px rgba(var(--primary-rgb),.12)}
+  html:is([data-motion=smooth],[data-motion=spring]) :is(.link-card,.lp-widget).lp-pointer-hover{background-image:radial-gradient(ellipse at var(--card-light-x,50%) var(--card-light-y,50%),rgba(var(--primary-rgb),.055),transparent 70%)}
+}
+.link-icon{transition:transform var(--ui-duration,180ms) var(--ui-ease,ease),box-shadow .2s ease}
+html:is([data-motion=smooth],[data-motion=spring]) :is(.brand-icon,#brandIcon,.gate-logo){transform-origin:50% 60%;transition:transform .5s cubic-bezier(.34,1.5,.64,1),filter .35s ease}
+html:is([data-motion=smooth],[data-motion=spring]) :is(.brand-icon,#brandIcon,.gate-logo):hover{transform:perspective(300px) rotateY(-20deg) rotateZ(-12deg) scale(1.12);filter:drop-shadow(0 5px 6px rgba(var(--primary-rgb),.2))}
+html:not([data-motion=off]) .lp-lifted,html:not([data-motion=off]) .link-card.is-dragging{transform:scale(1.025) rotate(-1.5deg);box-shadow:0 18px 40px rgba(var(--primary-rgb),.18);border-color:var(--primary);cursor:grabbing}
+html:not([data-motion=off]) :is(.group-nav-item,.section-nav-item).drag-over{box-shadow:inset 0 3px 0 var(--primary);background:rgba(var(--primary-rgb),.09);transform:translateX(4px);transition:transform .16s ease,background .16s ease}
+.lp-reordering :is(.group-nav-item,.section-nav-item){transition:background .16s ease,box-shadow .16s ease}
+html:not([data-motion=off]) :is(.link-card:is(.drag-over,.drop-before,.drop-after),.lp-widget.lp-widget-drop){box-shadow:0 0 0 2px rgba(var(--primary-rgb),.35),0 8px 25px rgba(var(--primary-rgb),.08)}
+html:not([data-motion=off]) :is(.dropdown-menu,.account-menu,.bulk-group-menu,.multi-select-dropdown):not(.hidden){animation:lp-menu-unfold .18s ease-out;transform-origin:top right}
+@keyframes lp-menu-unfold{from{opacity:.4;transform:translateY(-5px) scale(.97)}to{opacity:1;transform:none}}
+@supports(appearance:base-select){
+  html select:not([multiple])>button.lp-select-value{display:flex;flex:1;align-items:center;min-width:0;min-height:0;width:auto;height:auto;padding:0;border:0;border-radius:0;box-shadow:none;background:transparent;color:inherit;font:inherit;text-align:start}
+  select selectedcontent{display:block;flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  select:not([multiple]),select:not([multiple])::picker(select){appearance:base-select}
+  select:not([multiple]){background-image:none!important;align-items:center;gap:12px;cursor:pointer;white-space:nowrap}
+  select::picker-icon{color:var(--text-muted);transition:rotate .22s ease;margin-left:auto;flex-shrink:0}
+  select:open::picker-icon{rotate:180deg}
+  select::picker(select){border:1px solid var(--border);border-radius:13px;background:var(--surface);color:var(--text);padding:5px;box-shadow:0 14px 44px rgb(0 0 0/.14);min-width:anchor-size(width);width:max-content;max-width:calc(100vw - 24px);max-height:min(340px,60dvh);overflow:auto;opacity:1;transform:none;transition:opacity .18s ease,transform .18s ease,display .18s allow-discrete,overlay .18s allow-discrete}
+  @starting-style{select:open::picker(select){opacity:0;transform:translateY(-5px) scale(.98)}}
+  select option{font:inherit;padding:9px 12px;min-height:36px;border-radius:8px;cursor:pointer;gap:9px}
+  select option:checked,select option:hover{background:rgba(var(--primary-rgb),.1);color:var(--text)}
+  select optgroup{font:inherit;color:var(--text-muted);padding:5px}
+  [data-motion=off] select::picker(select),[data-motion=off] select::picker-icon{transition:none}
+}
+#motionStyleSelect,#ambientBackgroundSelect{flex-shrink:0;width:190px!important;white-space:nowrap}
+#ambientBlendSelect{flex-shrink:0;width:220px;max-width:100%;white-space:nowrap}
+@media(max-width:600px){#motionStyleSelect,#ambientBackgroundSelect{width:150px!important;max-width:100%}}
+@media(max-width:600px){#ambientBlendSelect{width:150px}}
+@media(prefers-reduced-motion:reduce){html[data-motion] :is(.brand-icon,#brandIcon,.gate-logo,.link-icon,.lp-lifted,.group-nav-item,.section-nav-item,.dropdown-menu,.account-menu,.bulk-group-menu,.multi-select-dropdown){animation:none!important;transition:none!important;transform:none!important}select::picker(select),select::picker-icon{transition:none!important}}
+
+html:not([data-motion=off]) .lp-widget-menu[open]>div{animation:lp-menu-unfold .18s ease-out;transform-origin:top right}
+@media(prefers-reduced-motion:reduce){.lp-widget-menu[open]>div{animation:none!important}}

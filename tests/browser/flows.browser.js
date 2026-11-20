@@ -94,7 +94,7 @@ describe('the pages', () => {
     await signInAdmin(page);
     await page.click('#openSettingsBtn');
     for (const tab of await page.locator('#settingsNav .settings-tab').evaluateAll(els => els.map(e => e.dataset.tab))) {
-      await page.click(`#settingsNav [data-tab="${tab}"]`);
+      await page.locator('#settingsOverlay').waitFor({state:'visible'});if(await page.locator('#settingsCategorySelect').isVisible())await page.selectOption('#settingsCategorySelect',tab);else await page.click(`#settingsNav [data-tab="${tab}"]`);
     }
     await page.goto('/?account=1');
     await page.locator('#accountOverlay').waitFor({ state: 'visible' });

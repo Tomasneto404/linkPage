@@ -444,6 +444,13 @@ const paths = {
       responses: { 204: { description: 'Deleted' }, 403: json(ref('Error')), 404: json(ref('Error')) },
     }),
   },
+  '/api/managed/links/{id}/file': {
+    get: op({ tag: TAGS.groups, auth: 'user', summary: 'Read an editable document in a group you manage',
+      description: 'Returns the saved filename and text, up to 5 MB. Uses the same group and contributor permissions as editing the link.',
+      params: [pathParam('id', 'Link id.')],
+      responses: { 200: json({ type: 'object', properties: { file_name: { type: 'string' }, content: { type: 'string' }, size: { type: 'integer' } } }), 403: json(ref('Error')), 404: json(ref('Error')), 413: json(ref('Error')), 415: json(ref('Error')) },
+    }),
+  },
   '/api/groups/{id}/unlock': {
     post: op({
       tag: TAGS.groups, auth: 'open',
@@ -786,7 +793,13 @@ const paths = {
       tag: TAGS.settings,
       summary: 'Set theme options',
       body: jsonBody({
-        default_theme:       { type: 'string', enum: ['light', 'dark', 'system'] },
+        default_theme:       { type: 'string', enum: ['light', 'dark', 'system', 'daylight'] },
+        motion_style:        { type: 'string', enum: ['off','subtle','smooth','spring'] },
+        ambient_background:  { type: 'string', enum: ['off','aurora','mesh','waves','starlight','orbital','prism','custom'] },
+        ambient_speed:{type:'number',minimum:0.25,maximum:3,default:1},
+        ambient_colors:{type:'array',minItems:2,maxItems:6,items:{type:'string',pattern:'^#[0-9a-fA-F]{6}$'}},
+        ambient_effect:{type:'string',enum:['fade','drift','ripple','orbit']},
+        ambient_blend:       { type: 'string', enum: ['separate','particles','season'] },
         theme_light_variant: { type: 'string' },
         theme_dark_variant:  { type: 'string' },
         accent_color:        { type: 'string', example: '#0071e3' },
@@ -1599,10 +1612,11 @@ const paths = {
     get: op({
       tag: TAGS.insight,
       summary: 'Aggregated analytics over a period',
-      params: [queryParam('days', 'How far back to look', { type: 'integer', default: 30 })],
-      responses: { 200: json({ type: 'object' }, 'Daily volume, top links and top visitors') },
+      params: [queryParam('period','Rolling time window; today means the last 24 hours',{type:'string',enum:['today','7d','30d','90d','all'],default:'30d'}),queryParam('group_id','Restrict all metrics to one shared group',{type:'integer'}),queryParam('exclude_bots','Exclude likely automation identified from recorded user agents',{type:'boolean'})],
+      responses: { 200: json({ type: 'object' }, 'UTC activity, previous-period comparison, link and IP rankings, groups, devices, browsers, heatmap and recent clicks'),400:json(ref('Error')) },
     }),
   },
+  '/api/analytics/export':{get:op({tag:TAGS.insight,summary:'Download link analytics as CSV, including zero-click links',params:[queryParam('period','today, 7d, 30d, 90d or all'),queryParam('group_id','Shared group ID',{type:'integer'}),queryParam('exclude_bots','Exclude detected automation',{type:'boolean'})],responses:{200:{description:'CSV with spreadsheet formula protection',content:{'text/csv':{schema:{type:'string'}}}},400:json(ref('Error'))}})},
   '/api/audit': {
     get: op({
       tag: TAGS.insight,
@@ -1767,6 +1781,10 @@ const paths = {
 // Workspace operations share the same credential rules as their source resources.
 for (const [method, suffix, summary, auth] of [
   ['get','search','Search visible links, groups and Markdown content','open'],
+  ['get','search/recent','Read your recent searches','user'],['post','search/recent','Remember a search','user'],['delete','search/recent','Clear your recent searches','user'],
+  ['get','widgets','List widgets you manage, with secrets redacted','user'],['post','widgets','Create a widget in groups you manage','user'],['put','widgets/{id}','Update a widget in groups you manage','user'],['delete','widgets/{id}','Delete a widget you manage','user'],
+  ['get','widgets/weather-locations','Find weather locations by city name','user'],
+  ['post','widgets/reorder','Reorder dashboard widgets (administrators only)','admin'],['post','widgets/preview','Preview a widget without saving','user'],['post','widgets/{id}/duplicate','Duplicate a widget including its saved source credentials','user'],['post','widgets/{id}/task','Update a shared Markdown task using the current source text','user'],
   ['get','filters','List your saved tag filters','user'],['post','filters','Save a tag filter','user'],['delete','filters/{id}','Delete your saved filter','user'],
   ['get','managed-groups','List shared groups you administer','user'],['put','managed-groups/{id}','Update a group you administer','user'],['post','managed-groups/{id}/members','Assign a member role in a group you administer','user'],['delete','managed-groups/{id}/members/{userId}','Remove a group role','user'],
   ['get','library','Read links, layouts and group permissions','admin'],['put','links/{id}','Set link tags and publication dates','admin'],['put','groups/{id}','Set group layout, privacy and member roles','admin'],
@@ -1783,14 +1801,27 @@ for (const [method, suffix, summary, auth] of [
     :suffix.endsWith('/restore')?{confirm:{type:'string',description:'Full backup restores require RESTORE'}}
     :suffix==='filters'?{name:{type:'string'},tags:{type:'array',items:{type:'string'}}}
     :suffix==='notifications/read'?{keys:{type:'array',items:{type:'string'}}}
-    :suffix==='presets'?{name:{type:'string'},payload:{type:'object'}}:{};
+    :suffix==='presets'?{name:{type:'string'},payload:{type:'object'}}
+    :suffix==='widgets/reorder'?{order:{type:'array',items:{type:'integer'},maxItems:40,uniqueItems:true}}
+    :suffix==='widgets/{id}/task'?{line:{type:'integer',minimum:0},checked:{type:'boolean'},text:{type:'string',description:'Current complete note source; stale edits return 409'}}
+    :['widgets','widgets/{id}','widgets/preview'].includes(suffix)?{id:{type:'integer',description:'Preview may use an existing widget to preserve its saved credentials'},kind:{type:'string',enum:['rss','clock','weather','gotify','note']},title:{type:'string',maxLength:100},enabled:{type:'boolean'},group_id:{type:'integer',nullable:true},layout:{type:'object',properties:{width:{type:'integer',minimum:1,maximum:3},height:{type:'string',enum:['auto','compact','tall']},height_px:{type:'integer',nullable:true,minimum:180,maximum:1000,description:'Fixed height from mouse resizing; null restores automatic height'},device:{type:'string',enum:['all','desktop','mobile'],description:'Presentation preference, not access control'},group_ids:{type:'array',items:{type:'integer'},maxItems:30}}},config:{type:'object',description:'Type-specific options: refresh_seconds (60–3600); RSS url, limit, view, filter, show_images, show_description; clock timezone, mode, seconds, hour12, zones; weather latitude, longitude, location, fahrenheit, days, api_key; Gotify url, token, limit, min_priority, unread_only; note text and format. Only administrators may approve allow_private sources. Blank secrets retain saved values.'}}:{};
   paths[route][method]=op({tag:TAGS.system,summary,auth,
+    ...(suffix.startsWith('widgets')?{description:'Requires an administrator or a manager of every group assigned to the widget. Global widgets, reordering and size changes require an administrator. Saved credentials are never returned.'}:{}),
     params:[...(suffix.includes('{userId}')?[pathParam('userId','Member ID')]:[]),...(suffix.includes('{id}')?[pathParam('id','Resource identifier',suffix.startsWith('backups')?'string':'integer')]:[]),...(suffix==='search'?[queryParam('q','Search query, up to 160 characters'),queryParam('view','Admin explicitly requests hidden and scheduled content')]:[]),...(suffix==='versions'?[queryParam('kind','document or settings'),queryParam('link_id','Shared document link ID',{type:'integer'})]:[])],
     ...(['post','put'].includes(method)?{body:suffix==='backups/import'?formBody({backup:{type:'string',format:'binary'}},['backup']):jsonBody(properties)}:{}),
     responses:{200:json({type:'object'}),...(method==='post'?{201:json({type:'object'})}:{}),...(method==='delete'?{204:NO_CONTENT}:{}),400:json(ref('Error'))},
   });
 }
 
+paths['/g/{slug}']={get:op({tag:TAGS.visitor,summary:'Open the public page at a stable group address',auth:'open',params:[pathParam('slug','Stable group slug','string')],responses:{200:{description:'Public app HTML; listings still enforce permissions',content:{'text/html':{schema:{type:'string'}}}}}})};
+paths['/api/share/qr']={get:op({tag:TAGS.visitor,summary:'Generate a QR code locally for an HTTP URL',auth:'open',params:[queryParam('url','HTTP or HTTPS URL, up to 2048 characters')],responses:{200:{description:'QR code as SVG',content:{'image/svg+xml':{schema:{type:'string'}}}},400:json(ref('Error')),429:json(ref('Error'))}})};
+paths['/api/links/{id}/health']={post:op({tag:TAGS.links,summary:'Recheck a link or enable or disable its checks',auth:'admin',params:[pathParam('id','Link ID')],body:jsonBody({enabled:{type:'boolean'}}),responses:{200:json({type:'object'}),400:json(ref('Error')),404:json(ref('Error'))}})};
+paths['/api/links/swap']={post:op({tag:TAGS.links,summary:'Exchange two link positions and optionally their section slots in one group',auth:'admin',body:jsonBody({first_id:{type:'integer'},second_id:{type:'integer'},group_id:{type:'integer',nullable:true}},['first_id','second_id']),responses:{204:NO_CONTENT,400:json(ref('Error')),404:json(ref('Error'))}})};
+paths['/api/widgets']={get:op({tag:TAGS.visitor,summary:'List visible widgets without source credentials',auth:'public-gate',responses:{200:json({type:'array',items:{type:'object'}})}})};
+paths['/api/widgets/{id}/data']={get:op({tag:TAGS.visitor,summary:'Read a visible widget, enforcing private and protected group access',auth:'public-gate',params:[pathParam('id','Widget ID')],responses:{200:json({type:'object'}),404:json(ref('Error'))}})};
+paths['/api/widgets/manage']={get:op({tag:TAGS.system,summary:'Read editable widgets and group choices for the current manager',auth:'user',responses:{200:json({type:'object'}),403:json(ref('Error'))}})};
+paths['/api/widgets/{id}/refresh']={post:op({tag:TAGS.visitor,summary:'Refresh a visible widget, retaining last good data if its source fails',description:'Rate limited to 20 requests per minute per address; a source is refreshed at most once per 10 seconds. Responses include updated_at, stale and error.',auth:'public-gate',params:[pathParam('id','Widget ID')],responses:{200:json({type:'object'}),404:json(ref('Error')),429:json(ref('Error'))}})};
+paths['/api/widgets/{id}/read']={post:op({tag:TAGS.visitor,summary:'Mark Gotify messages as read for the current account only',description:'Only IDs currently available in this visible widget are accepted. Does not modify Gotify. Anonymous browsers keep read state locally.',auth:'user',params:[pathParam('id','Widget ID')],body:jsonBody({ids:{type:'array',items:{type:'string'},maxItems:30}}),responses:{200:json({type:'object'}),400:json(ref('Error')),404:json(ref('Error'))}})};
 const DESCRIPTION = `
 The HTTP API behind LinkPage.
 

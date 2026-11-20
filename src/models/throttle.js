@@ -20,8 +20,8 @@ function recordThrottleFailure(key, windowMs, now = Date.now()) {
   db.prepare(`
     INSERT INTO auth_throttle (key, window_start, count) VALUES (?, ?, 1)
     ON CONFLICT (key) DO UPDATE SET
-      count        = CASE WHEN ? - window_start > ? THEN 1 ELSE count + 1 END,
-      window_start = CASE WHEN ? - window_start > ? THEN ? ELSE window_start END
+      count        = CASE WHEN ? - auth_throttle.window_start > ? THEN 1 ELSE auth_throttle.count + 1 END,
+      window_start = CASE WHEN ? - auth_throttle.window_start > ? THEN ? ELSE auth_throttle.window_start END
   `).run(key, now, now, windowMs, now, windowMs, now);
 }
 

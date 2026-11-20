@@ -278,6 +278,7 @@ header {
   /* Some buttons are links — an underline would give them away as one. */
   text-decoration: none;
 }
+.btn{transition:background-color var(--transition),border-color var(--transition),box-shadow var(--transition),color var(--transition),transform var(--transition),opacity var(--transition)}
 /* An anchor inherits the page's line-height, a <button> uses the browser's,
    so a link styled as a button comes out a few pixels taller than the real
    one beside it. Match it to the button rather than restyling every button. */
@@ -696,7 +697,8 @@ mark.hl {
   max-width: 488px;
   box-shadow: var(--shadow-lg);
   animation: slideUp 0.2s cubic-bezier(0.34,1.56,0.64,1);
-  overflow: hidden;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
 }
 
 .modal-sm { max-width: 380px; }
@@ -724,13 +726,13 @@ mark.hl {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition);
+  transition: background-color var(--transition), color var(--transition);
 }
 .modal-close:hover { background: var(--border-strong); color: var(--text); }
 
@@ -738,7 +740,7 @@ mark.hl {
 form { padding: 18px 22px 22px; display: flex; flex-direction: column; gap: 14px; }
 
 .form-row { display: flex; gap: 12px; }
-.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 
 label {
   font-size: 0.8125rem;
@@ -773,7 +775,7 @@ textarea {
   font-family: inherit;
   width: 100%;
   outline: none;
-  transition: all var(--transition);
+  transition: background-color var(--transition),border-color var(--transition),box-shadow var(--transition),color var(--transition);
   resize: none;
   letter-spacing: -0.01em;
 }
@@ -1077,6 +1079,7 @@ body.has-wallpaper .gate-card .field-stack input { background: transparent; }
 
 /* ── Button variants shared by both pages ── */
 .btn-sm {
+  min-height: 32px;
   padding: 5px 12px;
   font-size: 0.8125rem;
   border-radius: 8px;
@@ -1091,6 +1094,27 @@ body.has-wallpaper .gate-card .field-stack input { background: transparent; }
 .btn-ghost-danger:hover {
   background: rgba(255, 59, 48, 0.08);
   border-color: var(--danger);
+}
+
+/* One accessible label treatment across search, dialogs and mobile menus. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (pointer: coarse) {
+  .modal-close { width: 40px; height: 40px; }
+  .form-group > :is(input:not([type="checkbox"]):not([type="color"]):not([type="file"]), select),
+  .ws-field > :is(input:not([type="checkbox"]):not([type="color"]), select),
+  .lp-dialog :is(input, select) { min-height: 44px; font-size: 16px; }
 }
 
 /* ── Gate (public password, and signing in to the admin) ── */

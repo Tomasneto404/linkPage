@@ -1,0 +1,114 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Tomás Neto */
+html[data-motion]:not([data-motion=off]),html[data-motion]:not([data-motion=off]) body{transition:background-color .28s ease,color .28s ease}
+html.theme-view-transition,html.theme-view-transition :is(body,header,.link-card,.modal,.ws-dialog,.lp-dialog,.tabs-wrap){transition-property:transform,box-shadow!important}
+html[data-ambient]:not([data-ambient=off]){background:var(--bg)}
+html[data-ambient]:not([data-ambient=off]) body:not(.has-wallpaper){background:transparent}
+.ambient-scene{display:none;position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;contain:strict;--ambient-strength:.55}
+.ambient-scene::before,.ambient-scene::after{content:'';position:absolute;inset:-20%;opacity:var(--ambient-strength);background-repeat:no-repeat;will-change:transform,opacity;animation:lp-ambient-flow 32s ease-in-out infinite alternate}
+.ambient-scene::after{animation-name:lp-ambient-breathe;animation-duration:26s;animation-delay:-11s}
+html[data-ambient]:not([data-ambient=off]) .ambient-scene{display:block}
+html[data-ambient]:not([data-ambient=off]):not([data-ambient-blend=season]) body:not(.has-wallpaper)>.season-backdrop,html[data-ambient]:not([data-ambient=off]):not([data-ambient-blend=season]) body::before{display:none!important}
+body.has-wallpaper .ambient-scene{display:none!important}
+.gate>.ambient-scene{position:absolute;z-index:0}
+.gate>.gate-card{position:relative;z-index:2}
+html[data-ambient]:not([data-ambient=off]):not([data-ambient-blend=season]) body:not(.has-wallpaper) .gate::before,html[data-ambient]:not([data-ambient=off]):not([data-ambient-blend=season]) body:not(.has-wallpaper) .gate::after{display:none!important}
+[data-ambient-blend=season] body>.season-backdrop,[data-ambient-blend=season] body>.wallpaper{z-index:-2}
+html[data-ambient]:not([data-ambient=off]):is([data-ambient-blend=particles],[data-ambient-blend=season]) body.has-wallpaper .ambient-scene{display:block!important}
+:is([data-ambient-blend=particles],[data-ambient-blend=season]) .gate>.ambient-scene{z-index:1}:is([data-ambient-blend=particles],[data-ambient-blend=season]) .gate>.season-effects{z-index:2}:is([data-ambient-blend=particles],[data-ambient-blend=season]) .gate>.gate-card{z-index:3}
+[data-ambient-blend=particles] body>.wallpaper{z-index:-2}
+html[data-ambient-blend=particles] body>.season-backdrop,html[data-ambient-blend=particles] body::before,html[data-ambient-blend=particles] body:not(.has-wallpaper) .gate::before,html[data-ambient-blend=particles] body:not(.has-wallpaper) .gate::after{display:none!important}
+[data-theme=dark] .ambient-scene{--ambient-strength:.75}
+[data-ambient=aurora] .ambient-scene::before{background-image:radial-gradient(ellipse at 18% 28%,rgba(67,161,255,.48),transparent 46%),radial-gradient(ellipse at 78% 76%,rgba(156,90,246,.4),transparent 48%)}
+[data-ambient=aurora] .ambient-scene::after{background-image:radial-gradient(ellipse at 72% 18%,rgba(51,211,181,.35),transparent 45%),radial-gradient(ellipse at 23% 90%,rgba(105,130,255,.3),transparent 45%)}
+[data-ambient=mesh] .ambient-scene::before{background-image:radial-gradient(ellipse at 15% 25%,rgba(255,157,185,.4),transparent 48%),radial-gradient(ellipse at 80% 65%,rgba(131,130,255,.4),transparent 50%)}
+[data-ambient=mesh] .ambient-scene::after{background-image:radial-gradient(ellipse at 75% 20%,rgba(118,202,255,.4),transparent 46%),radial-gradient(ellipse at 20% 78%,rgba(255,203,137,.38),transparent 50%)}
+[data-ambient=waves] .ambient-scene::before{background-image:radial-gradient(ellipse at 10% 90%,rgba(var(--primary-rgb),.38),transparent 54%),radial-gradient(ellipse at 90% 20%,rgba(74,201,220,.36),transparent 50%);animation-duration:42s}
+[data-ambient=waves] .ambient-scene::after{background-image:radial-gradient(ellipse at 50% 110%,rgba(147,132,245,.34),transparent 55%);animation-duration:36s}
+[data-ambient=starlight] .ambient-scene::before{background-image:radial-gradient(ellipse at 50% 15%,rgba(122,120,228,.3),transparent 55%),radial-gradient(ellipse at 70% 90%,rgba(var(--primary-rgb),.25),transparent 50%)}
+[data-ambient=starlight] .ambient-scene::after{inset:0;background-image:radial-gradient(circle,rgba(var(--primary-rgb),.35) .8px,transparent 1.2px),radial-gradient(circle,rgba(135,145,235,.3) 1px,transparent 1.4px);background-size:89px 113px,147px 173px;background-position:15px 21px,75px 50px;animation:lp-ambient-stars 30s ease-in-out infinite alternate}
+@keyframes lp-ambient-flow{0%{transform:translate3d(-3%,-2%,0) rotate(-3deg) scale(1);opacity:calc(var(--ambient-strength)*.75)}50%{opacity:var(--ambient-strength)}100%{transform:translate3d(4%,3%,0) rotate(4deg) scale(1.06);opacity:calc(var(--ambient-strength)*.85)}}
+@keyframes lp-ambient-breathe{0%{transform:translate3d(3%,-3%,0) scale(1.03);opacity:calc(var(--ambient-strength)*.55)}100%{transform:translate3d(-3%,4%,0) scale(1.09);opacity:var(--ambient-strength)}}
+@keyframes lp-ambient-stars{from{opacity:.35;transform:translate3d(0,0,0)}to{opacity:.7;transform:translate3d(0,-12px,0)}}
+[data-season-paused=on] .ambient-scene::before,[data-season-paused=on] .ambient-scene::after{animation-play-state:paused!important}
+[data-motion=off] .ambient-scene::before,[data-motion=off] .ambient-scene::after,[data-reading-focus=on] .ambient-scene::before,[data-reading-focus=on] .ambient-scene::after{animation:none!important;will-change:auto}
+[data-reading-focus=on] .ambient-scene{display:none!important}
+@media(prefers-reduced-motion:reduce){.ambient-scene::before,.ambient-scene::after{animation:none!important;transform:none!important;will-change:auto}}
+@media(max-width:600px){.ambient-scene::before,.ambient-scene::after{inset:-10%}}
+::view-transition-old(root),::view-transition-new(root){mix-blend-mode:normal;animation-duration:260ms;animation-timing-function:cubic-bezier(.22,1,.36,1)}
+::view-transition-old(root){animation-name:lp-theme-out}::view-transition-new(root){animation-name:lp-theme-in}
+@keyframes lp-theme-out{to{opacity:0}}@keyframes lp-theme-in{from{opacity:0}}
+@media(prefers-reduced-motion:reduce){::view-transition-group(root),::view-transition-old(root),::view-transition-new(root){animation:none!important}}
+
+/* One tempo scales backgrounds and seasonal atmosphere without affecting UI motion. */
+.ambient-scene::before{animation-duration:calc(32s / var(--ambient-speed,1))}
+.ambient-scene::after{animation-duration:calc(26s / var(--ambient-speed,1));animation-delay:calc(-11s / var(--ambient-speed,1))}
+[data-ambient=waves] .ambient-scene::before{animation-duration:calc(42s / var(--ambient-speed,1))}
+[data-ambient=waves] .ambient-scene::after{animation-duration:calc(36s / var(--ambient-speed,1))}
+[data-ambient=starlight] .ambient-scene::after{animation-duration:calc(30s / var(--ambient-speed,1))}
+[data-ambient=custom] .ambient-scene{display:block}
+[data-ambient=custom] .ambient-scene::before{background-image:linear-gradient(135deg,var(--ambient-color-1,#6aa7ff),var(--ambient-color-2,#a38cff),var(--ambient-color-3,#efb4cd));animation:lp-custom-fade calc(18s / var(--ambient-speed,1)) ease-in-out infinite alternate}
+[data-ambient=custom] .ambient-scene::after{background-image:linear-gradient(315deg,var(--ambient-color-4,#6aa7ff),var(--ambient-color-5,#a38cff),var(--ambient-color-6,#efb4cd));animation:lp-custom-fade calc(18s / var(--ambient-speed,1)) ease-in-out infinite alternate-reverse}
+[data-ambient=custom][data-ambient-effect=drift] .ambient-scene::before{background-image:radial-gradient(ellipse at 20% 25%,var(--ambient-color-1),transparent 55%),radial-gradient(ellipse at 75% 65%,var(--ambient-color-2),transparent 55%),radial-gradient(ellipse at 20% 80%,var(--ambient-color-3),transparent 55%);animation-name:lp-ambient-flow}
+[data-ambient=custom][data-ambient-effect=drift] .ambient-scene::after{background-image:radial-gradient(ellipse at 80% 20%,var(--ambient-color-4),transparent 55%),radial-gradient(ellipse at 25% 70%,var(--ambient-color-5),transparent 55%),radial-gradient(ellipse at 80% 80%,var(--ambient-color-6),transparent 55%);animation-name:lp-ambient-breathe}
+[data-ambient=custom][data-ambient-effect=ripple] .ambient-scene::before,[data-ambient=custom][data-ambient-effect=ripple] .ambient-scene::after{border-radius:50%;background-image:radial-gradient(ellipse,var(--ambient-color-1),var(--ambient-color-2) 35%,var(--ambient-color-3) 65%,transparent 80%);animation-name:lp-custom-ripple;animation-duration:calc(24s / var(--ambient-speed,1))}
+[data-ambient=custom][data-ambient-effect=ripple] .ambient-scene::after{background-image:radial-gradient(ellipse,var(--ambient-color-4),var(--ambient-color-5) 35%,var(--ambient-color-6) 65%,transparent 80%)}
+[data-ambient=custom][data-ambient-effect=orbit] .ambient-scene::before,[data-ambient=custom][data-ambient-effect=orbit] .ambient-scene::after{inset:-60%;background-image:conic-gradient(var(--ambient-color-1),var(--ambient-color-2),var(--ambient-color-3),var(--ambient-color-4),var(--ambient-color-5),var(--ambient-color-6),var(--ambient-color-1));filter:blur(48px);animation:lp-custom-orbit calc(80s / var(--ambient-speed,1)) linear infinite}
+[data-ambient=custom][data-ambient-effect=orbit] .ambient-scene::after{animation-direction:reverse;opacity:.22}
+@keyframes lp-custom-fade{from{opacity:calc(var(--ambient-strength)*.15);transform:scale(1)}to{opacity:calc(var(--ambient-strength)*.85);transform:scale(1.03)}}
+@keyframes lp-custom-ripple{from{opacity:calc(var(--ambient-strength)*.35);transform:translate(-5%,-4%) scale(.85)}to{opacity:calc(var(--ambient-strength)*.85);transform:translate(5%,4%) scale(1.15)}}
+@keyframes lp-custom-orbit{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+/* Sculptures occupy real 3D planes. Pointer movement gently turns the scene. */
+.scene3d-world{display:none;position:absolute;inset:0;transform-style:preserve-3d;perspective:1200px;transform:perspective(1200px) rotateX(calc(var(--scene-pointer-y,0)*-5deg)) rotateY(calc(var(--scene-pointer-x,0)*7deg));transition:opacity .4s ease;--scene-ink:rgba(var(--primary-rgb),.18);--scene-glass:rgba(123,170,224,.08)}
+:is([data-ambient=orbital],[data-ambient=prism]) .scene3d-world{display:block}
+:is([data-ambient=orbital],[data-ambient=prism]) .ambient-scene::before,:is([data-ambient=orbital],[data-ambient=prism]) .ambient-scene::after{display:none}
+[data-theme=dark] .scene3d-world{--scene-ink:rgba(144,182,255,.28);--scene-glass:rgba(126,163,234,.1)}
+.scene-object{position:absolute;transform-style:preserve-3d;animation:lp-sculpture-drift 22s ease-in-out infinite alternate;will-change:transform}
+.scene-primary{left:67%;top:13%;width:280px;height:280px;animation-delay:-7s}
+.scene-sculpture{left:72%;top:30%;width:180px;height:180px;display:none;animation-delay:-6s}
+.scene-secondary{left:10%;top:64%;width:120px;height:120px;animation-duration:28s;animation-delay:-13s}
+.scene-satellite{left:24%;top:22%;width:65px;height:65px;animation-duration:26s;animation-delay:-10s}
+.scene-halo{left:48%;top:73%;width:160px;height:160px;animation-delay:-4s;opacity:.65}
+.scene-halo>i{display:block;width:100%;height:100%;border:14px solid var(--scene-glass);outline:1px solid var(--scene-ink);border-radius:50%;transform:rotateX(55deg) rotateY(-25deg);box-shadow:0 8px 18px rgba(var(--primary-rgb),.03)}
+.scene-orbits{position:relative;width:100%;height:100%;transform-style:preserve-3d;animation:lp-orbit-turn 65s linear infinite}
+.scene-orbits>i{position:absolute;inset:0;border:1px solid var(--scene-ink);border-radius:50%;transform:rotateX(65deg) rotateY(20deg);box-shadow:0 0 14px rgba(var(--primary-rgb),.025)}
+.scene-orbits>i:nth-child(2){transform:rotateX(65deg) rotateY(80deg)}.scene-orbits>i:nth-child(3){transform:rotateX(65deg) rotateY(140deg)}
+.scene-orbits>i::after{content:'';position:absolute;top:50%;left:-5px;width:10px;height:10px;border-radius:50%;background:var(--primary);opacity:.3;box-shadow:0 0 18px rgba(var(--primary-rgb),.18)}
+.scene-orb{display:block;width:100%;height:100%;border-radius:50%;border:1px solid var(--scene-ink);background:radial-gradient(circle at 28% 25%,rgba(255,255,255,.7),var(--scene-glass) 42%,rgba(var(--primary-rgb),.17) 78%,rgba(var(--primary-rgb),.03));box-shadow:inset -12px -12px 25px rgba(var(--primary-rgb),.05),10px 18px 40px rgba(var(--primary-rgb),.045)}
+.scene-orbits>.scene-orb{position:absolute;width:70px;height:70px;top:calc(50% - 35px);left:calc(50% - 35px)}
+.scene-cube{width:100%;height:100%;transform-style:preserve-3d;transform:rotateX(-22deg) rotateY(32deg);animation:lp-cube-turn 48s linear infinite;--cube-depth:60px}
+.scene-face{position:absolute;inset:0;border:1px solid var(--scene-ink);border-radius:18px;background:linear-gradient(135deg,rgba(255,255,255,.22),var(--scene-glass));backface-visibility:visible}
+.scene-face-0{transform:translateZ(var(--cube-depth))}.scene-face-1{transform:rotateY(90deg) translateZ(var(--cube-depth))}.scene-face-2{transform:rotateY(180deg) translateZ(var(--cube-depth))}.scene-face-3{transform:rotateY(270deg) translateZ(var(--cube-depth))}.scene-face-4{transform:rotateX(90deg) translateZ(var(--cube-depth))}.scene-face-5{transform:rotateX(-90deg) translateZ(var(--cube-depth))}
+[data-ambient=prism] .scene-primary{display:none}[data-ambient=prism] .scene-sculpture{display:block}[data-ambient=prism] .scene-sculpture .scene-cube{--cube-depth:90px}[data-ambient=prism] .scene-secondary{left:15%;top:58%;transform:scale(.8)}
+@keyframes lp-sculpture-drift{from{transform:translate3d(-8px,12px,-30px) rotate(-5deg)}to{transform:translate3d(12px,-20px,30px) rotate(8deg)}}
+@keyframes lp-orbit-turn{from{transform:rotateY(0deg) rotateZ(-15deg)}to{transform:rotateY(360deg) rotateZ(345deg)}}
+@keyframes lp-cube-turn{from{transform:rotateX(-22deg) rotateY(32deg)}to{transform:rotateX(338deg) rotateY(392deg)}}
+[data-motion=off] .scene3d-world,[data-reading-focus=on] .scene3d-world{transform:none}
+[data-motion=off] .scene3d-world *,[data-reading-focus=on] .scene3d-world *{animation:none!important;will-change:auto}
+[data-season-paused=on] .scene3d-world *{animation-play-state:paused!important}
+[data-motion-paused=on] .scene3d-world *{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){.scene3d-world{transform:none!important}.scene3d-world *{animation:none!important;will-change:auto}}
+@media(max-width:600px){.scene-primary{left:55%;top:17%;transform:scale(.7)}.scene-secondary{left:-7%;top:73%}.scene-sculpture{left:65%;top:24%}.scene-satellite{left:12%;top:39%}.scene-halo{display:none}.scene3d-world{opacity:.7}}
+/* Shared editor for site settings and personal appearance preferences. */
+.ambient-editor{margin:20px 0;padding:16px 0;border-block:1px solid var(--border)}
+.ambient-editor-fields{border:0;padding:0;margin:0;min-width:0}.ambient-editor-fields:disabled{opacity:.5}.ambient-speed-heading{display:flex;justify-content:space-between;gap:12px;font-size:13px;font-weight:500;color:var(--text)}.ambient-speed-heading output{font-variant-numeric:tabular-nums;color:var(--text-muted)}
+.ambient-editor input[type=range]{display:block;width:100%;height:28px;padding:0;margin:8px 0;accent-color:var(--primary);background:transparent;border:0;min-height:0}.ambient-editor-help,.ambient-editor-status{font-size:11px;line-height:1.6;color:var(--text-muted);margin:8px 0}.ambient-editor-status.is-error{color:var(--danger)}.ambient-editor-status:empty{display:none}
+.ambient-custom-editor{margin:16px 0}.ambient-custom-editor summary{font-size:12px;cursor:pointer;color:var(--text-2);list-style-position:inside}.ambient-custom-editor>.ws-field{margin-top:16px}.ambient-custom-editor select{width:100%;min-height:40px;border-radius:10px;padding:8px 10px;color:var(--text);background:var(--surface-2);border:1px solid var(--border)}
+.ambient-palette{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}.ambient-palette>div{display:flex;align-items:center;gap:4px}.ambient-palette input[type=color]{width:44px;height:40px;min-height:40px;padding:3px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}.ambient-remove-colour{width:28px;height:32px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--text-muted);font:inherit;font-size:18px;cursor:pointer}.ambient-remove-colour:disabled{opacity:.3;cursor:default}
+.ambient-palette-preview{position:relative;isolation:isolate;height:120px;overflow:hidden;border:1px solid var(--border);border-radius:12px;margin-top:16px;background:var(--bg)}.ambient-palette-preview .ambient-scene{position:absolute;inset:0;z-index:0;display:block!important;--ambient-strength:.8}.ambient-inherit{margin-bottom:16px}
+.scene-object{animation-duration:calc(22s / var(--ambient-speed,1))}.scene-secondary{animation-duration:calc(28s / var(--ambient-speed,1))}.scene-satellite{animation-duration:calc(26s / var(--ambient-speed,1))}.scene-orbits{animation-duration:calc(65s / var(--ambient-speed,1))}.scene-cube{animation-duration:calc(48s / var(--ambient-speed,1))}
+.season-particle{animation-duration:calc(var(--duration) / var(--ambient-speed,1));animation-delay:calc(var(--delay) / var(--ambient-speed,1))}.season-particle-drift{animation-duration:calc(var(--sway-duration) / var(--ambient-speed,1));animation-delay:calc(var(--sway-delay,var(--delay)) / var(--ambient-speed,1))}.season-effects-bats .season-bat-wing{animation-duration:calc(var(--flap-duration) / var(--ambient-speed,1))}
+@media(max-width:640px){.ambient-custom-editor select{min-height:44px;font-size:16px}.ambient-remove-colour{height:40px;width:32px}.ambient-palette{gap:8px}}
+
+.ambient-palette-preview[data-ambient=custom] .ambient-scene::before,.ambient-palette-preview[data-ambient=custom] .ambient-scene::after{filter:none;inset:-20%;border-radius:0}
+.ambient-palette-preview[data-ambient=custom] .ambient-scene{display:block}
+.ambient-palette-preview[data-ambient=custom] .ambient-scene::before{background-image:linear-gradient(135deg,var(--ambient-color-1,#6aa7ff),var(--ambient-color-2,#a38cff),var(--ambient-color-3,#efb4cd));animation:lp-custom-fade calc(18s / var(--ambient-speed,1)) ease-in-out infinite alternate}
+.ambient-palette-preview[data-ambient=custom] .ambient-scene::after{background-image:linear-gradient(315deg,var(--ambient-color-4,#6aa7ff),var(--ambient-color-5,#a38cff),var(--ambient-color-6,#efb4cd));animation:lp-custom-fade calc(18s / var(--ambient-speed,1)) ease-in-out infinite alternate-reverse}
+.ambient-palette-preview[data-ambient=custom][data-ambient-effect=drift] .ambient-scene::before{background-image:radial-gradient(ellipse at 20% 25%,var(--ambient-color-1),transparent 55%),radial-gradient(ellipse at 75% 65%,var(--ambient-color-2),transparent 55%),radial-gradient(ellipse at 20% 80%,var(--ambient-color-3),transparent 55%);animation-name:lp-ambient-flow}
+.ambient-palette-preview[data-ambient=custom][data-ambient-effect=drift] .ambient-scene::after{background-image:radial-gradient(ellipse at 80% 20%,var(--ambient-color-4),transparent 55%),radial-gradient(ellipse at 25% 70%,var(--ambient-color-5),transparent 55%),radial-gradient(ellipse at 80% 80%,var(--ambient-color-6),transparent 55%);animation-name:lp-ambient-breathe}
+.ambient-palette-preview[data-ambient=custom][data-ambient-effect=ripple] .ambient-scene::before,.ambient-palette-preview[data-ambient=custom][data-ambient-effect=ripple] .ambient-scene::after{border-radius:50%;background-image:radial-gradient(ellipse,var(--ambient-color-1),var(--ambient-color-2) 35%,var(--ambient-color-3) 65%,transparent 80%);animation-name:lp-custom-ripple;animation-duration:calc(24s / var(--ambient-speed,1))}
+.ambient-palette-preview[data-ambient=custom][data-ambient-effect=ripple] .ambient-scene::after{background-image:radial-gradient(ellipse,var(--ambient-color-4),var(--ambient-color-5) 35%,var(--ambient-color-6) 65%,transparent 80%)}
+.ambient-palette-preview[data-ambient=custom][data-ambient-effect=orbit] .ambient-scene::before,.ambient-palette-preview[data-ambient=custom][data-ambient-effect=orbit] .ambient-scene::after{inset:-60%;background-image:conic-gradient(var(--ambient-color-1),var(--ambient-color-2),var(--ambient-color-3),var(--ambient-color-4),var(--ambient-color-5),var(--ambient-color-6),var(--ambient-color-1));filter:blur(48px);animation:lp-custom-orbit calc(80s / var(--ambient-speed,1)) linear infinite}
+.ambient-palette-preview[data-ambient=custom][data-ambient-effect=orbit] .ambient-scene::after{animation-direction:reverse;opacity:.22}
+.ambient-editor .ambient-inherit input[type=checkbox]{width:16px;height:16px;min-height:16px;padding:0;flex-shrink:0;accent-color:var(--primary)}

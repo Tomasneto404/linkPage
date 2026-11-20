@@ -20,6 +20,7 @@ const groupAdmin = [requireAuth, managed.requireGroupAdmin];
 router.post  ('/api/managed/links',     ...groupAdmin, uploadManagedPayload, wrapAsync(managed.create));
 router.put   ('/api/managed/links/:id', ...groupAdmin, uploadManagedPayload, wrapAsync(managed.update));
 router.delete('/api/managed/links/:id', ...groupAdmin, managed.remove);
+router.get('/api/managed/links/:id/file',...groupAdmin,managed.getFile);
 
 router.get('/api/groups/:id/managers', requireAdmin, managed.getManagers);
 router.put('/api/groups/:id/managers', requireAdmin, managed.setManagers);

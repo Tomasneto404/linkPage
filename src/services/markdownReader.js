@@ -10,8 +10,11 @@ function reader(body,query={},theme,embed){
   let matches=0;
   if(q){const re=new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');body=body.split(/(<[^>]*>|&(?:[a-z]+|#\d+|#x[0-9a-f]+);)/gi).map(part=>/^[<&]/.test(part)?part:part.replace(re,text=>`<mark id="md-match-${++matches}">${text}</mark>`)).join('');}
   const select=(name,values,current)=>`<select name="${name}" aria-label="${name==='font'?'Text size':'Reading width'}">${values.map(([value,label])=>`<option value="${value}"${current===value?' selected':''}>${label}</option>`).join('')}</select>`;
+  const ambientValues=require('../../public/ambient-settings').read({ambient_speed:query.speed,ambient_effect:query.effect,ambient_colors:query.colors});
+  const effectInputs=[['speed',String(ambientValues.ambient_speed)],['effect',ambientValues.ambient_effect],['colors',JSON.stringify(ambientValues.ambient_colors)]].filter(([key])=>query[key]!==undefined).map(([key,value])=>`<input type="hidden" name="${key}" value="${escapeHtml(value)}">`).join('');
+  const appearanceInputs=effectInputs+[['blend',['separate','particles','season']],['ambient',['off','aurora','mesh','waves','starlight','orbital','prism','custom']],['motion',['off','subtle','smooth','spring']]].filter(([key,values])=>values.includes(query[key])).map(([key])=>`<input type="hidden" name="${key}" value="${query[key]}">`).join('');
   const controls=`<details class="md-reader-tools"${q?' open':''}><summary>Reading options</summary><form method="get" class="md-reader-form">${theme?`<input type="hidden" name="theme" value="${theme}">`:''}${embed?'<input type="hidden" name="embed" value="1">':''}
-  <label>Text size ${select('font',[['small','Small'],['normal','Default'],['large','Large']],font)}</label><label>Page width ${select('width',[['narrow','Narrow'],['standard','Reading'],['wide','Wide']],width)}</label>
+  ${appearanceInputs}<label>Text size ${select('font',[['small','Small'],['normal','Default'],['large','Large']],font)}</label><label>Page width ${select('width',[['narrow','Narrow'],['standard','Reading'],['wide','Wide']],width)}</label>
   <label class="md-reader-focus"><input type="checkbox" name="focus" value="1"${focus?' checked':''}> Focus mode</label>
   <label>Find in document <input type="search" name="q" value="${escapeHtml(q)}" placeholder="Search this document"></label><button type="submit">Apply</button></form>
   ${q?`<p class="md-reader-results" role="status">${matches} match${matches===1?'':'es'}${matches?' · '+Array.from({length:Math.min(matches,20)},(_,i)=>`<a href="#md-match-${i+1}" aria-label="Match ${i+1}">${i+1}</a>`).join(' '):''}</p>`:''}</details>`;
@@ -34,6 +37,10 @@ const styles=`
 .md-reader-form button { cursor:pointer;background:var(--surface-3);font-weight:600; }
 .md-reader-form .md-reader-focus { flex-direction:row;align-items:center;padding-bottom:6px; }
 .md-reader-form input[type=checkbox] { min-height:0; }
+.md-reader-form select { appearance:none;-webkit-appearance:none;min-width:128px;padding:9px 34px 9px 12px;min-height:40px;background-color:var(--surface-2);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%23868e96' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;border-radius:10px;cursor:pointer;box-shadow:0 1px 2px rgb(0 0 0/.025); }
+.md-reader-form select option{background:var(--surface);color:var(--text)}
+.md-reader-form input[type=search],.md-reader-form button{min-height:40px;border-radius:10px;padding:9px 12px}
+.md-reader-form label{font-weight:500;gap:7px}.md-reader-form .md-reader-focus{min-height:40px;padding-bottom:0}
 .md-reader-results { margin:12px 0 0; }.md-reader-results a { display:inline-block;min-width:22px; }
 .md-toc nav { display:flex;flex-direction:column;padding-top:10px;gap:6px; }.md-toc a { text-decoration:none; }.md-toc-level-3,.md-toc-level-4,.md-toc-level-5,.md-toc-level-6 { padding-left:16px; }
 .md-doc :is(h1,h2,h3,h4,h5,h6,mark) { scroll-margin-top:20px; }

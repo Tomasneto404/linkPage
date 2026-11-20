@@ -3,9 +3,19 @@
 <!-- Copyright (C) 2026 Tomás Neto -->
 <html lang="en">
 <head>
+  <script src="/ui-icons.js" defer></script>
+  <script src="/widget-view.js" defer></script>
+  <script src="/widget-editor.js" defer></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LinkPage — Admin</title>
+  <link rel="stylesheet" href="/navigation.css" />
+  <script src="/navigation.js" defer></script>
+  <link rel="stylesheet" href="/widgets.css" />
+  <link rel="stylesheet" href="/motion.css" />
+  <script src="/scene-geometry.js" defer></script>
+  <script src="/interactions.js" defer></script>
+  <link rel="stylesheet" href="/ambient.css" />
   <meta name="theme-color" content="#f5f5f7" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -20,10 +30,14 @@
   <!-- The shared theme core, for the sign-in gate: the panel itself keeps its
        own fuller theme code in js/core.js. -->
   <script src="/season-calendar.js"></script>
+  <script src="/ambient-settings.js"></script>
+  <script src="/ambient-editor.js" defer></script>
   <script src="/theme-boot.js"></script>
   <script src="/season-particles.js" defer></script>
   <script src="/season-effects.js" defer></script>
   <link rel="stylesheet" href="/workspace.css" />
+  <link rel="stylesheet" href="/admin/settings-polish.css" />
+  <link rel="stylesheet" href="/admin/analytics.css" />
   <script src="/workspace.js" defer></script>
 </head>
 <body>
@@ -452,7 +466,7 @@
           <h2 id="statsLinkName"></h2>
           <div class="stats-link-url" id="statsLinkUrl"></div>
         </div>
-        <button class="modal-close" id="closeStatsBtn">
+        <button type="button" class="modal-close" id="closeStatsBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -506,10 +520,10 @@
        SETTINGS MODAL
        ════════════════════════════════════════════════ -->
   <div class="modal-overlay hidden" id="settingsOverlay">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="modal-header">
-        <h2>Settings</h2>
-        <button class="modal-close" id="closeSettingsBtn">
+        <h2 id="settingsTitle">Settings</h2>
+        <button type="button" class="modal-close" id="closeSettingsBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -519,7 +533,8 @@
       </div>
 
       <div class="settings-layout">
-        <nav class="settings-nav" id="settingsNav">
+        <div class="settings-category-picker"><label for="settingsCategorySelect">Settings category</label><select id="settingsCategorySelect" aria-controls="settingsPanels"></select></div>
+        <nav class="settings-nav" id="settingsNav" aria-label="Settings categories">
           <button type="button" class="settings-tab active" data-tab="branding">Branding</button>
           <button type="button" class="settings-tab" data-tab="themes">Themes / Design</button>
           <button type="button" class="settings-tab" data-tab="seasons">Seasonal Themes</button>
@@ -701,11 +716,25 @@
             </div>
             <select id="defaultThemeSelect" class="bulk-group-select" style="width:150px">
               <option value="system">Follow system</option>
+              <option value="daylight">Automatic day / night</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
             </select>
           </div>
 
+          <div class="settings-row" style="margin-top:8px">
+            <div><div class="settings-row-label">UI animations</div><div class="settings-row-desc">Card entrances, interactive tilt and smooth drag-and-drop. Reduced motion is respected.</div></div>
+            <select id="motionStyleSelect" class="bulk-group-select" style="width:150px"><option value="off">Off</option><option value="subtle">Subtle · fade</option><option value="smooth">Smooth · glide</option><option value="spring">Spring · bounce</option></select>
+          </div>
+          <div class="settings-row" style="margin-top:8px">
+            <div><div class="settings-row-label">Animated background</div><div class="settings-row-desc">Colour, light or 3D sculptures that follow your pointer. Original keeps your seasonal design.</div></div>
+            <select id="ambientBackgroundSelect" class="bulk-group-select" style="width:150px"><option value="off">Original / seasonal</option><option value="aurora">Aurora</option><option value="mesh">Colour mesh</option><option value="waves">Soft waves</option><option value="starlight">Starlight</option><option value="orbital">Orbital · 3D</option><option value="prism">Glass sculptures · 3D</option><option value="custom">Custom fade</option></select>
+          </div>
+          <div id="ambientEffectsEditor" class="settings-effects-editor"></div>
+          <div class="settings-row" style="margin-top:8px">
+            <div><div class="settings-row-label">Background composition</div><div class="settings-row-desc">Choose whether seasonal scenery and particles join your custom background.</div></div>
+            <select id="ambientBlendSelect" class="bulk-group-select"><option value="separate">Custom background only</option><option value="particles">Season particles + custom</option><option value="season">Full season + custom</option></select>
+          </div>
         </div>
 
         <div class="settings-panel" data-panel="seasons">
@@ -1415,7 +1444,7 @@
           Audit Log
           <span class="audit-count" id="auditCount"></span>
         </h2>
-        <button class="modal-close" id="closeAuditBtn">
+        <button type="button" class="modal-close" id="closeAuditBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1493,10 +1522,10 @@
        LINK REQUESTS MODAL
        ════════════════════════════════════════════════ -->
   <div class="modal-overlay hidden" id="analyticsOverlay">
-    <div class="modal modal-lg analytics-modal">
+    <div class="modal modal-lg analytics-modal" role="dialog" aria-modal="true" aria-labelledby="analyticsTitle">
       <div class="modal-header">
-        <h2>Analytics</h2>
-        <button class="modal-close" id="closeAnalyticsBtn">
+        <h2 id="analyticsTitle">Analytics</h2>
+        <button type="button" class="modal-close" id="closeAnalyticsBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1506,14 +1535,14 @@
       </div>
 
       <div class="audit-toolbar">
-        <select id="analyticsPeriod" class="bulk-group-select">
-          <option value="today">Today</option>
+        <label class="analytics-filter">Period<select id="analyticsPeriod" class="bulk-group-select">
+          <option value="today">Last 24 hours</option>
           <option value="7d">Last 7 days</option>
           <option value="30d" selected>Last 30 days</option>
-          <option value="all">All time</option>
-        </select>
+          <option value="90d">Last 90 days</option><option value="all">All time</option>
+        </select></label><label class="analytics-filter">Group<select id="analyticsGroup" class="bulk-group-select"><option value="">All groups</option></select></label><label class="analytics-bot-filter"><input type="checkbox" id="analyticsExcludeBots"> Exclude detected automation</label>
         <span class="audit-toolbar-spacer"></span>
-        <button type="button" class="btn btn-ghost btn-sm" id="analyticsRefreshBtn" title="Refresh now">
+        <button type="button" class="btn btn-ghost btn-sm" id="analyticsExportBtn">Export CSV</button><button type="button" class="btn btn-ghost btn-sm" id="analyticsRefreshBtn" title="Refresh now">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="23 4 23 10 17 10"/>
@@ -1529,7 +1558,7 @@
           <div class="audit-spinner" aria-hidden="true"></div>
           <span>Loading…</span>
         </div>
-        <div class="analytics-cards hidden" id="analyticsCards"></div>
+        <p id="analyticsStatus" class="analytics-status" role="status" aria-live="polite"></p><div class="analytics-cards hidden" id="analyticsCards"></div>
       </div>
     </div>
   </div>
@@ -1541,7 +1570,7 @@
           Link Requests
           <span class="audit-count" id="requestsCount"></span>
         </h2>
-        <button class="modal-close" id="closeRequestsBtn">
+        <button type="button" class="modal-close" id="closeRequestsBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1589,7 +1618,7 @@
     <div class="modal modal-sm version-modal">
       <div class="modal-header">
         <h2>Version</h2>
-        <button class="modal-close" id="closeVersionBtn">
+        <button type="button" class="modal-close" id="closeVersionBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1623,7 +1652,7 @@
     <div class="modal">
       <div class="modal-header">
         <h2 id="linkModalTitle">Add Link</h2>
-        <button class="modal-close" id="closeLinkModalBtn">
+        <button type="button" class="modal-close" id="closeLinkModalBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1675,6 +1704,13 @@
             </button>
           </div>
 
+          <div class="link-mode-pane hidden" data-mode="text">
+            <label for="inputTextFilename">Filename</label>
+            <div class="lp-filename-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"/></svg><input type="text" id="inputTextFilename" value="document.md" maxlength="180" placeholder="document.md" autocomplete="off" spellcheck="false" /></div>
+            <label for="inputTextContent" style="margin-top:12px">Content</label>
+            <textarea id="inputTextContent" class="lp-text-editor" rows="10" placeholder="# Your document&#10;&#10;Start writing…"></textarea>
+            <p class="form-hint">Create a Markdown, TXT, JSON, CSV, XML or HTML document. Up to 5 MB.</p>
+          </div>
           <div class="link-mode-pane" data-mode="link">
             <label for="inputUrl">URL <span class="req">*</span></label>
             <div class="url-input-wrap">
@@ -1815,7 +1851,7 @@
           Icon Library
           <span class="icon-library-count" id="iconLibraryCount"></span>
         </h2>
-        <button class="modal-close" id="closeIconLibraryBtn">
+        <button type="button" class="modal-close" id="closeIconLibraryBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1909,7 +1945,7 @@
           <span class="file-editor-filename" id="fileEditorFilename">file</span>
           <span class="file-editor-badge" id="fileEditorBadge">·</span>
         </h2>
-        <button class="modal-close" id="closeFileEditorBtn">
+        <button type="button" class="modal-close" id="closeFileEditorBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -2019,7 +2055,7 @@
           Pick an icon
           <span class="icon-presets-count" id="iconPresetsCount"></span>
         </h2>
-        <button class="modal-close" id="closeIconPresetsBtn">
+        <button type="button" class="modal-close" id="closeIconPresetsBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -2074,7 +2110,7 @@
     <div class="modal modal-sm">
       <div class="modal-header">
         <h2 id="groupModalTitle">New Group</h2>
-        <button class="modal-close" id="closeGroupModalBtn">
+        <button type="button" class="modal-close" id="closeGroupModalBtn" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -2218,6 +2254,7 @@
 <script src="js/audit.js"></script>
 <script src="js/requests.js"></script>
 <script src="js/accounts.js"></script>
+<script src="js/analytics-dashboard.js"></script>
 <script src="js/analytics.js"></script>
 <script src="js/sso.js"></script>
 <script src="js/mail.js"></script>

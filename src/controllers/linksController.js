@@ -278,6 +278,16 @@ function reorder(req, res) {
   res.status(204).end();
 }
 
+function swap(req, res) {
+  const { first_id, second_id, group_id = null } = req.body;
+  if (![first_id,second_id].every(id => Number.isSafeInteger(id) && id > 0) || first_id === second_id || (group_id !== null && (!Number.isSafeInteger(group_id) || group_id < 1))) return res.status(400).json({error:'Choose two distinct links and a valid group'});
+  const first=db.getLinkById(first_id),second=db.getLinkById(second_id);
+  if(!first||!second)return res.status(404).json({error:'Link not found'});
+  if(group_id!==null&&![first,second].every(link=>link.groups.some(group=>group.id===group_id)))return res.status(400).json({error:'Both links must belong to this group'});
+  db.swapLinks(first_id,second_id,group_id);
+  res.status(204).end();
+}
+
 // ─── Create / update ────────────────────────────────────────────────────────
 
 /** True when this filename is a markdown document. */
@@ -513,6 +523,7 @@ async function update(req, res) {
   // Re-cache favicon only if we're now URL-backed and the URL changed.
   // Fire-and-forget (see POST handler) — never block the save on a slow host.
   const nowFileBacked = !!(newFilePath || (existingLink.file_path && !shouldRemoveFile));
+  if(newFilePath&&isEditableFile(attached.originalname)){const full=resolveStoredFilePath(newFilePath);if(full&&fs.existsSync(full)&&fs.statSync(full).size<=FILE_EDIT_MAX_BYTES)require('../models/workspace').addVersion('document',existingLink.id,name.trim(),fs.readFileSync(full,'utf8'),req.user?.id);}
   if (!nowFileBacked && trimmedUrl !== existingLink.url) {
     cacheFavicon(req.params.id, trimmedUrl).catch(() => {});
   }
@@ -651,7 +662,7 @@ function bulkDelete(req, res) {
 }
 
 module.exports = {
-  list, exportLinks, importLinks, reorder,
+  list, exportLinks, importLinks, reorder, swap,
   create, update, setVisibility, remove,
   getFile, putFile, bulkDelete,
 };

@@ -145,10 +145,14 @@ function createGroup({ name, color, password, unlockMode }) {
     ? hashGroupPassword(password)
     : null;
   const mode   = sanitizeUnlockMode(unlockMode);
-  return db.prepare(`
+  const result = db.prepare(`
     INSERT INTO groups (name, color, position, password_hash, unlock_mode)
     VALUES (?, ?, ?, ?, ?)
   `).run(name, color ?? '#0071e3', maxPos + 1, hash, mode);
+  const base=require('../utils/slug').normalizeSlug(name)||'group';
+  const slug=db.prepare('SELECT id FROM groups WHERE slug=?').get(base)?base.slice(0,54)+'-'+result.lastInsertRowid:base;
+  db.prepare('UPDATE groups SET slug=? WHERE id=?').run(slug,result.lastInsertRowid);
+  return result;
 }
 
 /**
@@ -182,6 +186,7 @@ function updateGroup(id, { name, color, password, unlockMode }) {
  * groups they belong to are preserved.
  */
 function deleteGroup(id) {
+  require('../services/widgetService').removeForGroup(id);
   require('./workspace').deleteGroupDetails(id);
   db.prepare('DELETE FROM link_groups WHERE group_id = ?').run(id);
   // Its admins go with it: a later group given the same id must not inherit them.

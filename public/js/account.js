@@ -210,8 +210,40 @@ document.addEventListener('change', onPalettePick);
 let composerLink = null;      // the link being edited, or null when adding
 let composerFile = null;      // a picked attachment
 let composerIcon = null;      // a picked icon image
-let composerMode = 'url';     // 'url' | 'file'
+let composerMode = 'url';     // 'url' | 'file' | 'text'
 let composerConfirmingDelete = false;
+let composerTextLoaded=false,composerTextLoading=false,composerTextFailed=false,composerTextSequence=0,composerSaving=false;
+const editableComposerText=name=>/\.(md|txt|json|csv|xml|html)$/i.test(name||'');
+function updateComposerTextState(){
+  el('myLinkSubmitBtn').disabled=composerSaving||composerMode==='text'&&(composerTextLoading||composerTextFailed);
+  el('myLinkTextContent').readOnly=composerTextLoading;
+  el('myLinkTextRetry').classList.toggle('hidden',!composerTextFailed);
+}
+async function loadComposerText(){
+  if(composerTextLoaded||composerTextLoading)return;
+  const selected=composerFile,link=composerLink;
+  if(!selected&&!editableComposerText(link?.file_name)||selected&&!editableComposerText(selected.name)){
+    composerTextLoaded=true;el('myLinkTextStatus').textContent='Markdown, TXT, JSON, CSV, XML or HTML · up to 5 MB.';updateComposerTextState();return;
+  }
+  const sequence=++composerTextSequence;composerTextLoading=true;composerTextFailed=false;
+  el('myLinkTextStatus').textContent=selected?'Reading your file…':'Loading the saved document…';updateComposerTextState();
+  try{
+    let content,filename=selected?.name||link.file_name;
+    if(selected){if(selected.size>5*1024*1024)throw new Error('The inline editor supports documents up to 5 MB.');content=await selected.text();}
+    else if(!isPersonal(link)){
+      const result=await myRequest(`${isGlobalPageAdmin()?'/api/links':'/api/managed/links'}/${link.id}/file`,{method:'GET'});
+      if(!result.ok)throw new Error(result.body.error||'Could not load the saved document.');content=result.body.content;
+    }else{
+      const address=new URL(link.file_path,location.origin);address.searchParams.set('raw','1');const response=await fetch(address,{credentials:'same-origin'});
+      if(!response.ok)throw new Error('Could not load the saved document.');if(Number(response.headers.get('content-length'))>5*1024*1024){await response.body?.cancel();throw new Error('The inline editor supports documents up to 5 MB.');}content=await response.text();
+    }
+    if(sequence!==composerTextSequence)return;
+    if(typeof content!=='string'||new Blob([content]).size>5*1024*1024)throw new Error('The inline editor supports documents up to 5 MB.');
+    el('myLinkTextFilename').value=filename;el('myLinkTextContent').value=content;composerTextLoaded=true;
+    el('myLinkTextStatus').textContent=`${filename.split('.').pop().toUpperCase()} · ${content.length.toLocaleString()} characters`;
+  }catch(error){if(sequence!==composerTextSequence)return;composerTextFailed=true;el('myLinkTextStatus').textContent=error.message||'Could not load the document. Retry to edit its contents.';}
+  finally{if(sequence===composerTextSequence){composerTextLoading=false;updateComposerTextState();refreshComposerIcon();}}
+}
 
 // The icon a typed address would get, looked up by this server before saving.
 let composerPreview = { url: '', state: 'idle', objectUrl: null };
@@ -254,6 +286,9 @@ const composerTargetsShared = () => el('myLinkGroup').value.startsWith('s');
 function fillComposerSections(selectedId = null) {
   // A shared group's links count against nobody's allowance.
   el('myLinkStorage').classList.toggle('hidden', composerTargetsShared());
+  document.querySelector('#myLinkForm .my-link-privacy').textContent=composerTargetsShared()
+    ? 'Visible to people who can access this shared group.'
+    : 'Only you can see links you add here.';
   const group = composerGroup();
   const row = el('myLinkSectionRow');
   const sections = group ? group.sections.flatMap(s => [
@@ -271,11 +306,17 @@ function setComposerMode(mode) {
   composerMode = mode;
   el('myLinkUrlRow').classList.toggle('hidden', mode !== 'url');
   el('myLinkFileRow').classList.toggle('hidden', mode !== 'file');
+  el('myLinkTextRow').classList.toggle('hidden', mode !== 'text');
+  el('myLinkTextFilename').required=mode==='text';
+  el('myLinkTextFilename').disabled=mode!=='text';
   for (const btn of document.querySelectorAll('[data-compose-mode]')) {
     btn.classList.toggle('active', btn.dataset.composeMode === mode);
     btn.setAttribute('aria-pressed', String(btn.dataset.composeMode === mode));
   }
   el('myLinkUrl').required = mode === 'url';
+  el('myLinkUrl').disabled = mode !== 'url';
+  if(mode==='text')loadComposerText();
+  updateComposerTextState();
   refreshComposerIcon();
 }
 
@@ -323,8 +364,8 @@ function refreshComposerIcon() {
   }
   if (composerLink?.image_path && !removed) return show(img(composerLink.image_path), 'Your image');
 
-  if (composerMode === 'file') {
-    const name = composerFile?.name || composerLink?.file_name;
+  if (composerMode === 'file'||composerMode==='text') {
+    const name = composerMode==='text'?el('myLinkTextFilename').value:composerFile?.name || composerLink?.file_name;
     return name
       ? show(fileTypeIconHtml(name), 'From the file')
       : show(FALLBACK_ICON_SVG, 'Choose a file, and its type sets the icon');
@@ -395,6 +436,7 @@ function scheduleComposerPreview() {
  * open-then-figure-it-out path that reads activeGroup.
  */
 function openComposer(link, { group: preset } = {}) {
+  composerTextSequence++;composerTextLoaded=false;composerTextLoading=false;composerTextFailed=false;composerSaving=false;
   composerLink = link;
   composerFile = null;
   composerIcon = null;
@@ -417,7 +459,7 @@ function openComposer(link, { group: preset } = {}) {
     el('myLinkName').value = link.name || '';
     el('myLinkUrl').value  = link.url  || '';
     el('myLinkDesc').value = link.description || '';
-    setComposerMode(link.file_path ? 'file' : 'url');
+    setComposerMode(link.file_path ? editableComposerText(link.file_name)?'text':'file' : 'url');
     const membership = (link.groups || [])[0];
     fillComposerGroups(shared ? `s${membership?.id || 0}` : (membership?.id || null), { sharedOnly: shared });
     fillComposerSections(membership?.section_id || null);
@@ -440,6 +482,7 @@ function openComposer(link, { group: preset } = {}) {
 }
 
 function closeComposer() {
+  composerTextSequence++;composerTextLoading=false;composerTextFailed=false;composerSaving=false;
   el('myLinkOverlay').classList.add('hidden');
   resetComposerPreview();
   composerLink = null;
@@ -452,6 +495,9 @@ function showComposerError(message) {
   box.textContent = message;
   box.classList.remove('hidden');
 }
+el('myLinkTextRetry').addEventListener('click',()=>{composerTextFailed=false;loadComposerText();});
+el('myLinkTextContent').addEventListener('input',()=>{composerTextLoaded=true;composerTextFailed=false;el('myLinkTextStatus').textContent=`${el('myLinkTextContent').value.length.toLocaleString()} characters`;updateComposerTextState();});
+el('myLinkTextFilename').addEventListener('input',refreshComposerIcon);
 
 el('myLinkGroup')?.addEventListener('change', () => {
   const creating = el('myLinkGroup').value === '__new';
@@ -466,6 +512,8 @@ for (const btn of document.querySelectorAll('[data-compose-mode]')) {
 
 el('myLinkFileInput')?.addEventListener('change', e => {
   composerFile = e.target.files?.[0] || null;
+  composerTextSequence++;composerTextLoaded=false;composerTextLoading=false;composerTextFailed=false;
+  if(composerFile&&editableComposerText(composerFile.name))setComposerMode('text');
   refreshComposerFileLabel();
   refreshComposerIcon();
   // A file named for itself: fill the name in when it is still empty.
@@ -505,6 +553,13 @@ el('myLinkForm')?.addEventListener('submit', async e => {
 
   const name = el('myLinkName').value.trim();
   const url  = el('myLinkUrl').value.trim();
+  if(composerMode==='text'){
+    if(composerTextLoading||composerTextFailed)return showComposerError('Load the document successfully before saving its contents.');
+    const filename=el('myLinkTextFilename').value.trim();
+    if(!/^[^/\\]+\.(md|txt|json|csv|xml|html)$/i.test(filename))return showComposerError('Use a .md, .txt, .json, .csv, .xml or .html filename.');
+    composerFile=new File([el('myLinkTextContent').value],filename,{type:filename.endsWith('.md')?'text/markdown':'text/plain'});
+    if(composerFile.size>5*1024*1024)return showComposerError('Keep the document under 5 MB.');
+  }
   if (!name) return showComposerError('Give the link a name.');
   if (composerMode === 'url' && !url) return showComposerError('Add a web address.');
   if (composerMode === 'file' && !composerFile && !composerLink?.file_path) {
@@ -512,6 +567,7 @@ el('myLinkForm')?.addEventListener('submit', async e => {
   }
 
   const btn = el('myLinkSubmitBtn');
+  composerSaving=true;
   const label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Saving…';
 
@@ -562,7 +618,7 @@ el('myLinkForm')?.addEventListener('submit', async e => {
   } catch {
     showComposerError('Could not reach the server.');
   } finally {
-    btn.disabled = false; btn.textContent = label;
+    composerSaving=false;updateComposerTextState();btn.textContent = label;
   }
 });
 

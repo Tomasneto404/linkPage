@@ -19,15 +19,17 @@ let existingAttachedName = null;         // filename of an existing attachment w
 let shouldRemoveAttachedFile = false;    // true when user explicitly clears an existing file
 
 function setLinkModalMode(mode) {
-  linkModalMode = mode === 'file' ? 'file' : 'link';
-  document.querySelectorAll('.link-mode-tab').forEach(t =>
-    t.classList.toggle('active', t.dataset.mode === linkModalMode));
+  linkModalMode = ['file','text'].includes(mode) ? mode : 'link';
+  document.querySelectorAll('.link-mode-tab').forEach(t => {
+    const active=t.dataset.mode===linkModalMode;t.classList.toggle('active',active);t.setAttribute('aria-selected',String(active));t.tabIndex=active?0:-1;
+  });
   document.querySelectorAll('.link-mode-pane').forEach(p =>
     p.classList.toggle('hidden', p.dataset.mode !== linkModalMode));
 
   // The URL input toggles required-ness based on mode so the browser's native
   // validation matches what the server expects.
   document.getElementById('inputUrl').required = (linkModalMode === 'link');
+  document.getElementById('inputTextFilename').required = linkModalMode === 'text';
 }
 
 /**
@@ -112,7 +114,7 @@ function refreshAutoOpenRow() {
   const row = document.getElementById('autoOpenRow');
   const box = document.getElementById('inputAutoOpen');
 
-  const name = pendingAttachedFile ? pendingAttachedFile.name
+  const name = linkModalMode==='text'?document.getElementById('inputTextFilename').value:pendingAttachedFile ? pendingAttachedFile.name
              : (!shouldRemoveAttachedFile && existingAttachedName) ? existingAttachedName
              : '';
   const isMarkdown = /\.md$/i.test(name);
@@ -143,8 +145,16 @@ function refreshAttachedFileUi() {
   }
 }
 
+const writeTextTab=document.createElement('button');writeTextTab.type='button';writeTextTab.className='link-mode-tab';writeTextTab.dataset.mode='text';writeTextTab.setAttribute('role','tab');writeTextTab.textContent='Write text';document.querySelector('.link-mode-tabs')?.appendChild(writeTextTab);
 document.querySelectorAll('.link-mode-tab').forEach(tab =>
-  tab.addEventListener('click', () => setLinkModalMode(tab.dataset.mode)));
+  tab.addEventListener('click', () => {setLinkModalMode(tab.dataset.mode);refreshAutoOpenRow();}));
+document.querySelector('.link-mode-tabs')?.addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||!event.target.matches('.link-mode-tab'))return;
+  event.preventDefault();const tabs=[...document.querySelectorAll('.link-mode-tab')],index=tabs.indexOf(event.target);
+  const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+  tabs[next].click();tabs[next].focus();
+});
+document.getElementById('inputTextFilename').addEventListener('input',refreshAutoOpenRow);
 
 document.getElementById('attachFileBtn').addEventListener('click', () =>
   document.getElementById('inputAttachedFile').click());
@@ -506,6 +516,13 @@ document.getElementById('openIconLibraryBtn').addEventListener('click', () => op
 
 document.getElementById('linkForm').addEventListener('submit', async e => {
   e.preventDefault(); hideFormError('linkFormError');
+  if(linkModalMode==='text'){
+    const filename=document.getElementById('inputTextFilename').value.trim();
+    if(!/^[^/\\]+\.(md|txt|json|csv|xml|html)$/i.test(filename))return showFormError('linkFormError','Use a .md, .txt, .json, .csv, .xml or .html filename.');
+    pendingAttachedFile=new File([document.getElementById('inputTextContent').value],filename,{type:filename.endsWith('.md')?'text/markdown':'text/plain'});
+    if(pendingAttachedFile.size>5*1024*1024)return showFormError('linkFormError','Keep the document under 5 MB.');
+    shouldRemoveAttachedFile=false;
+  }
 
   const linkId  = document.getElementById('editingLinkId').value;
   const fd      = new FormData();
@@ -520,7 +537,7 @@ document.getElementById('linkForm').addEventListener('submit', async e => {
   // it either way so switching a link away from markdown clears the flag.
   fd.append('auto_open',    document.getElementById('inputAutoOpen').checked ? 'true' : 'false');
 
-  if (linkModalMode === 'file') {
+  if (linkModalMode === 'file'||linkModalMode === 'text') {
     // File mode: no URL is sent. If user picked a new file, attach it.
     // If editing a link that had no file before, the server requires a file.
     fd.append('url', '');

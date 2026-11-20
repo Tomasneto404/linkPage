@@ -95,6 +95,7 @@ function buildLinkCard(link) {
 
   const card = document.createElement('div');
   card.className = 'link-card';
+  card.dataset.linkId=String(link.id);
 
   const stats    = statsMap[link.id];
   // File-backed links skip favicon lookups and use a generic file glyph (unless
@@ -326,8 +327,6 @@ function renderLinks(transition = false) {
 
   function appendCard(link, i) {
     const el = buildLinkCard(link);
-    el.style.animationDelay = `${Math.min(i * 22, 280)}ms`;
-    el.classList.add('card-animate');
     if (bulkModeActive) el.querySelector('.card-checkbox').classList.remove('hidden');
     grid.appendChild(el);
   }
@@ -364,18 +363,9 @@ function renderLinks(transition = false) {
     }
   }
 
-  if (transition) {
-    grid.style.opacity       = '0';
-    emptyState.style.opacity = '0';
-    clearTimeout(renderTransitionTimer);
-    renderTransitionTimer = setTimeout(() => {
-      doRender();
-      grid.style.opacity       = '';
-      emptyState.style.opacity = '';
-    }, 100);
-  } else {
-    doRender();
-  }
+  clearTimeout(renderTransitionTimer);
+  grid.style.opacity='';emptyState.style.opacity='';
+  doRender();window.LinkPageMotion?.enterView(grid,String(activeGroup)+':'+String(activeSection));
 }
 
 

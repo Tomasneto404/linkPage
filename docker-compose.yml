@@ -3,6 +3,9 @@
 services:
   linkpage:
     build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "3000:3000"
     volumes:
@@ -12,6 +15,27 @@ services:
       - PORT=3000
       - DATA_DIR=/app/data
       - UPLOADS_DIR=/app/data/uploads
+      - DB_ENGINE=postgresql
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGDATABASE=linkpage
+      - PGUSER=linkpage
+      - PGPASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - MIGRATE_SQLITE=${MIGRATE_SQLITE:-0}
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: linkpage
+      POSTGRES_DB: linkpage
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linkpage -d linkpage"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
 volumes:
-  linkpage_data:
+  postgres_data:

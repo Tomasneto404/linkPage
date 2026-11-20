@@ -41,6 +41,10 @@ function getSettings(req, res) {
     theme_light_variant:       db.readSetting('theme_light_variant') ?? 'default',
     theme_dark_variant:        db.readSetting('theme_dark_variant')  ?? 'default',
     default_theme:             db.readSetting('default_theme') ?? 'system',
+    motion_style:              db.readSetting('motion_style') ?? 'subtle',
+    ambient_background:        db.readSetting('ambient_background') ?? 'off',
+    ambient_blend:             db.readSetting('ambient_blend') ?? 'separate',
+    ...require('../../public/ambient-settings').read({ambient_speed:db.readSetting('ambient_speed'),ambient_colors:db.readSetting('ambient_colors'),ambient_effect:db.readSetting('ambient_effect')}),
     // Developer credit footer. On by default; '0' means the admin turned it off.
     footer_enabled:            db.readSetting('footer_enabled') !== '0',
     // Active public group tab uses the group's own colour (default) vs the
@@ -484,6 +488,11 @@ function deleteRequestPassword(req, res) {
 // validated; an empty accent_color string resets to the built-in default.
 function setTheme(req, res) {
   const b = req.body || {};
+  let ambient;try{ambient=require('../../public/ambient-settings').validate(b);}catch(error){return res.status(400).json({error:error.message});}
+  if(b.ambient_blend!==undefined){if(!['separate','particles','season'].includes(b.ambient_blend))return res.status(400).json({error:'Invalid background composition'});db.writeSetting('ambient_blend',b.ambient_blend);}
+  if(b.ambient_background!==undefined){if(!['off','aurora','mesh','waves','starlight','orbital','prism','custom'].includes(b.ambient_background))return res.status(400).json({error:'Invalid ambient background'});db.writeSetting('ambient_background',b.ambient_background);}
+  for(const [key,value]of Object.entries(ambient))db.writeSetting(key,Array.isArray(value)?JSON.stringify(value):String(value));
+  if(b.motion_style!==undefined){if(!['off','subtle','smooth','spring'].includes(b.motion_style))return res.status(400).json({error:'Invalid motion style'});db.writeSetting('motion_style',b.motion_style);}
 
   if (b.accent_color !== undefined) {
     const c = typeof b.accent_color === 'string' ? b.accent_color.trim() : '';

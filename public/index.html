@@ -3,6 +3,9 @@
 <!-- Copyright (C) 2026 Tomás Neto -->
 <html lang="en">
 <head>
+  <script src="/ui-icons.js" defer></script>
+  <script src="/widget-view.js" defer></script>
+  <script src="/widget-editor.js" defer></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LinkPage</title>
@@ -14,8 +17,16 @@
   <link rel="stylesheet" href="/pwa/pwa.css" />
   <script src="/pwa/pwa.js" defer></script>
   <link rel="icon" id="favicon" href="/brand/icon-light.png" />
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="seasons.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/seasons.css" />
+  <link rel="stylesheet" href="/navigation.css" />
+  <script src="/navigation.js" defer></script>
+  <link rel="stylesheet" href="/widgets.css" />
+  <link rel="stylesheet" href="/motion.css" />
+  <script src="/scene-geometry.js" defer></script>
+  <script src="/interactions.js" defer></script>
+  <link rel="stylesheet" href="/ambient.css" />
+  <script src="/widgets.js" defer></script>
   <link rel="stylesheet" href="/season-backgrounds.css" />
   <style>
     .tabs-wrap {
@@ -981,6 +992,8 @@
     }
 </style>
   <script src="/season-calendar.js"></script>
+  <script src="/ambient-settings.js"></script>
+  <script src="/ambient-editor.js" defer></script>
   <script src="/theme-boot.js"></script>
   <script src="/season-particles.js" defer></script>
   <script src="/season-effects.js" defer></script>
@@ -1034,7 +1047,7 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <div class="search-chips" id="searchChips" aria-label="Active filters"></div>
       <input class="search-input" id="searchInput" type="search"
-             placeholder="Search links, groups, sections…"
+             placeholder="Search" aria-label="Filter links on this page"
              autocomplete="off" />
     </div>
 
@@ -1362,8 +1375,16 @@
       <div class="segmented" role="group" aria-label="What the link opens">
         <button type="button" class="segmented-option active" data-compose-mode="url" aria-pressed="true">A web address</button>
         <button type="button" class="segmented-option" data-compose-mode="file" aria-pressed="false">A file</button>
+        <button type="button" class="segmented-option" data-compose-mode="text" aria-pressed="false">Write text</button>
       </div>
 
+      <div class="form-group hidden" id="myLinkTextRow">
+        <label for="myLinkTextFilename">Filename</label>
+        <div class="lp-filename-wrap"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"/></svg><input type="text" id="myLinkTextFilename" value="document.md" maxlength="180" placeholder="document.md" autocomplete="off" spellcheck="false" /></div>
+        <label for="myLinkTextContent">Content</label>
+        <textarea id="myLinkTextContent" class="lp-text-editor" rows="9" placeholder="# Your document&#10;&#10;Start writing…"></textarea>
+        <div class="lp-editor-status"><span class="my-link-hint" id="myLinkTextStatus" role="status" aria-live="polite">Markdown, TXT, JSON, CSV, XML or HTML · up to 5 MB.</span><button type="button" class="btn btn-ghost btn-sm hidden" id="myLinkTextRetry">Retry loading</button></div>
+      </div>
       <div class="form-group" id="myLinkUrlRow">
         <label for="myLinkUrl">Web address</label>
         <input type="url" id="myLinkUrl" placeholder="https://" maxlength="2048" />

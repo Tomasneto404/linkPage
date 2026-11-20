@@ -79,6 +79,7 @@ function applyThemeVariants() {
 // Applies the fetched theme settings. If the visitor hasn't picked a theme yet,
 // honours the admin's default now that we know it.
 function applyThemeSettings(settings) {
+  window.LinkPageTheme?.rememberAppearance(settings);
   themeSettings = {
     accent:           settings.accent_color || null,
     accentDarkAdjust: !!settings.accent_dark_adjust,
@@ -98,6 +99,7 @@ function applyThemeSettings(settings) {
 }
 
 function getInitialTheme() {
+  if(window.LinkPageTheme)return window.LinkPageTheme.initialTheme(themeSettings.default);
   const saved = localStorage.getItem('linkpage_theme');
   if (saved) return saved;
   if (themeSettings.default === 'light' || themeSettings.default === 'dark') return themeSettings.default;
@@ -111,15 +113,22 @@ function refreshMarkdownViewerTheme() {
 
   const frame = document.getElementById('mdViewerFrame');
   const tab   = document.getElementById('mdViewerOpenTab');
-  const base  = (frame.src || '').split('?')[0];
-  if (!base || base === 'about:blank') return;
-
-  swapInViewerFrame(`${base}?theme=${currentThemeName()}&embed=1`);
-  tab.href = `${base}?theme=${currentThemeName()}`;
+  if (!frame.src || frame.src === 'about:blank') return;
+  const address=new URL(frame.src,location.origin);
+  address.searchParams.set('theme',currentThemeName());
+  address.searchParams.set('ambient',document.documentElement.dataset.ambient||'off');
+  address.searchParams.set('motion',document.documentElement.dataset.motion||'subtle');
+  address.searchParams.set('blend',document.documentElement.dataset.ambientBlend||'separate');
+  for(const [key,value]of new URLSearchParams((window.LinkPageTheme?.ambientQuery?.()||'').replace(/^&/,'')))address.searchParams.set(key,value);
+  address.searchParams.set('embed','1');
+  swapInViewerFrame(address.href);
+  address.searchParams.delete('embed');
+  tab.href=address.href;
 }
 
 
 function applyTheme(theme, save = true) {
+  if(window.LinkPageTheme?.transitionTheme?.(theme,()=>applyTheme(theme,save)))return;
   document.documentElement.setAttribute('data-theme', theme);
   // The glyph, the lockup and the wallpaper all have a per-theme version.
   applyBrandIcon(brandIconUrl);
@@ -165,7 +174,7 @@ let barOpacity = 82;
 const isDarkTheme = () =>
   (document.documentElement.getAttribute('data-theme') || 'light') === 'dark';
 
-applyTheme(getInitialTheme(), false);
+applyTheme(document.documentElement.dataset.theme||getInitialTheme(), false);
 
 // ─── Branding ─────────────────────────────────────────────────────────────────
 

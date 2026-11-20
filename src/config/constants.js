@@ -91,7 +91,7 @@ const DEFAULT_MARKDOWN_OPEN_MODE = 'modal';
 
 const THEME_LIGHT_VARIANTS = ['default', 'snow', 'warm'];
 const THEME_DARK_VARIANTS  = ['default', 'midnight', 'slate'];
-const DEFAULT_THEMES       = ['light', 'dark', 'system'];
+const DEFAULT_THEMES       = ['light', 'dark', 'system', 'daylight'];
 const SEASON_THEMES        = ['none', 'easter', 'halloween', 'christmas', 'spring', 'autumn', 'winter', 'summer'];
 const MOBILE_NAV_POSITIONS = ['top', 'bottom'];
 const HEX_COLOR_RE         = /^#[0-9a-f]{6}$/i;

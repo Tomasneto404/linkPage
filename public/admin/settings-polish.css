@@ -1,0 +1,54 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Tomás Neto */
+/* Administration uses the existing theme, with a shared form rhythm. */
+#settingsOverlay .modal{max-width:900px;height:min(88dvh,780px);padding:0;overflow:hidden}
+#settingsOverlay .modal-header{padding:24px 28px 20px;border-bottom:1px solid var(--border);margin:0}
+#settingsOverlay .modal-header h2{font-size:22px;font-weight:600;letter-spacing:-.02em}
+#settingsOverlay .modal-close{width:36px;height:36px;flex-shrink:0}
+.settings-layout{min-height:0}
+.settings-nav{width:196px;padding:16px 12px;gap:4px;background:var(--surface-2)}
+.settings-tab{display:flex;align-items:center;gap:10px;min-height:36px;padding:8px 10px;font-size:13px;line-height:20px;text-align:left}
+.settings-tab svg{flex-shrink:0;opacity:.7}.settings-tab span{min-width:0}
+.settings-tab.active svg{opacity:1}
+.settings-tab:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.settings-body{padding:24px 28px 28px;scroll-padding-block:24px;overscroll-behavior:contain}
+.settings-panel-heading{margin:0 0 16px}
+.settings-panel-heading h3{margin:0 0 8px;font-size:18px;line-height:1.4;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+.settings-panel-heading p{margin:0;color:var(--text-muted);font-size:13px;line-height:1.6}
+.settings-panel-heading+.settings-section-title{display:none!important}
+#settingsOverlay .settings-section-title{font-size:14px;line-height:1.5;font-weight:600;letter-spacing:0;text-transform:none;margin:28px 0 12px}
+#settingsOverlay .settings-row{padding:16px 0;gap:20px;background:transparent;border:0;border-bottom:1px solid var(--border);border-radius:0}
+#settingsOverlay .settings-row+.settings-row{margin-top:0}
+#settingsOverlay .settings-row-label{font-size:14px;font-weight:500;line-height:1.5}
+#settingsOverlay .settings-row-desc{font-size:12px;line-height:1.6;margin-top:4px;max-width:48ch}
+#settingsOverlay .settings-row>div:first-child{min-width:0}
+#settingsOverlay .settings-row:has(>.switch)>div:first-child{flex:1}
+#settingsOverlay .settings-row>.switch{flex-shrink:0;margin:0}
+#settingsOverlay .settings-row :is(input:not([type=checkbox]):not([type=color]):not([type=range]),select){min-height:40px;border-radius:10px;font-size:13px}
+#settingsOverlay .sso-field{flex:0 1 340px;min-width:0;gap:8px;align-items:center}
+#settingsOverlay .sso-field input{width:100%;min-width:0}
+#settingsOverlay .btn{min-height:36px;border-radius:10px;font-size:12px}
+#settingsOverlay .settings-hint{font-size:12px;line-height:1.6;margin-block:12px;padding:0}
+.settings-category-picker{display:none}
+#settingsOverlay .settings-row :is(input,select,button):focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+#settingsOverlay [data-panel=themes] .settings-row>select{width:232px!important;flex:0 0 232px;max-width:100%;padding:10px 12px}
+@media(max-width:640px){
+  #settingsOverlay .modal{max-width:calc(100vw - 16px);height:94dvh;max-height:94dvh;border-radius:20px}
+  #settingsOverlay .modal-header{padding:20px 20px 16px}
+  #settingsOverlay .modal-close{width:40px;height:40px}
+  .settings-layout{flex-direction:column}
+  #settingsNav{display:none}
+  .settings-category-picker{display:flex;flex-direction:column;gap:8px;padding:12px 20px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+  .settings-category-picker label{font-size:12px;font-weight:500;color:var(--text-muted)}
+  #settingsCategorySelect{width:100%;min-height:44px;font-size:16px;border-radius:10px}
+  #settingsOverlay .settings-body{padding:20px;min-height:0}
+  #settingsOverlay .settings-row{gap:12px;align-items:stretch;flex-direction:column}
+  #settingsOverlay .settings-row:has(>.switch){flex-direction:row;align-items:center;gap:16px}
+  #settingsOverlay .settings-row :is(select,input:not([type=checkbox]):not([type=color]):not([type=range])){font-size:16px;min-height:44px}
+  #settingsOverlay .settings-row>select{width:100%!important}
+  #settingsOverlay [data-panel=themes] .settings-row>select{flex-basis:auto;width:100%!important}
+  #settingsOverlay .settings-row>.logo-control{flex-wrap:wrap;justify-content:flex-start}
+  #settingsOverlay .settings-row .sso-field{flex-basis:auto;width:100%}
+  #settingsOverlay .settings-row-desc{max-width:none}
+  #settingsOverlay .btn{min-height:40px}
+}

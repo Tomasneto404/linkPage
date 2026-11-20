@@ -3,8 +3,8 @@
 /**
  * Database connection and schema migrations.
  *
- * Uses Node's built-in SQLite module (unflagged from Node 22.13). Opens the single shared
- * connection and runs migrations as a load-time side effect — every model
+ * Uses PostgreSQL when configured, or Node's built-in SQLite for legacy data.
+ * Opens one shared connection and runs migrations as a load-time side effect — every model
  * module requires this file, so the schema is guaranteed ready before any
  * query runs.
  *
@@ -20,7 +20,10 @@ const { DATA_DIR } = require('./env');
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
+const db = process.env.DATABASE_URL || process.env.DB_ENGINE==='postgresql'
+  ? require('./postgres').connect(process.env.DATABASE_URL||{host:process.env.PGHOST,port:Number(process.env.PGPORT||5432),database:process.env.PGDATABASE,user:process.env.PGUSER,password:process.env.PGPASSWORD})
+  : new DatabaseSync(path.join(DATA_DIR, 'links.db'));
+if (!db.dialect) db.dialect = 'sqlite';
 
 // ─── Schema migrations ────────────────────────────────────────────────────────
 //
@@ -34,7 +37,7 @@ const db = new DatabaseSync(path.join(DATA_DIR, 'links.db'));
 // themselves do not depend on it being accurate. If the row is missing or
 // stale, every migration is still safely re-applied.
 
-const CURRENT_SCHEMA_VERSION = 21;
+const CURRENT_SCHEMA_VERSION = 24;
 
 function addColumnIfMissing(table, column, definition) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -714,10 +717,44 @@ const MIGRATIONS = [
     `),
   },
 
+  {
+    version:22,
+    name:'Stable group addresses, widgets and detailed link health',
+    apply:()=>{
+      addColumnIfMissing('groups','slug','TEXT');
+      db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_slug ON groups(slug) WHERE slug IS NOT NULL');
+      const {normalizeSlug}=require('../utils/slug');
+      for(const group of db.prepare('SELECT id,name FROM groups WHERE slug IS NULL ORDER BY id').all()) {
+        const base=normalizeSlug(group.name)||'group';let slug=base;
+        if(db.prepare('SELECT id FROM groups WHERE slug=?').get(slug))slug=base.slice(0,54)+'-'+group.id;
+        db.prepare('UPDATE groups SET slug=? WHERE id=?').run(slug,group.id);
+      }
+      db.exec(`CREATE TABLE IF NOT EXISTS link_health (
+        link_id INTEGER PRIMARY KEY, status TEXT NOT NULL DEFAULT 'unknown',
+        status_code INTEGER, reason TEXT, failures INTEGER NOT NULL DEFAULT 0,
+        checked_at TEXT, enabled INTEGER NOT NULL DEFAULT 1
+      );
+      CREATE TABLE IF NOT EXISTS widgets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, title TEXT NOT NULL,
+        group_id INTEGER, position INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
+        config TEXT NOT NULL DEFAULT '{}', created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`);
+      // A single old HEAD failure is not enough to declare a resource dead.
+      db.exec('UPDATE links SET is_broken=0');
+    },
+  },
+  {version:23,name:'Private recent searches',apply:()=>db.exec(`CREATE TABLE IF NOT EXISTS workspace_search_recent (
+    owner TEXT NOT NULL, query TEXT NOT NULL, used_at TEXT NOT NULL, PRIMARY KEY(owner,query)
+  )`)},
+  {version:24,name:'Per-account widget notifications',apply:()=>db.exec(`CREATE TABLE IF NOT EXISTS widget_reads (
+    owner TEXT NOT NULL, widget_id INTEGER NOT NULL, item_key TEXT NOT NULL, read_at TEXT NOT NULL,
+    PRIMARY KEY(owner,widget_id,item_key)
+  )`)},
 ];
 
 function readSchemaVersion() {
   try {
+    if(db.dialect==='postgresql'&&!db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'").get())return 0;
     const row = db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get();
     return row ? (Number(row.value) || 0) : 0;
   } catch {
@@ -748,12 +785,13 @@ function isFreshDatabase() {
  * Returns true when this was a brand-new database.
  */
 function runMigrations() {
-  const fresh = isFreshDatabase();
-  const from  = readSchemaVersion();
+  let fresh,from;
   const applied = [];
 
   db.exec('BEGIN');
   try {
+    if(db.dialect==='postgresql')db.prepare('SELECT pg_advisory_xact_lock(hashtext(current_database() || current_schema()))').get();
+    fresh=isFreshDatabase();from=readSchemaVersion();
     for (const migration of MIGRATIONS) {
       if (migration.version <= from) continue;  // already covered per stored version
       migration.apply();
@@ -784,6 +822,21 @@ function runMigrations() {
 
 // True when this process created the database. Startup uses it to decide
 // whether to add the first-run example content (see services/seedFirstRun.js).
-const isFreshInstall = runMigrations();
+let isFreshInstall = runMigrations();
+if(db.dialect==='postgresql'&&process.env.LINKPAGE_MIGRATION_COMMAND!=='1'){
+  const source=path.join(DATA_DIR,'links.db');
+  const migrated=db.prepare("SELECT value FROM settings WHERE key='sqlite_migrated'").get();
+  const occupied=['users','groups','links'].some(table=>db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n>0);
+  const importing=process.env.MIGRATE_SQLITE==='1',hasSource=fs.existsSync(source);
+  if(!migrated&&importing&&!hasSource)throw new Error('SQLite migration requested, but DATA_DIR/links.db was not found. Mount the existing data directory, or disable MIGRATE_SQLITE for a new installation.');
+  if(!migrated&&importing&&occupied)throw new Error('SQLite migration requires an empty PostgreSQL target. Existing PostgreSQL data was not changed.');
+  if(!migrated&&!occupied&&hasSource&&!importing)throw new Error('Existing SQLite data found. Back up DATA_DIR, then set MIGRATE_SQLITE=1 or run npm run db:migrate before starting PostgreSQL.');
+  if(!migrated&&importing&&!occupied&&hasSource){
+    const snapshots=require('../services/databaseSnapshot');
+    const result=snapshots.restore(db,snapshots.fromSQLite(source),{emptyOnly:true,allowOlder:true});
+    db.prepare('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)').run('sqlite_migrated',new Date().toISOString());
+    isFreshInstall=false;console.log(`[db] SQLite → PostgreSQL: verified ${result.rows} rows. Source database preserved.`);
+  }
+}
 
 module.exports = { db, isFreshInstall };

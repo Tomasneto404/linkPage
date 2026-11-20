@@ -223,12 +223,17 @@ function saveCollapsedGroups() {
 
 // ─── 7. DATA LOADING ──────────────────────────────────────────────────────────
 
+let lastAdminServerData='',lastAdminRenderedData='';
 async function loadAllData() {
   const [fl, fg, fs] = await Promise.all([fetchLinks(), fetchGroups(), fetchAllStats()]);
+  const signature=JSON.stringify([fl,fg,fs]);
+  if(signature===lastAdminServerData&&JSON.stringify([links,groups,statsMap])===lastAdminRenderedData)return;
+  lastAdminServerData=signature;
   links  = fl;
   groups = fg;
   statsMap = {};
   fs.forEach(s => { statsMap[s.link_id] = s; });
+  lastAdminRenderedData=JSON.stringify([links,groups,statsMap]);
   renderSidebar();
   renderLinks();
   refreshBulkGroupDropdown();

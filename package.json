@@ -1,6 +1,6 @@
 {
   "name": "linkpage",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "An enterprise-ready self-hosted link page to share links with collaborators or clients.",
   "main": "src/server.js",
   "license": "AGPL-3.0-or-later",
@@ -15,7 +15,9 @@
   ],
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "dev": "node --env-file-if-exists=.env --watch src/server.js",
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate-postgres.cjs",
+    "test:postgres": "node scripts/postgres-suite.cjs",
     "test": "node --test",
     "test:watch": "node --test --watch",
     "test:browser": "node --test --test-concurrency=1 \"tests/browser/*.browser.js\"",
@@ -27,8 +29,11 @@
   },
   "dependencies": {
     "express": "^4.22.3",
+    "fast-xml-parser": "^5.12.1",
     "multer": "^2.4.0",
     "nodemailer": "^10.0.15",
+    "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
     "swagger-ui-dist": "^5.33.1",
     "undici": "^7.30.0"
   },

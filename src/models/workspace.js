@@ -3,7 +3,8 @@
 const { db } = require('../config/db');
 function linkDetails(id) {
   const row = db.prepare('SELECT * FROM workspace_link_details WHERE link_id=?').get(id);
-  return { tags: row ? JSON.parse(row.tags) : [], publish_at: row?.publish_at || null, expires_at: row?.expires_at || null, created_by: row?.created_by || null };
+  const health=db.prepare('SELECT status,status_code,reason,failures,checked_at,enabled FROM link_health WHERE link_id=?').get(id);
+  return { tags: row ? JSON.parse(row.tags) : [], publish_at: row?.publish_at || null, expires_at: row?.expires_at || null, created_by: row?.created_by || null, health:health||{status:'unknown',enabled:1,failures:0} };
 }
 function setLinkDetails(id, value) {
   const old = linkDetails(id), data = { ...old, ...value };
@@ -48,6 +49,6 @@ function addVersion(kind, entityId, title, content, actorId = null) {
 }
 function versions(kind, entityId) { return db.prepare('SELECT id,kind,entity_id,title,actor_id,created_at,length(content) AS size FROM workspace_versions WHERE kind=? AND entity_id=? ORDER BY id DESC').all(kind, entityId); }
 function version(id) { return db.prepare('SELECT * FROM workspace_versions WHERE id=?').get(id); }
-function deleteLinkDetails(id) { db.prepare('DELETE FROM workspace_link_details WHERE link_id=?').run(id); db.prepare("DELETE FROM workspace_versions WHERE kind='document' AND entity_id=?").run(id); }
+function deleteLinkDetails(id) { db.prepare('DELETE FROM link_health WHERE link_id=?').run(id); db.prepare('DELETE FROM workspace_link_details WHERE link_id=?').run(id); db.prepare("DELETE FROM workspace_versions WHERE kind='document' AND entity_id=?").run(id); }
 function deleteGroupDetails(id) { db.prepare('DELETE FROM workspace_group_details WHERE group_id=?').run(id); db.prepare('DELETE FROM workspace_group_access WHERE group_id=?').run(id); }
 module.exports = { linkDetails, setLinkDetails, groupDetails, setGroupDetails, role, ranks, access, setAccess, managedIds, canViewGroup, published, addVersion, versions, version, deleteLinkDetails, deleteGroupDetails };

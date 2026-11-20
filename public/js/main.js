@@ -4,16 +4,23 @@
 
 // ─── Data loading ─────────────────────────────────────────────────────────────
 
+let dataLoadSequence=0,lastPublicData='',lastRenderedData='';
 async function loadData({ transition = false } = {}) {
+  const sequence=++dataLoadSequence;
   const [fl, fg, mine] = await Promise.all([
     authorisedFetch('/api/links'),
     authorisedFetch('/api/groups'),
     fetchPersonal(),
   ]);
+  if(sequence!==dataLoadSequence)return;
+  const signature=JSON.stringify([fl,fg,mine,favoriteIds,managedGroupIds]);
+  if(signature===lastPublicData&&pinnedAppliedOnce&&JSON.stringify([links,groups,favoriteIds,managedGroupIds])===lastRenderedData){scheduleRelockRefresh();return;}
+  lastPublicData=signature;
   // Shared first, then the member's own, so their tabs sit after the ones
   // everybody sees.
   links  = [...fl, ...mine.links];
   groups = [...fg, ...mine.groups];
+  lastRenderedData=JSON.stringify([links,groups,favoriteIds,managedGroupIds]);
 
   // First-time landing: returning visitors keep the tab they last viewed
   // (stored in localStorage). Only when nothing is stored do we fall back to
@@ -33,13 +40,6 @@ async function loadData({ transition = false } = {}) {
     }
   }
 
-  const requestedGroup = new URLSearchParams(location.search).get('group');
-  if (requestedGroup) {
-    const id = /^u\d+$/.test(requestedGroup) ? requestedGroup : Number(requestedGroup);
-    if (groups.some(g => g.id === id)) activeGroup = id;
-    const url = new URL(location.href); url.searchParams.delete('group'); history.replaceState(null, '', url);
-  }
-
   // If the active tab was a now-locked group — or a personal one that has gone,
   // because it was deleted or because its owner signed out — fall back to "All"
   // rather than leave an empty grid with no explanation.
@@ -51,7 +51,10 @@ async function loadData({ transition = false } = {}) {
     if (!current || isGroupLocked(current)) activeGroup = 'all';
   }
 
+  window.LinkPageNavigation?.applyRoute();
   renderTabs(); renderLinks(transition);
+  window.LinkPageNavigation?.render();
+  window.LinkPageNavigation?.scrollSection();
   scheduleRelockRefresh();
 }
 
@@ -96,6 +99,21 @@ function applyFavicon(url) {
   link.setAttribute('href', url || DEFAULT_BRAND.icon.light);
 }
 
+let lastAppearance='';
+async function refreshPublicAppearance(){
+  const settings=await fetch('/api/settings').then(r=>r.json()),signature=JSON.stringify(settings);if(signature===lastAppearance)return;lastAppearance=signature;
+  if(settings.require_login&&!currentUser){goToSignIn();return;}
+  contributionMode=settings.contribution_mode||'off';
+  if(settings.site_title)document.title=settings.site_title;
+  applyBrandText(settings.site_title);applyBrandIcon(settings.brand_icon||null);
+  logoLightUrl=settings.logo_light||null;logoDarkUrl=settings.logo_dark||null;
+  wallpaperLightUrl=settings.wallpaper_light||null;wallpaperDarkUrl=settings.wallpaper_dark||null;
+  wallpaperFog=Number.isFinite(settings.wallpaper_fog)?settings.wallpaper_fog:60;barOpacity=Number.isFinite(settings.bar_opacity)?settings.bar_opacity:82;
+  applyWallpaper();applyBarOpacity();updateHeaderLogo();applyThemeSettings(settings);applyRequestFeature(settings);applyFooter(settings);
+  siteFaviconUrl=settings.favicon||null;applyFavicon(siteFaviconUrl);
+  tabsUseGroupColor=settings.group_tab_color!==false;tabsLoopEnabled=!!settings.group_tabs_loop;
+  renderTabs();
+}
 async function init() {
   // In parallel: the settings were always a round trip, and asking who is
   // signed in at the same time adds nothing to it, for anyone.
@@ -105,6 +123,7 @@ async function init() {
       .then(r => (r.ok ? r.json() : { user: null }))
       .catch(() => ({ user: null })),
   ]);
+  lastAppearance=JSON.stringify(settings);
   // The admin token is not a member: it has no page of its own.
   currentUser = me.via === 'session' ? me.user : null;
   await restorePublicAdminAccess();
@@ -182,6 +201,7 @@ function connectLiveUpdates() {
   liveUpdateSource = new EventSource('/api/events');
 
   const refresh = () => {
+    window.dispatchEvent(new Event('linkpage:data'));
     clearTimeout(liveUpdateTimer);
     liveUpdateTimer = setTimeout(() => {
       // Not while a card is being moved: the re-render would take it away.
@@ -189,7 +209,7 @@ function connectLiveUpdates() {
       if (reorderInProgress()) { refresh(); return; }
       // Don't fight a typing user: skip the fade while they're searching.
       const inSearch = !!searchQuery || searchChips.length > 0;
-      loadData({ transition: !inSearch }).catch(() => {});
+      Promise.all([refreshPublicAppearance(),loadData()]).catch(() => {});
     }, 250);
   };
 

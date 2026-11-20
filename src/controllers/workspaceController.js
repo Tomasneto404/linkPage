@@ -12,6 +12,15 @@ const {resolveStoredFilePath}=require('../services/uploadService');
 const {resolvePrivateFilePath}=require('../services/privateFiles');
 const bad=message=>{const e=new Error(message);e.status=400;throw e;};
 const owner=req=>req.user?.id?`user:${req.user.id}`:'admin-token';
+function recentSearches(req,res){
+  if(req.method==='DELETE')db.prepare('DELETE FROM workspace_search_recent WHERE owner=?').run(owner(req));
+  if(req.method==='POST'){
+    const query=typeof req.body.query==='string'?req.body.query.trim().slice(0,160):'';if(!query)return res.status(400).json({error:'Enter a search query'});
+    db.prepare('INSERT INTO workspace_search_recent(owner,query,used_at) VALUES(?,?,?) ON CONFLICT(owner,query) DO UPDATE SET used_at=excluded.used_at').run(owner(req),query,new Date().toISOString());
+    db.prepare('DELETE FROM workspace_search_recent WHERE owner=? AND query NOT IN (SELECT query FROM workspace_search_recent WHERE owner=? ORDER BY used_at DESC LIMIT 10)').run(owner(req),owner(req));
+  }
+  res.set('Cache-Control','private, no-store').json(db.prepare('SELECT query FROM workspace_search_recent WHERE owner=? ORDER BY used_at DESC LIMIT 10').all(owner(req)));
+}
 const fold=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const cache=new Map(); let cacheBytes=0;
 function textOf(full){
@@ -34,10 +43,10 @@ function search(req,res){
     const haystack=[link.name,link.description,link.url,...(link.tags||[]),...(link.groups||[]).map(g=>g.name),text].join(' ');
     if(!terms.every(term=>fold(haystack).includes(term)))continue;
     const at=text?Math.max(0,fold(text).indexOf(terms[0])):0;
-    results.push({type:text?'document':'link',id:link.id,scope,name:link.name,icon_url:link.image_path||link.favicon_path||null,description:text?text.slice(Math.max(0,at-60),at+180):link.description||link.url,snippet:!!text,tags:link.tags||[],href:scope==='shared'?(link.slug?`/f/${encodeURIComponent(link.slug)}`:`/r/${link.id}`):link.file_path?`/api/${scope==='personal'?'my':'guest'}/links/${link.id}/file`:link.url,score:fold(link.name).includes(fold(query))?3:text?1:2});
+    results.push({type:text?'document':'link',id:link.id,scope,name:link.name,icon_url:link.image_path||link.favicon_path||null,groups:(link.groups||[]).map(g=>g.name),description:text?text.slice(Math.max(0,at-60),at+180):link.description||link.url,snippet:!!text,tags:link.tags||[],href:scope==='shared'?(link.slug?`/f/${encodeURIComponent(link.slug)}`:`/r/${link.id}`):link.file_path?`/api/${scope==='personal'?'my':'guest'}/links/${link.id}/file`:link.url,score:fold(link.name).includes(fold(query))?3:text?1:2});
   }
   const groups=[...(admin?models.getAllGroups():models.getAllGroups().filter(g=>metadata.canViewGroup(req,g))).map(g=>({...g,scope:'shared'})),...models.getPersonalGroups(req.user?.id||-1).map(g=>({...g,scope:'personal'}))];
-  for(const group of groups)if(terms.every(t=>fold(group.name).includes(t)))results.push({type:'group',id:group.id,scope:group.scope,name:group.name,description:'Open group',href:`/?group=${group.scope==='personal'?'u':''}${group.id}`,score:4});
+  for(const group of groups)if(terms.every(t=>fold(group.name).includes(t)))results.push({type:'group',id:group.id,scope:group.scope,name:group.name,description:'Open group',href:group.scope==='shared'&&group.slug?`/g/${encodeURIComponent(group.slug)}`:`/?group=${group.scope==='personal'?'u':''}${group.id}`,score:4});
   res.set('Cache-Control','private, no-store').json({results:results.sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,60)});
 }
 function tags(value){if(!Array.isArray(value)||value.length>24)bad('Use up to 24 tags');return [...new Set(value.map(v=>{if(typeof v!=='string'||!v.trim()||v.trim().length>50)bad('Tags must contain 1–50 characters');return v.trim().normalize('NFC').toLowerCase();}))];}
@@ -100,4 +109,4 @@ async function createBackup(req,res){res.status(201).json(await backups.create()
 async function importBackup(req,res){if(!req.file)bad('Choose a backup archive');res.status(201).json(await backups.importArchive(req.file.path));}
 async function restoreBackup(req,res){if(req.body.confirm!=='RESTORE')bad('Type RESTORE to confirm replacement of the current data');res.json(await backups.restore(req.params.id));}
 function backupFile(req,res){const full=backups.file(req.params.id);if(!full||!fs.existsSync(full))return res.status(404).json({error:'Backup not found'});if(req.method==='DELETE'){backups.remove(req.params.id);return res.status(204).end();}res.download(full,`linkpage-${req.params.id}.tgz`);}
-module.exports={search,updateLink,updateGroup,library,managedGroups,requireManager,updateManagedGroup,grantMember,revokeMember,filters,saveFilter,deleteFilter,versions,version,restoreVersion,notifications,readNotification,presets,savePreset,preset,backupList,backupSettings,createBackup,importBackup,restoreBackup,backupFile};
+module.exports={search,recentSearches,updateLink,updateGroup,library,managedGroups,requireManager,updateManagedGroup,grantMember,revokeMember,filters,saveFilter,deleteFilter,versions,version,restoreVersion,notifications,readNotification,presets,savePreset,preset,backupList,backupSettings,createBackup,importBackup,restoreBackup,backupFile};

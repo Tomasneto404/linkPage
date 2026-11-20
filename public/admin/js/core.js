@@ -81,6 +81,7 @@ function applyThemeVariants() {
 }
 
 function applyThemeSettings(settings) {
+  window.LinkPageTheme?.rememberAppearance(settings);
   themeSettings = {
     accent:           settings.accent_color || null,
     accentDarkAdjust: !!settings.accent_dark_adjust,
@@ -99,6 +100,7 @@ function applyThemeSettings(settings) {
 }
 
 function getInitialTheme() {
+  if(window.LinkPageTheme)return window.LinkPageTheme.initialTheme(themeSettings.default);
   const saved = localStorage.getItem('linkpage_theme');
   if (saved) return saved;
   if (themeSettings.default === 'light' || themeSettings.default === 'dark') return themeSettings.default;
@@ -133,6 +135,7 @@ function applyBrandIcon(url) {
 }
 
 function applyTheme(theme, save = true) {
+  if(window.LinkPageTheme?.transitionTheme?.(theme,()=>applyTheme(theme,save)))return;
   document.documentElement.setAttribute('data-theme', theme);
   document.getElementById('iconMoon').classList.toggle('hidden', theme === 'dark');
   document.getElementById('iconSun').classList.toggle('hidden', theme === 'light');
@@ -157,7 +160,7 @@ const DEFAULT_BRAND_ICON = { light: '/brand/icon-light.png', dark: '/brand/icon-
 const isDarkTheme = () =>
   (document.documentElement.getAttribute('data-theme') || 'light') === 'dark';
 
-applyTheme(getInitialTheme(), false);
+applyTheme(document.documentElement.dataset.theme||getInitialTheme(), false);
 
 
 // ─── 2. AUTHENTICATION ────────────────────────────────────────────────────────

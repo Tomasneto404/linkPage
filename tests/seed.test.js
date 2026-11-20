@@ -212,6 +212,7 @@ describe('the boot gate', () => {
   function boot(dir, { deleteLinksFirst = false } = {}) {
     const script = `
       process.env.DATA_DIR = ${JSON.stringify(dir)};
+      if(process.env.LINKPAGE_TEST_POSTGRES_URL)process.env.DATABASE_SCHEMA='lp_boot_'+require('node:crypto').createHash('sha256').update(process.env.DATA_DIR).digest('hex').slice(0,20);
       // The migration/seed banners would otherwise mix into the JSON below.
       console.log = console.warn = console.error = () => {};
       const { isFreshInstall, db: raw } = require(${JSON.stringify(path.join(__dirname, '..', 'src', 'config', 'db'))});
@@ -220,6 +221,7 @@ describe('the boot gate', () => {
       const before = db.getAllLinks().length;
       if (isFreshInstall) require(${JSON.stringify(path.join(__dirname, '..', 'src', 'services', 'seedFirstRun'))}).seedFirstRunContent();
       process.stdout.write(JSON.stringify({ isFreshInstall, before, after: db.getAllLinks().length }));
+      if(process.env.LINKPAGE_TEST_POSTGRES_URL&&${deleteLinksFirst})raw.exec('DROP SCHEMA "'+raw.schema+'" CASCADE');
     `;
     const out = execFileSync(process.execPath, ['-e', script], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     return JSON.parse(out);

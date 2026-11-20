@@ -7,5 +7,6 @@ const c = require('../controllers/analyticsController');
 const router = express.Router();
 
 router.get('/api/analytics', requireAdmin, c.getAnalytics);
+router.get('/api/analytics/export',requireAdmin,c.exportAnalytics);
 
 module.exports = router;

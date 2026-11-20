@@ -130,6 +130,7 @@ function remove(req, res) {
   links.remove(req, res);
   req._auditSummary = `Deleted link "${link.name}" as its group admin`;
 }
+function getFile(req,res){const link=editableLink(req,res,managedGroupIds(req));if(link)return links.getFile(req,res);}
 
 // ─── Assigning group admins, for administrators ───────────────────────────────
 
@@ -156,4 +157,4 @@ function setManagers(req, res) {
   res.json({ managers: db.getGroupManagers(groupId) });
 }
 
-module.exports = { requireGroupAdmin, managedGroupIds, create, update, remove, getManagers, setManagers };
+module.exports = { requireGroupAdmin, managedGroupIds, create, update, remove, getFile, getManagers, setManagers };

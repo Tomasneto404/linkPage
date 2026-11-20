@@ -300,6 +300,7 @@ function enableLinkDrag(card, linkId) {
     draggedLinkId = linkId; card.classList.add('dragging');
     document.body.classList.add('is-link-dragging');
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain',String(linkId));
   });
   card.addEventListener('dragend', () => {
     card.classList.remove('dragging');
@@ -312,14 +313,17 @@ function enableLinkDrag(card, linkId) {
     e.preventDefault(); if (draggedLinkId !== linkId) card.classList.add('drag-over');
   });
   card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
-  card.addEventListener('drop', e => {
+  card.addEventListener('drop', async e => {
     e.preventDefault(); card.classList.remove('drag-over');
     if (!draggedLinkId || draggedLinkId === linkId) return;
     const fi = links.findIndex(l => l.id === draggedLinkId);
     const ti = links.findIndex(l => l.id === linkId);
     if (fi === -1 || ti === -1) return;
-    const [m] = links.splice(fi, 1); links.splice(ti, 0, m);
-    renderLinks(); reorderLinksApi(links.map(l => l.id));
+    const settle=window.LinkPageMotion?.capture(document.getElementById('linksGrid'),'.link-card',el=>el.dataset.linkId);
+    try{
+      const response=await sendAuthRequest('/api/links/swap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({first_id:draggedLinkId,second_id:linkId,group_id:Number.isInteger(activeGroup)?activeGroup:null})});
+      if(!response.ok)throw new Error('Swap failed');await loadAllData();settle?.();
+    }catch{showToast('Could not exchange those links','error');}
   });
 }
 

@@ -12,6 +12,7 @@ const EMPTY_ICONS = {
 
 function updateEmptyState() {
   const tokens = effectiveSearchTokens();
+  document.getElementById('emptyState').toggleAttribute('data-search-empty', tokens.length > 0);
   document.getElementById('emptyIcon').innerHTML =
     tokens.length ? EMPTY_ICONS.search : (activeGroup !== 'all' ? EMPTY_ICONS.folder : EMPTY_ICONS.links);
 
@@ -81,24 +82,26 @@ function bucketBySectionForActiveGroup(filteredLinks) {
     }));
     const total = own.length + subs.reduce((n, x) => n + x.links.length, 0);
     if (total === 0) continue;
-    out.push({ kind: 'heading', label: s.name, count: total, level: 0 });
+    out.push({ kind: 'heading', label: s.name, count: total, level: 0, id:s.id });
     if (own.length) out.push({ kind: 'links', items: own });
     for (const { sub, links } of subs) {
       if (!links.length) continue;
-      out.push({ kind: 'heading', label: sub.name, count: links.length, level: 1 });
+      out.push({ kind: 'heading', label: sub.name, count: links.length, level: 1, id:sub.id });
       out.push({ kind: 'links', items: links });
     }
   }
   return out;
 }
 
-function appendSectionHeading(grid, label, count, level = 0) {
+function appendSectionHeading(grid, label, count, level = 0, id = null) {
   const heading = document.createElement('div');
   heading.className = 'section-heading' + (level > 0 ? ' subsection-heading' : '');
+  if(id){heading.id='section-'+id;heading.dataset.sectionId=id;}
   heading.innerHTML = `
     <span class="section-heading-text">${escapeHtml(label)}</span>
     <span class="section-heading-count">${count}</span>`;
   grid.appendChild(heading);
+  if(id&&window.LinkPageNavigation){const button=document.createElement('button');button.type='button';button.className='lp-section-share';button.textContent='↗';button.title='Share this section';button.setAttribute('aria-label','Share '+label);button.onclick=()=>window.LinkPageNavigation.shareGroup(activeGroup,id);heading.appendChild(button);}
 }
 
 /**
@@ -138,8 +141,6 @@ function renderLinks(transition = false) {
 
   function appendCard(link, i) {
     const card = buildLinkCard(link);
-    card.style.animationDelay = `${Math.min(i * 22, 280)}ms`;
-    card.classList.add('card-animate');
     grid.appendChild(card);
   }
 
@@ -169,7 +170,7 @@ function renderLinks(transition = false) {
       let i = 0;
       for (const entry of entries) {
         if (entry.kind === 'heading') {
-          appendSectionHeading(grid, entry.label, entry.count, entry.level || 0);
+          appendSectionHeading(grid, entry.label, entry.count, entry.level || 0, entry.id);
         } else if (entry.kind === 'links') {
           for (const link of entry.items) appendCard(link, i++);
         }
@@ -180,20 +181,9 @@ function renderLinks(transition = false) {
     if (addable) appendAddLinkCard(grid, addable, filtered.length);
   }
 
-  if (transition) {
-    grid.style.opacity       = '0';
-    emptyState.style.opacity = '0';
-    clearTimeout(renderTransitionTimer);
-    renderTransitionTimer = setTimeout(() => {
-      doRender();
-      grid.style.opacity       = '';
-      emptyState.style.opacity = '';
-      maybeAutoOpenGroupDoc();
-    }, 100);
-  } else {
-    doRender();
-    maybeAutoOpenGroupDoc();
-  }
+  clearTimeout(renderTransitionTimer);
+  grid.style.opacity='';emptyState.style.opacity='';
+  doRender();window.LinkPageMotion?.enterView(grid,String(activeGroup)+':'+grid.dataset.layout);maybeAutoOpenGroupDoc();
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────

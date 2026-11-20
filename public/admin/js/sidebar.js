@@ -320,7 +320,8 @@ function renderSidebar() {
       const fi = groups.findIndex(g => g.id === draggedGroupId);
       const ti = groups.findIndex(g => g.id === gid);
       const [m] = groups.splice(fi, 1); groups.splice(ti, 0, m);
-      renderSidebar(); reorderGroupsApi(groups.map(g => g.id));
+      const settle=window.LinkPageMotion?.capture(nav,'.group-nav-item',el=>el.dataset.groupId);
+      renderSidebar();settle?.();reorderGroupsApi(groups.map(g => g.id));
     });
   });
 
@@ -385,6 +386,7 @@ function renderSidebar() {
 
       const group = groups.find(g => g.id === gid);
       if (!group || !Array.isArray(group.sections)) return;
+      const settle=window.LinkPageMotion?.capture(nav,'.section-nav-item',el=>el.dataset.sectionId);
 
       if (isSub) {
         const parentId = findSectionParentId(gid, sid);
@@ -395,7 +397,7 @@ function renderSidebar() {
         if (fi === -1 || ti === -1) return;
         const [moved] = parent.subsections.splice(fi, 1);
         parent.subsections.splice(ti, 0, moved);
-        renderSidebar();
+        renderSidebar();settle?.();
         reorderSectionsApi(parent.subsections.map(s => s.id));
       } else {
         const fi = group.sections.findIndex(s => s.id === draggedSectionId);
@@ -403,7 +405,7 @@ function renderSidebar() {
         if (fi === -1 || ti === -1) return;
         const [moved] = group.sections.splice(fi, 1);
         group.sections.splice(ti, 0, moved);
-        renderSidebar();
+        renderSidebar();settle?.();
         reorderSectionsApi(group.sections.map(s => s.id));
       }
     });

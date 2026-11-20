@@ -6,11 +6,14 @@ data
 .codex/
 .agents/
 .DS_Store
+.env
+.env.*
 linkPagePrints/
 linkpage_data/
 data.backup-*/
 tests/
-scripts/
+scripts/*
+!scripts/migrate-postgres.cjs
 publish_commands.md
 *.md
 # …except the changelog, which /api/changelog parses at runtime.

@@ -12,15 +12,18 @@
  * missing browser is a broken pipeline and fails loudly.
  */
 
-const { chromium } = require('playwright-core');
+const engines = require('playwright-core');
 
 const INSTALL_HINT = 'no browser: run `npx playwright-core install chromium-headless-shell`, '
                    + 'or set LINKPAGE_BROWSER_PATH';
 
 async function launchBrowser() {
+  const name=process.env.LINKPAGE_BROWSER||'chromium';
+  if(!['chromium','firefox','webkit'].includes(name))throw new Error('Choose LINKPAGE_BROWSER=chromium, firefox or webkit');
   try {
-    return await chromium.launch({
+    return await engines[name].launch({
       headless: true,
+      channel:process.env.LINKPAGE_BROWSER_CHANNEL||undefined,
       executablePath: process.env.LINKPAGE_BROWSER_PATH || undefined,
     });
   } catch (err) {

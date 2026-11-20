@@ -19,7 +19,7 @@ permissions:
   contents: write
 
 jobs:
-  # API test suite. Everything downstream depends on this, so a red test never
+  # API and Chromium suite. Downstream release jobs require this, so a red test never
   # ships an image and never cuts a release.
   test:
     runs-on: ubuntu-latest
@@ -50,14 +50,81 @@ jobs:
       - name: Run browser tests
         run: npm run test:browser
 
+  cross_browser_test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Install browser engine
+        run: npx playwright-core install --with-deps ${{ matrix.browser }}
+      - name: Test public, admin and narrow-screen flows
+        env:
+          LINKPAGE_BROWSER: ${{ matrix.browser }}
+        run: node --test tests/browser/release.browser.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-${{ matrix.browser }}-validation
+          path: .cache/browser-*-release.json
+
+  production_test:
+    if: github.event_name == 'push'
+    needs: [test, postgres_test, cross_browser_test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build release candidate
+        run: docker build -t linkpage:$(node -p "require('./package.json').version")-candidate .
+      - name: Verify SQLite upgrade, PostgreSQL import and backup recovery
+        run: node scripts/production-smoke.cjs
+
   # Trivy scans the lockfiles for CVEs and the Dockerfile for a vulnerable
   # base image. A single CRITICAL finding fails the job, which fails the build
   # job behind it — no image is pushed with a known critical vulnerability.
   # `ignore-unfixed` keeps the gate honest: it only trips on CVEs that have a
   # fix available, so an unfixable advisory does not permanently block releases.
+  postgres_test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: linkpage
+          POSTGRES_DB: linkpage_test
+          POSTGRES_PASSWORD: linkpage-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U linkpage -d linkpage_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Run PostgreSQL regression suite
+        env:
+          LINKPAGE_TEST_POSTGRES_URL: postgresql://linkpage:linkpage-ci-only@127.0.0.1:5432/linkpage_test
+        run: npm run test:postgres
+
   security:
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [test, postgres_test, cross_browser_test]
 
     steps:
       - name: Checkout
@@ -117,14 +184,18 @@ jobs:
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: [test, security, verify-tag]
+    needs: [test, postgres_test, cross_browser_test, production_test, security, verify-tag]
     # No green tests, a CRITICAL CVE in Trivy, or a mistyped tag → no image.
-    # verify-tag is skipped on branch pushes, which must not block them — hence
-    # the explicit result checks. A PR run stops after `test` + `security`.
+    # Branch pushes verify the candidate; only stable version tags publish.
+    # Pull requests stop after verification and security checks.
     if: |
       always() &&
       github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v') &&
+      needs.cross_browser_test.result == 'success' &&
+      needs.production_test.result == 'success' &&
       needs.test.result == 'success' &&
+      needs.postgres_test.result == 'success' &&
       needs.security.result == 'success' &&
       (needs.verify-tag.result == 'success' || needs.verify-tag.result == 'skipped')
     runs-on: ubuntu-latest
@@ -147,17 +218,16 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Derives tags automatically:
-      #   push to main      → tomasneto26/linkpage:latest
+      #   push to main      → verification only
       #   push tag v1.2.3   → tomasneto26/linkpage:1.2.3 + tomasneto26/linkpage:1.2
-      # `latest` tracks main only (is_default_branch), so a release means pushing
-      # the merge to main *and* the tag — see "Releasing" in the README.
+      # Only verified stable release tags publish an image, including latest.
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: tomasneto26/linkpage
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 

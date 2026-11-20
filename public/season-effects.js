@@ -45,14 +45,17 @@
   function sync() {
     root.dataset.seasonPaused = document.hidden ? 'on' : 'off';
     const host = gates.find(gate => !gate.classList.contains('hidden')) || document.body;
-    render('page', host, root.dataset.season, root.dataset.seasonEffects !== 'off');
+    const custom=(root.dataset.ambient&&root.dataset.ambient!=='off')||document.body.classList.contains('has-wallpaper');
+    const seasonAllowed=!custom||['particles','season'].includes(root.dataset.ambientBlend);
+    render('page', host, root.dataset.season, root.dataset.seasonEffects !== 'off'&&seasonAllowed);
     render('preview', showcase, showcase?.dataset.seasonPreview, showcase?.dataset.seasonEffectsPreview !== 'off');
     for (const { element } of layers.values()) element.classList.toggle('is-paused', document.hidden);
     const note = document.getElementById('seasonMotionNote');
     if (note) note.hidden = !motion.matches;
   }
   const observer = new MutationObserver(sync);
-  observer.observe(root, { attributes: true, attributeFilter: ['data-season', 'data-season-effects'] });
+  observer.observe(root, { attributes: true, attributeFilter: ['data-season', 'data-season-effects','data-ambient','data-ambient-blend'] });
+  observer.observe(document.body,{attributes:true,attributeFilter:['class']});
   if (showcase) observer.observe(showcase, { attributes: true, attributeFilter: ['data-season-preview', 'data-season-effects-preview'] });
   for (const gate of gates) observer.observe(gate, { attributes: true, attributeFilter: ['class'] });
   motion.addEventListener('change', sync);

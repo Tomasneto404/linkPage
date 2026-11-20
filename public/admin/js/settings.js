@@ -532,7 +532,11 @@ function hydrateThemeControls(s) {
   document.getElementById('lightVariantSelect').value = s.theme_light_variant || 'default';
   document.getElementById('darkVariantSelect').value  = s.theme_dark_variant  || 'default';
   document.getElementById('defaultThemeSelect').value = s.default_theme || 'system';
+  document.getElementById('motionStyleSelect').value=s.motion_style||'subtle';
+  document.getElementById('ambientBackgroundSelect').value=s.ambient_background||'off';
+  document.getElementById('ambientBlendSelect').value=s.ambient_blend||'separate';
   document.getElementById('mobileNavSelect').value    = s.mobile_nav_position || 'top';
+  window.LinkPageAmbientEditor.mount(document.getElementById('ambientEffectsEditor'),s,{onSave:async patch=>{await saveTheme(patch);applyThemeSettings(await fetchSettings());}});
   hydrateSeasonEditor(s);
 }
 
@@ -559,12 +563,28 @@ document.getElementById('accentGlowToggle').addEventListener('change', e => {
     .catch(() => { e.target.checked = !e.target.checked; showToast('Could not save setting', 'error'); });
 });
 
-// Settings sidebar tabs: swap the visible panel.
-document.getElementById('settingsNav').addEventListener('click', e => {
-  const tab = e.target.closest('.settings-tab');
-  if (!tab) return;
-  const id = tab.dataset.tab;
-  document.querySelectorAll('#settingsNav .settings-tab').forEach(t => t.classList.toggle('active', t === tab));
+// Use the same navigation state for the desktop sidebar and phone picker.
+const settingsCategories={
+  branding:['image','Your page name, logos and header icon.'],themes:['sun','Colours, motion and the default appearance for visitors.'],seasons:['calendar','Seasonal scenes and the dates when they appear.'],publicpage:['document','How links and documents appear on the public page.'],icons:['image','Stored icons and favicon preferences.'],public:['lock','Who can open the page and its shared resources.'],users:['users','Accounts, invitations and storage limits.'],sso:['key','Connect an OpenID Connect sign-in provider.'],mail:['mail','Email delivery for invitations and account recovery.'],contributions:['edit','Who can contribute links and files.'],requests:['document','How visitors suggest resources for review.'],ipattribution:['network','Friendly names for addresses in click reports.'],security:['shield','Administrative access and security controls.'],about:['info','Version, licence and project information.'],
+};
+const settingsCategorySelect=document.getElementById('settingsCategorySelect');
+function decorateSettingsNavigation(){
+for(const tab of document.querySelectorAll('#settingsNav .settings-tab')){
+  const id=tab.dataset.tab,label=tab.textContent.trim(),[glyph,description]=settingsCategories[id];
+  settingsCategorySelect.add(new Option(label,id));
+  tab.innerHTML=window.LinkPageIcons.svg(glyph,16)+'<span>'+escapeHtml(label)+'</span>';
+  tab.setAttribute('aria-controls','settingsPanel-'+id);
+  const panel=document.querySelector(`#settingsPanels [data-panel="${id}"]`);panel.id='settingsPanel-'+id;
+  if(id!=='seasons'){
+    const heading=document.createElement('div');heading.className='settings-panel-heading';heading.innerHTML='<h3>'+escapeHtml(label)+'</h3><p>'+escapeHtml(description)+'</p>';panel.prepend(heading);
+  }
+}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',decorateSettingsNavigation,{once:true});else decorateSettingsNavigation();
+function selectSettingsCategory(id){
+  const tab=document.querySelector(`#settingsNav [data-tab="${id}"]`);if(!tab)return;
+  settingsCategorySelect.value=id;
+  document.querySelectorAll('#settingsNav .settings-tab').forEach(t => {t.classList.toggle('active', t === tab);t.setAttribute('aria-current',t===tab?'page':'false');});
   document.querySelectorAll('#settingsPanels .settings-panel')
     .forEach(p => p.classList.toggle('active', p.dataset.panel === id));
   document.getElementById('settingsPanels').scrollTop = 0;
@@ -573,12 +593,15 @@ document.getElementById('settingsNav').addEventListener('click', e => {
   if (id === 'sso')           loadSsoSettings();
   if (id === 'mail')          loadMailSettings();
   if (id === 'contributions') loadContributions();
-});
+}
+document.getElementById('settingsNav').addEventListener('click', e => {const tab=e.target.closest('.settings-tab');if(tab)selectSettingsCategory(tab.dataset.tab);});
+settingsCategorySelect.addEventListener('change',()=>selectSettingsCategory(settingsCategorySelect.value));
 
 // Always open the settings modal on the first tab.
 function resetSettingsTabs() {
+  settingsCategorySelect.value='branding';
   const tabs = document.querySelectorAll('#settingsNav .settings-tab');
-  tabs.forEach((t, i) => t.classList.toggle('active', i === 0));
+  tabs.forEach((t, i) => {t.classList.toggle('active', i === 0);t.setAttribute('aria-current',i===0?'page':'false');});
   document.querySelectorAll('#settingsPanels .settings-panel')
     .forEach((p, i) => p.classList.toggle('active', i === 0));
 }
@@ -595,10 +618,15 @@ document.getElementById('darkVariantSelect').addEventListener('change', e => {
   saveTheme({ dark_variant: e.target.value }).then(() => showToast('Dark palette updated'));
 });
 
-document.getElementById('defaultThemeSelect').addEventListener('change', e => {
-  themeSettings.default = e.target.value;
-  saveTheme({ default_theme: e.target.value }).then(() => showToast('Default theme updated'));
+document.getElementById('defaultThemeSelect').addEventListener('change',async e=>{
+  const control=e.target,previous=themeSettings.default;control.disabled=true;
+  try{await saveTheme({default_theme:control.value});applyThemeSettings(await fetchSettings());showToast('Default theme updated');}
+  catch{control.value=previous;showToast('Could not save the default theme','error');}
+  finally{control.disabled=false;}
 });
+document.getElementById('motionStyleSelect').addEventListener('change',async event=>{try{await saveTheme({motion_style:event.target.value});const settings=await fetchSettings();applyThemeSettings(settings);showToast('Motion style updated');}catch{showToast('Could not save the motion style','error');}});
+document.getElementById('ambientBackgroundSelect').addEventListener('change',async event=>{try{await saveTheme({ambient_background:event.target.value});const settings=await fetchSettings();applyThemeSettings(settings);showToast('Background updated');}catch{showToast('Could not save the background','error');}});
+document.getElementById('ambientBlendSelect').addEventListener('change',async event=>{try{await saveTheme({ambient_blend:event.target.value});const settings=await fetchSettings();applyThemeSettings(settings);showToast('Background composition updated');}catch{showToast('Could not save the composition','error');}});
 
 document.getElementById('mobileNavSelect').addEventListener('change', e => {
   saveTheme({ mobile_nav_position: e.target.value })

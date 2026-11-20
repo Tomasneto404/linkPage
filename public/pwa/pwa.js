@@ -52,7 +52,7 @@
       const steps = ios ? '<li>Open this page in Safari.</li><li>Tap the Share button, then <strong>Add to Home Screen</strong>.</li><li>Keep <strong>Open as Web App</strong> enabled if shown, then tap <strong>Add</strong>.</li>'
         : safari ? '<li>Open the <strong>File</strong> menu in Safari.</li><li>Choose <strong>Add to Dock</strong> and confirm.</li>'
         : '<li>Open your browser’s menu.</li><li>Choose <strong>Install LinkPage</strong>, <strong>Install app</strong> or <strong>Add to Home Screen</strong>, if available.</li>';
-      dialog.innerHTML = '<img src="/pwa/icon-192.png" width="60" height="60" alt=""><h2 id="pwaInstallTitle">Your workspace, one tap away.</h2><p>Install LinkPage to open it in its own window from your home screen or dock.</p><ol>' + steps + '</ol><small>A connection is needed for links, documents and changes. Your account and group permissions still apply.</small><button type="button">Done</button>';
+      dialog.innerHTML = '<img src="/pwa/icon-192.png" width="60" height="60" alt=""><h2 id="pwaInstallTitle">Install LinkPage</h2><p>Install LinkPage to open it in its own window from your home screen or dock.</p><ol>' + steps + '</ol><small>A connection is needed for links, documents and changes. Your account and group permissions still apply.</small><button type="button">Done</button>';
       dialog.querySelector('button').onclick = () => dialog.close();
       dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
       document.body.appendChild(dialog);

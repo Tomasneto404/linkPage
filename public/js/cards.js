@@ -183,7 +183,7 @@ function linkHref(link) {
 function markdownHref(link, { embed = false } = {}) {
   const base = linkHref(link);
   const join = base.includes('?') ? '&' : '?';
-  return `${base}${join}theme=${currentThemeName()}${embed ? '&embed=1' : ''}`;
+  return `${base}${join}theme=${currentThemeName()}&ambient=${document.documentElement.dataset.ambient||'off'}&motion=${document.documentElement.dataset.motion||'subtle'}&blend=${document.documentElement.dataset.ambientBlend||'separate'}${window.LinkPageTheme?.ambientQuery?.()||''}${embed ? '&embed=1' : ''}`;
 }
 
 /**
@@ -301,6 +301,7 @@ document.getElementById('mdViewerOpenTab')?.addEventListener('click', closeMarkd
 function buildLinkCard(link) {
   const card    = document.createElement('a');
   card.className = 'link-card';
+  card.dataset.linkId=String(link.id);
   card.target    = '_blank';
   card.rel       = 'noopener noreferrer';
   // A custom slug is the nicer front door when the link has one; /r/<id> is
@@ -375,6 +376,7 @@ function buildLinkCard(link) {
 
   if (currentUser && !isPersonal(link)) addStarButton(card, link);
   if (activeGroup === 'fav' && favoriteIds.includes(link.id)) wireFavoriteDrag(card, link);
+  else if (!isPersonal(link) && isGlobalPageAdmin()) wireSharedAdminDrag(card, link);
   if (isPersonal(link) && typeof activeGroup === 'string' && activeGroup.startsWith('u')) {
     wirePersonalDrag(card, link);
   }
@@ -402,6 +404,9 @@ function buildLinkCard(link) {
     card.insertBefore(edit, card.querySelector('.link-copy-btn'));
   }
 
+  const tools=document.createElement('div');tools.className='lp-card-tools';
+  card.querySelectorAll(':scope > .link-copy-btn,:scope > .link-edit-btn,:scope > .link-fav-btn,:scope > .link-arrow').forEach(element=>tools.appendChild(element));
+  card.appendChild(tools);
   return card;
 }
 

@@ -43,11 +43,12 @@ document.addEventListener('drop',     e => { if (dragging) e.preventDefault(); }
  * are shown; `save(newOrder)` applies and persists a new one, and reports
  * whether it worked.
  */
-function wireCardDrag(card, link, { zone, order, save }) {
+function wireCardDrag(card, link, { zone, order, save, swap }) {
   card.draggable = true;
-  dragWiring.set(card, { link, zone, order, save });
+  dragWiring.set(card, { link, zone, order, save, swap });
   wireTouchDrag(card);
   card.addEventListener('dragstart', e => {
+    if(e.target.closest('button,input,select,textarea,summary')){e.preventDefault();return;}
     dragging = { id: link.id, zone };
     card.classList.add('is-dragging');
     e.dataTransfer.effectAllowed = 'move';
@@ -86,10 +87,17 @@ async function dropOnCard(card, movingId) {
   card.classList.remove('drop-before', 'drop-after');
   if (!target) return;
 
+  if(target.swap){
+    const settle=window.LinkPageMotion?.capture(document.getElementById('linksGrid'),'.link-card',el=>el.dataset.linkId);
+    try{if(!await target.swap(movingId,target.link.id))showToast('Could not exchange those links',{type:'error'});else settle?.();}
+    catch{showToast('Could not exchange those links',{type:'error'});}return;
+  }
+
   const next = target.order().filter(id => id !== movingId);
   next.splice(next.indexOf(target.link.id) + (after ? 1 : 0), 0, movingId);
-
-  if (!await target.save(next)) showToast('Could not save that order', { type: 'error' });
+  const settle=window.LinkPageMotion?.capture(document.getElementById('linksGrid'),'.link-card',el=>el.dataset.linkId);
+  const saving=target.save(next);settle?.();
+  if (!await saving) showToast('Could not save that order', { type: 'error' });
 }
 
 /**
@@ -138,6 +146,7 @@ function wireTouchDrag(card) {
   };
 
   card.addEventListener('touchstart', e => {
+    if(e.target.closest('button,input,select,textarea,summary'))return stop();
     if (e.touches.length !== 1) return stop();
     const t = e.touches[0];
     start = { x: t.clientX, y: t.clientY };
@@ -213,6 +222,14 @@ function wireFavoriteDrag(card, link) {
       return false;
     },
   });
+}
+
+/** Administrators exchange shared cards, including section slots in this group. */
+function wireSharedAdminDrag(card,link){
+  wireCardDrag(card,link,{zone:'admin-shared:'+String(activeGroup),swap:async(first,second)=>{
+    const response=await myRequest('/api/links/swap',{json:{first_id:first,second_id:second,group_id:Number.isInteger(activeGroup)?activeGroup:null}});
+    if(!response.ok)return false;await loadData();return true;
+  }});
 }
 
 /**

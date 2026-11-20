@@ -15,6 +15,7 @@ const SSE_BROADCAST_SKIP = new Set([
   '/api/events',
   '/api/auth/verify',
   '/api/auth/verify-public',
+  '/api/workspace/search/recent',
   // Recorded by the controller when a link is actually sent; an entry for every
   // request would be a log of strangers typing addresses.
   '/api/auth/forgot-password',
@@ -46,6 +47,8 @@ const isPersonal = p => p.startsWith('/api/my/') || p.startsWith('/api/workspace
 
 function auditAndBroadcast(req, res, next) {
   if (!req.path.startsWith('/api/')) return next();
+  // Refreshes and personal read markers do not change the shared dashboard.
+  if(/^\/api\/widgets\/\d+\/(?:refresh|read)$/.test(req.path))return next();
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
   if (SSE_BROADCAST_SKIP.has(req.path)) return next();
   if (/^\/api\/groups\/\d+\/unlock$/.test(req.path)) return next();

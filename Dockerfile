@@ -14,6 +14,7 @@ RUN npm ci --omit=dev
 
 COPY src/ ./src/
 COPY public/ ./public/
+COPY scripts/migrate-postgres.cjs ./scripts/migrate-postgres.cjs
 # Served to the admin sidebar through /api/changelog.
 COPY CHANGELOG.md ./
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

@@ -93,14 +93,14 @@ describe('it agrees with the copy the sign-in screens use', () => {
   // so run the whole file with just enough of a window to hold it.
   function signInCopy() {
     const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'theme-boot.js'), 'utf8');
-    const root = { setAttribute() {}, style: { setProperty() {}, removeProperty() {} } };
+    const root = { dataset:{},hasAttribute:()=>false,removeAttribute(){},setAttribute() {}, style: { setProperty() {}, removeProperty() {} } };
     const context = {
       window:    {},
       setInterval() {},
       document:  { addEventListener() {}, documentElement: root, getElementById: () => null, body: { classList: { add() {}, remove() {} } } },
       localStorage: { getItem: () => null, setItem() {} },
     };
-    context.window.matchMedia = () => ({ matches: false });
+    context.window.matchMedia = () => ({ matches: false,addEventListener(){} });
     vm.createContext(context);
     vm.runInContext(src, context);
     return context.window.LinkPageTheme;

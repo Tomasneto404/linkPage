@@ -65,7 +65,7 @@ let cachedTokens = null;
 function themeTokens() {
   if (cachedTokens !== null) return cachedTokens;
   try {
-    cachedTokens = ['theme-tokens.css', 'seasons.css', 'season-backgrounds.css']
+    cachedTokens = ['theme-tokens.css', 'seasons.css', 'season-backgrounds.css', 'ambient.css']
       .map(file => fs.readFileSync(path.join(PUBLIC_DIR, file), 'utf8')).join('\n');
     // A direct Markdown URL has no browser preference in its query. CSS can
     // follow the OS without opening this sandbox to scripts or local storage.
@@ -195,10 +195,13 @@ function renderMarkdownPage({ title, body, theme, embed = false, palette = {}, r
   const themeAttr = pageTheme ? ` data-theme="${pageTheme}"` : '';
   const season = calendar.names.includes(palette.season_theme) ? palette.season_theme : 'none';
   const background = ['static', 'animated'].includes(palette.season_background) ? palette.season_background : 'minimal';
+  const ambient=['off','aurora','mesh','waves','starlight','orbital','prism','custom'].includes(readerQuery.ambient)?readerQuery.ambient:['off','aurora','mesh','waves','starlight','orbital','prism','custom'].includes(palette.ambient_background)?palette.ambient_background:'off';
+  const blend=['separate','particles','season'].includes(readerQuery.blend)?readerQuery.blend:['particles','season'].includes(palette.ambient_blend)?palette.ambient_blend:'separate';
+  const motion=['off','subtle','smooth','spring'].includes(readerQuery.motion)?readerQuery.motion:palette.motion_style||'subtle';
   const seasonAttrs = (season === 'none' ? '' : ` data-season="${season}"`)
     + ` data-season-background="${background}" data-season-effects="${palette.season_effects === false ? 'off' : 'on'}"`;
   const config = particles.configs[season];
-  const effects = config && palette.season_effects !== false
+  const effects = config && palette.season_effects !== false && (ambient==='off'||blend!=='separate')
     ? `<div id="seasonEffects" class="season-effects season-effects-${config.kind}" data-effect="${season}" aria-hidden="true" inert>${particles.markup(season)}</div>` : '';
 
   // Both variants ride along, exactly as they do on the site: which one
@@ -211,7 +214,8 @@ function renderMarkdownPage({ title, body, theme, embed = false, palette = {}, r
     accentDarkAdjust: palette.accentDarkAdjust,
     dark:             pageTheme === 'dark',
   });
-  const styleAttr = accent ? ` style="${accent}"` : '';
+  const ambientOptions=require('../../public/ambient-settings').read({...palette,...(readerQuery.speed!==undefined?{ambient_speed:readerQuery.speed}:{}),...(readerQuery.effect!==undefined?{ambient_effect:readerQuery.effect}:{}),...(readerQuery.colors!==undefined?{ambient_colors:readerQuery.colors}:{})});
+  const styleAttr = ` style="${accent||''};${require('../../public/ambient-settings').css(ambientOptions)}"`;
   const systemDarkAccent = !pageTheme && palette.accent && palette.accentDarkAdjust
     ? `@media (prefers-color-scheme: dark) { :root:not([data-theme]) { ${accentVariables({ accent: palette.accent, accentDarkAdjust: true, dark: true }).replaceAll(';', ' !important;')} } }` : '';
   // Embedded in the site's overlay: the modal already provides the frame and
@@ -219,7 +223,7 @@ function renderMarkdownPage({ title, body, theme, embed = false, palette = {}, r
   const shellClass = embed ? 'md-shell is-embedded' : 'md-shell';
   const backLink   = embed ? '' : '\n  <a class="md-back" href="/">&larr; Back</a>';
   return `<!DOCTYPE html>
-<html lang="en"${themeAttr}${variantAttrs}${seasonAttrs}${reading.attributes}${styleAttr}>
+<html lang="en"${themeAttr}${variantAttrs}${seasonAttrs}${reading.attributes}${styleAttr} data-ambient="${ambient}" data-ambient-effect="${ambientOptions.ambient_effect}" data-motion="${['off','subtle','smooth','spring'].includes(motion)?motion:'subtle'}" data-ambient-blend="${blend}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -229,6 +233,7 @@ function renderMarkdownPage({ title, body, theme, embed = false, palette = {}, r
 </head>
 <body>
 <div class="season-backdrop" aria-hidden="true"></div>
+<div class="ambient-scene" aria-hidden="true" inert>${require('../../public/scene-geometry').markup()}</div>
 ${effects}
 <div class="${shellClass}">${backLink}
 ${reading.toolbar}
@@ -253,6 +258,10 @@ function instancePalette() {
     darkVariant:      db.readSetting('theme_dark_variant')  || 'default',
     accent:           db.readSetting('accent_color') || null,
     accentDarkAdjust: db.readSetting('accent_dark_adjust') === '1',
+    ambient_background:db.readSetting('ambient_background')||'off',
+    ...require('../../public/ambient-settings').read({ambient_speed:db.readSetting('ambient_speed'),ambient_colors:db.readSetting('ambient_colors'),ambient_effect:db.readSetting('ambient_effect')}),
+    ambient_blend:db.readSetting('ambient_blend')||'separate',
+    motion_style:db.readSetting('motion_style')||'subtle',
   };
 }
 

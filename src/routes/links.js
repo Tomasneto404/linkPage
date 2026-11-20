@@ -13,6 +13,7 @@ const router = express.Router();
 router.get ('/api/links/export',       requireAdmin, links.exportLinks);
 router.post('/api/links/import',       requireAdmin, links.importLinks);
 router.post('/api/links/reorder',      requireAdmin, links.reorder);
+router.post('/api/links/swap',         requireAdmin, links.swap);
 router.post('/api/links/bulk-delete',  requireAdmin, links.bulkDelete);
 
 // Public read.

@@ -85,6 +85,7 @@ async function start({ stubFavicons = true } = {}) {
   process.env.DATA_DIR    = dataDir;
   process.env.UPLOADS_DIR = path.join(dataDir, 'uploads');
   process.env.PRIVATE_UPLOADS_DIR = path.join(dataDir, 'private-uploads');
+  if(process.env.LINKPAGE_TEST_POSTGRES_URL){process.env.DATABASE_URL=process.env.LINKPAGE_TEST_POSTGRES_URL;process.env.DATABASE_SCHEMA='lp_test_'+require('node:crypto').randomUUID().replaceAll('-','');}
   captureConsole();
   if (stubFavicons) stubFaviconService();
 
@@ -104,6 +105,7 @@ async function stop() {
   }
   openReaders.clear();
   if (server) await new Promise(resolve => server.close(resolve));
+  if(process.env.LINKPAGE_TEST_POSTGRES_URL){const db=require('../../src/config/db').db;db.exec(`DROP SCHEMA "${db.schema}" CASCADE`);db.destroy();}
   if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
   restoreConsole();
 }

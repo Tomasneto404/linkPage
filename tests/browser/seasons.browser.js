@@ -37,7 +37,7 @@ for (const width of [1280, 390]) {
     await page.locator('#adminWrap').waitFor({ state: 'visible' });
     // On a phone the Settings action lives in the overflow menu.
     await page.evaluate(() => document.getElementById('openSettingsBtn').click());
-    await page.click('[data-tab="seasons"]');
+    await page.locator('#settingsOverlay').waitFor({state:'visible'});if(await page.locator('#settingsCategorySelect').isVisible())await page.selectOption('#settingsCategorySelect','seasons');else await page.click('[data-tab="seasons"]');
     await page.click('[data-season-choice="christmas"]');
     assert.equal(await page.locator('html').getAttribute('data-season'), null, 'draft is local');
     await page.locator('#seasonShowcase .season-effects[data-effect="christmas"]').waitFor();
@@ -74,7 +74,7 @@ for (const width of [1280, 390]) {
     assert.equal((await c.pub('/api/settings')).body.season_schedule.enabled, true);
     await page.reload();
     await page.evaluate(() => document.getElementById('openSettingsBtn').click());
-    await page.click('[data-tab="seasons"]');
+    await page.locator('#settingsOverlay').waitFor({state:'visible'});if(await page.locator('#settingsCategorySelect').isVisible())await page.selectOption('#settingsCategorySelect','seasons');else await page.click('[data-tab="seasons"]');
     assert.equal(await page.locator('#seasonAutoToggle').isChecked(), true);
     assert.equal(await page.locator('[data-season-choice="christmas"]').getAttribute('aria-pressed'), 'true');
     const overflow = await page.locator('#settingsPanels').evaluate(el => el.scrollWidth > el.clientWidth + 1);
@@ -90,9 +90,9 @@ for (const width of [1280, 390]) {
     assert.equal((await c.pub('/api/settings')).body.season_effects, false);
     await page.reload();
     await page.evaluate(() => document.getElementById('openSettingsBtn').click());
-    await page.click('[data-tab="seasons"]');
+    await page.locator('#settingsOverlay').waitFor({state:'visible'});if(await page.locator('#settingsCategorySelect').isVisible())await page.selectOption('#settingsCategorySelect','seasons');else await page.click('[data-tab="seasons"]');
     assert.equal(await page.locator('#seasonEffectsToggle').isChecked(), false);
-    await page.click('[data-tab="sso"]');
+    await page.locator('#settingsOverlay').waitFor({state:'visible'});if(await page.locator('#settingsCategorySelect').isVisible())await page.selectOption('#settingsCategorySelect','sso');else await page.click('[data-tab="sso"]');
     assert.doesNotMatch(await page.locator('[data-panel="sso"]').textContent(), /beta|being tested/i);
     assert.deepEqual(errors, []);
     await context.close();
@@ -219,7 +219,7 @@ for (const width of [1280, 390]) {
     await Promise.all([page.waitForURL('**/admin/**'), page.click('#signInBtn')]);
     await page.locator('#adminWrap').waitFor({ state: 'visible' });
     await page.evaluate(() => document.getElementById('openSettingsBtn').click());
-    await page.click('[data-tab="seasons"]');
+    await page.locator('#settingsOverlay').waitFor({state:'visible'});if(await page.locator('#settingsCategorySelect').isVisible())await page.selectOption('#settingsCategorySelect','seasons');else await page.click('[data-tab="seasons"]');
     for (const mode of ['static', 'animated', 'minimal']) {
       const before = await page.locator('html').getAttribute('data-season-background');
       await page.click(`[data-background="${mode}"]`);
